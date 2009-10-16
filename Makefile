@@ -210,6 +210,7 @@ qemu-io$(EXESUF):  qemu-io.o qemu-tool.o cmd.o $(block-obj-y)
 qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $@")
 
+check-json: check-json.o qint.o qstring.o qdict.o qlist.o qemu-malloc.o
 check-qint: check-qint.o qint.o qstring.o qemu-malloc.o
 check-qstring: check-qstring.o qstring.o qemu-malloc.o
 check-qdict: check-qdict.o qdict.o qint.o qstring.o qemu-malloc.o
