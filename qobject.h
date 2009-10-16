@@ -44,6 +44,10 @@ typedef enum {
 } qtype_code;
 
 struct QObject;
+struct QInt;
+struct QString;
+struct QDict;
+struct QList;
 
 typedef struct QType {
     qtype_code code;
