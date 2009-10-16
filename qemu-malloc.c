@@ -70,6 +70,14 @@ void *qemu_mallocz(size_t size)
     return ptr;
 }
 
+void *qemu_memdup(const void *str, size_t n)
+{
+    char *ptr;
+    ptr = qemu_malloc(n);
+    memcpy(ptr, str, n);
+    return ptr;
+}
+
 char *qemu_strdup(const char *str)
 {
     char *ptr;
