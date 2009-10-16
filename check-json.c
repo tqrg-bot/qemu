@@ -21,6 +21,13 @@
     QDECREF(result);                                            \
   } while (0)
 
+#define format_expect(qobj, format, expected)                   \
+  do {                                                          \
+    QString *result = qstring_format (format, qobj);            \
+    fail_unless (!strcmp (qstring_get_str (result), expected)); \
+    QDECREF(result);                                            \
+  } while (0)
+
 START_TEST(qint_json_test)
 {
     QInt *qi;
@@ -88,6 +95,37 @@ START_TEST(nested_json_test)
 }
 END_TEST
 
+START_TEST(format_test)
+{
+    QDict *qdict_in, *qdict_out;
+    QList *qlist;
+
+    format_expect(NULL, "test", "test");
+    format_expect(NULL, "test %%", "test %");
+
+    qdict_in = qdict_new();
+    format_expect(qdict_in, "test %%", "test %");
+    format_expect(qdict_in, "test %{} test", "test {} test");
+    format_expect(qdict_in, "%%%{}%%", "%{}%");
+
+    qdict_put_obj(qdict_in, "in", QOBJECT(qint_from_int(42)));
+    format_expect(qdict_in, "%{}", "{\"in\":42}");
+    format_expect(qdict_in, "test %{in} test", "test 42 test");
+
+    qlist = qlist_new();
+    qlist_append(qlist, qdict_in);
+    QINCREF(qlist);
+
+    qdict_out = qdict_new();
+    qdict_put_obj(qdict_out, "list", QOBJECT(qlist));
+    qdict_put_obj(qdict_out, "in", QOBJECT(qdict_in));
+    format_expect(qdict_out, "%{list}", "[{\"in\":42}]");
+    format_expect(qdict_out, "%{in.in}", "42");
+    format_expect(qdict_out, "%{in.in}%{in.in}", "4242");
+    QDECREF(qdict_out);
+}
+END_TEST
+
 static Suite *QObject_json_suite(void)
 {
     Suite *s;
@@ -102,6 +140,7 @@ static Suite *QObject_json_suite(void)
     tcase_add_test(qobject_json_tcase, qdict_json_test);
     tcase_add_test(qobject_json_tcase, qlist_json_test);
     tcase_add_test(qobject_json_tcase, nested_json_test);
+    tcase_add_test(qobject_json_tcase, format_test);
 
     return s;
 }

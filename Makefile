@@ -211,10 +211,10 @@ qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $@")
 
 check-json: check-json.o qint.o qstring.o qdict.o qlist.o qemu-malloc.o
-check-qint: check-qint.o qint.o qstring.o qemu-malloc.o
-check-qstring: check-qstring.o qstring.o qemu-malloc.o
+check-qint: check-qint.o qint.o qstring.o qdict.o qemu-malloc.o
+check-qstring: check-qstring.o qint.o qstring.o qdict.o qemu-malloc.o
 check-qdict: check-qdict.o qdict.o qint.o qstring.o qemu-malloc.o
-check-qlist: check-qlist.o qlist.o qint.o qstring.o qemu-malloc.o
+check-qlist: check-qlist.o qlist.o qint.o qstring.o qdict.o qemu-malloc.o
 
 clean:
 # avoid old build problems by removing potentially incorrect old files

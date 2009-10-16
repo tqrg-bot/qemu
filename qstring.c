@@ -11,6 +11,7 @@
  */
 #include "qobject.h"
 #include "qstring.h"
+#include "qdict.h"
 #include "qemu-common.h"
 
 static void qstring_destroy_obj(QObject *obj);
@@ -79,6 +80,14 @@ QString *qstring_json_from_qobject_obj(const QObject *qobject)
     return qstring;
 }
 
+QString *qstring_format(const char *format, const QDict *root)
+{
+    QString *qstring;
+
+    qstring = qstring_new();
+    qstring_append_format(qstring, format, root);
+    return qstring;
+}
 
 /**
  * qstring_append(): Append a regular C string to a QString
@@ -136,6 +145,48 @@ void qstring_append_escaped(QString *qstring, const char *str)
         qstring_append_ch (qstring, ch);
     }
 }
+
+void qstring_append_format(QString *qstring, const char *format,
+                           const struct QDict *root)
+{
+    char buf[256], *p;
+    while (format && *format) {
+        const QObject *next = QOBJECT(root);
+
+        if (*format != '%' || *++format == '%') {
+            qstring_append_ch (qstring, *format++);
+            continue;
+        }
+        if (*format++ != '{')
+            abort ();
+
+        next = QOBJECT(root);
+        if (*format == '}') {
+            format++;
+        } else {
+            do {
+                if (qobject_type(next) != QTYPE_QDICT) {
+                    format = strchr (format, '}');
+                    if (!format) {
+                            return;
+                    }
+                    next = NULL;
+                } else {
+                    p = buf;
+                    while (*format != '.' && *format != '}')
+                        *p++ = *format++;
+                    *p = 0;
+                    next = qdict_get(qobject_to_qdict(next), buf);
+                }
+            } while (*format++ != '}');
+        }
+
+        if (next) {
+            qobject_encode_json(next, qstring);
+        }
+    }
+}
+
 
 /**
  * qstring_append_ch(): Append a character to a QString
