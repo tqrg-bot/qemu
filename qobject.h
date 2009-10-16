@@ -102,6 +102,8 @@ static inline void qobject_decref(QObject *obj)
  */
 static inline qtype_code qobject_type(const QObject *obj)
 {
+    if (!obj)
+        return QTYPE_NONE;
     assert(obj->type != NULL);
     return obj->type->code;
 }
