@@ -10,14 +10,17 @@
  * the COPYING file in the top-level directory.
  */
 #include "qint.h"
+#include "qstring.h"
 #include "qobject.h"
 #include "qemu-common.h"
 
 static void qint_destroy_obj(QObject *obj);
+static void qint_encode_json(const QObject *obj, QString *str);
 
 static const QType qint_type = {
     .code = QTYPE_QINT,
     .destroy = qint_destroy_obj,
+    .encode_json = qint_encode_json,
 };
 
 /**
@@ -63,4 +66,17 @@ static void qint_destroy_obj(QObject *obj)
 {
     assert(obj != NULL);
     qemu_free(qobject_to_qint(obj));
+}
+
+/**
+ * qint_encode_json(): Encode the integer to JSON on a QString.
+ */
+static void qint_encode_json(const QObject *obj, QString *str)
+{
+    char buf[32];
+    QInt *qint;
+
+    qint = qobject_to_qint((QObject *) obj);
+    sprintf (buf, "%" PRId64, qint->value);
+    qstring_append (str, buf);
 }

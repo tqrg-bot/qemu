@@ -18,10 +18,12 @@
 #include "qemu-common.h"
 
 static void qdict_destroy_obj(QObject *obj);
+static void qdict_encode_json(const QObject *obj, QString *str);
 
 static const QType qdict_type = {
     .code = QTYPE_QDICT,
     .destroy = qdict_destroy_obj,
+    .encode_json = qdict_encode_json,
 };
 
 /**
@@ -294,4 +296,34 @@ static void qdict_destroy_obj(QObject *obj)
     }
 
     qemu_free(qdict);
+}
+
+/**
+ * qdict_encode_json(): Encode the dictionary to JSON on a QString.
+ */
+static void qdict_encode_json(const QObject *obj, QString *str)
+{
+    int i, first;
+    const QDict *qdict;
+
+    assert(obj != NULL);
+    qdict = qobject_to_qdict((QObject *) obj);
+
+    qstring_append_ch (str, '{');
+    for (first = 1, i = 0; i < QDICT_HASH_SIZE; i++) {
+        QDictEntry *entry = QLIST_FIRST(&qdict->table[i]);
+        while (entry) {
+            if (!first)
+                qstring_append_ch (str, ',');
+            qstring_append_ch (str, '"');
+            qstring_append_escaped (str, entry->key);
+            qstring_append_ch (str, '"');
+            qstring_append_ch (str, ':');
+            qobject_encode_json (entry->value, str);
+            entry = QLIST_NEXT(entry, next);
+            first = 0;
+        }
+    }
+
+    qstring_append_ch (str, '}');
 }

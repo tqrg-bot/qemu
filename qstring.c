@@ -14,10 +14,12 @@
 #include "qemu-common.h"
 
 static void qstring_destroy_obj(QObject *obj);
+static void qstring_encode_json(const QObject *obj, QString *str);
 
 static const QType qstring_type = {
     .code = QTYPE_QSTRING,
     .destroy = qstring_destroy_obj,
+    .encode_json = qstring_encode_json,
 };
 
 /**
@@ -61,6 +63,22 @@ QString *qstring_from_str(const char *str)
 
     return qstring;
 }
+
+/**
+ * qstring_json_from_qobject_obj(): Encode a QObject as JSON and return
+ * a QString with the result.
+ *
+ * Return strong reference.
+ */
+QString *qstring_json_from_qobject_obj(const QObject *qobject)
+{
+    QString *qstring;
+
+    qstring = qstring_new();
+    qobject_encode_json(qobject, qstring);
+    return qstring;
+}
+
 
 /**
  * qstring_append(): Append a regular C string to a QString
@@ -171,4 +189,18 @@ static void qstring_destroy_obj(QObject *obj)
     qs = qobject_to_qstring(obj);
     qemu_free(qs->string);
     qemu_free(qs);
+}
+
+/**
+ * qstring_encode_json(): Encode the string to JSON on a QString.
+ */
+static void qstring_encode_json(const QObject *obj, QString *str)
+{
+    QString *qstring;
+
+    assert(obj != NULL);
+    qstring = qobject_to_qstring((QObject *) obj);
+    qstring_append_ch (str, '"');
+    qstring_append_escaped (str, qstring_get_str(qstring));
+    qstring_append_ch (str, '"');
 }

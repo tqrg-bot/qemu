@@ -52,6 +52,7 @@ struct QList;
 typedef struct QType {
     qtype_code code;
     void (*destroy)(struct QObject *);
+    void (*encode_json)(const struct QObject *, struct QString *);
 } QType;
 
 typedef struct QObject {
@@ -110,6 +111,15 @@ static inline qtype_code qobject_type(const QObject *obj)
         return QTYPE_NONE;
     assert(obj->type != NULL);
     return obj->type->code;
+}
+
+/**
+ * qobject_type(): Return the QObject's type
+ */
+static inline void qobject_encode_json(const QObject *obj, struct QString *str)
+{
+    assert(obj->type != NULL);
+    obj->type->encode_json (obj, str);
 }
 
 #endif /* QOBJECT_H */

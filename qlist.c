@@ -10,15 +10,18 @@
  * the COPYING file in the top-level directory.
  */
 #include "qlist.h"
+#include "qstring.h"
 #include "qobject.h"
 #include "qemu-queue.h"
 #include "qemu-common.h"
 
 static void qlist_destroy_obj(QObject *obj);
+static void qlist_encode_json(const QObject *obj, QString *str);
 
 static const QType qlist_type = {
     .code = QTYPE_QLIST,
     .destroy = qlist_destroy_obj,
+    .encode_json = qlist_encode_json,
 };
  
 /**
@@ -98,3 +101,28 @@ static void qlist_destroy_obj(QObject *obj)
 
     qemu_free(qlist);
 }
+
+/**
+ * qlist_encode_json(): Encode the list to JSON on a QString.
+ */
+static void qlist_encode_json(const QObject *obj, QString *str)
+{
+    const QList *qlist;
+    QListEntry *entry;
+    int first;
+
+    assert(obj != NULL);
+    qlist = qobject_to_qlist((QObject *) obj);
+
+    first = 1;
+    qstring_append_ch (str, '[');
+    QTAILQ_FOREACH(entry, &qlist->head, next) {
+        if (!first)
+            qstring_append_ch (str, ',');
+        qobject_encode_json (entry->value, str);
+        first = 0;
+    }
+
+    qstring_append_ch (str, ']');
+}
+
