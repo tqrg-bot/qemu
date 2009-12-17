@@ -27,6 +27,7 @@
 #include <setjmp.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <stdio.h>
 #include "osdep.h"
 #include "qemu-queue.h"
 #include "targphys.h"
