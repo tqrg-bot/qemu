@@ -266,28 +266,25 @@ int cpu_exec(CPUState *env1)
 #endif
             /* if an exception is pending, we execute it here */
             if (env->exception_index >= 0) {
-                if (env->exception_index >= EXCP_INTERRUPT) {
-                    /* exit request from the cpu execution loop */
-                    ret = env->exception_index;
-                    if (ret == EXCP_DEBUG)
-                        cpu_handle_debug_exception(env);
-                    break;
-                } else {
+                if (env->exception_index < EXCP_INTERRUPT) {
 		    do_interrupt(env);
 #if defined(TARGET_I386)
                     /* successfully delivered */
                     env->old_exception = -1;
 #endif
-#if defined(CONFIG_USER_ONLY)
                     /* if user mode only, we simulate a fake exception
                        which will be handled outside the cpu execution
                        loop */
-                    ret = env->exception_index;
-                    break;
-#else
+#if !defined(CONFIG_USER_ONLY)
                     env->exception_index = -1;
+		    continue;
 #endif
-                }
+		}
+
+                if (env->exception_index == EXCP_DEBUG)
+                    cpu_handle_debug_exception(env);
+                ret = env->exception_index;
+                break;
             }
 
             if (kvm_enabled()) {
