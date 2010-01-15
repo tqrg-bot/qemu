@@ -2441,8 +2441,7 @@ static int usb_device_add(const char *devname, int is_hotplug)
     if (strstart(devname, "host:", &p)) {
         dev = usb_host_device_open(p);
     } else if (!strcmp(devname, "bt") || strstart(devname, "bt:", &p)) {
-        dev = usb_bt_init(devname[2] ? bt_hci_parse(p) :
-                        bt_new_hci(qemu_find_bt_vlan(0)));
+        dev = usb_bt_init(bt_hci_parse(devname[2] ? p : "hci"));
     } else {
         return -1;
     }
