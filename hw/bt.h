@@ -106,6 +106,8 @@ struct bt_device_s {
 /* bt.c */
 void bt_device_init(struct bt_device_s *dev, struct bt_scatternet_s *net);
 void bt_device_done(struct bt_device_s *dev);
+struct HCIInfo *bt_hci_parse(const char *str);
+int bt_parse(const char *opt);
 
 /* bt-hci.c */
 struct HCIInfo *bt_new_hci(struct bt_scatternet_s *net);
