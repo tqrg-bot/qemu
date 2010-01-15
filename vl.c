@@ -1610,7 +1610,7 @@ struct HCIInfo *qemu_next_hci(void)
     return hci_table[cur_hci++];
 }
 
-static struct HCIInfo *hci_init(const char *str)
+static struct HCIInfo *bt_hci_parse(const char *str)
 {
     char *endp;
     struct bt_scatternet_s *vlan = 0;
@@ -1640,7 +1640,7 @@ static struct HCIInfo *hci_init(const char *str)
     return 0;
 }
 
-static int bt_hci_parse(const char *str)
+static int bt_hci_add(const char *str)
 {
     struct HCIInfo *hci;
     bdaddr_t bdaddr;
@@ -1650,7 +1650,7 @@ static int bt_hci_parse(const char *str)
         return -1;
     }
 
-    hci = hci_init(str);
+    hci = bt_hci_parse(str);
     if (!hci)
         return -1;
 
@@ -1720,7 +1720,7 @@ static int bt_parse(const char *opt)
                 if (!strstart(endp, ",vlan=", 0))
                     opt = endp + 1;
 
-            return bt_hci_parse(opt);
+            return bt_hci_add(opt);
        }
     } else if (strstart(opt, "vhci", &endp)) {
         if (!*endp || *endp == ',') {
@@ -2441,7 +2441,7 @@ static int usb_device_add(const char *devname, int is_hotplug)
     if (strstart(devname, "host:", &p)) {
         dev = usb_host_device_open(p);
     } else if (!strcmp(devname, "bt") || strstart(devname, "bt:", &p)) {
-        dev = usb_bt_init(devname[2] ? hci_init(p) :
+        dev = usb_bt_init(devname[2] ? bt_hci_parse(p) :
                         bt_new_hci(qemu_find_bt_vlan(0)));
     } else {
         return -1;
