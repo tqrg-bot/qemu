@@ -39,9 +39,14 @@
 #endif
 
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
-// Work around ugly bugs in glibc that mangle global register contents
-#undef env
+/* glibc will mangle global register contents.  To work around this,
+ * we avoid using the global register in this file, and place back
+ * cpu_single_env in AREG0 before giving control to target-* routines.
+ */
+#define export_env()	asm ("mov %0, %%" AREG0 : : "r" (cpu_single_env) : AREG0); 
 #define env cpu_single_env
+#else
+#define export_env()
 #endif
 
 int tb_invalidated_flag;
@@ -78,14 +83,10 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 void cpu_loop_exit(void)
 {
-#if defined(__sparc__) && !defined(CONFIG_SOLARIS)
-#undef env
-                    env = cpu_single_env;
-#define env cpu_single_env
-#endif
+    export_env();
+    env->current_tb = NULL;
 
     /* if an exception is pending, we execute it here */
-    env->current_tb = NULL;
     if (env->exception_index >= 0) {
         if (env->exception_index < EXCP_INTERRUPT) {
             do_interrupt(env);
@@ -285,12 +286,7 @@ int cpu_exec(CPUState *env1)
     /* prepare setjmp context for exception handling */
     setjmp(env->jmp_env);
 
-#if defined(__sparc__) && !defined(CONFIG_SOLARIS)
-#undef env
-                    env = cpu_single_env;
-#define env cpu_single_env
-#endif
-
+    export_env();
     while (env->exception_index == -1) {
             if (kvm_enabled()) {
                 kvm_cpu_exec(env);
@@ -368,11 +364,7 @@ int cpu_exec(CPUState *env1)
                             env->interrupt_request &= ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_VIRQ);
                             intno = cpu_get_pic_interrupt(env);
                             qemu_log_mask(CPU_LOG_TB_IN_ASM, "Servicing hardware INT=0x%02x\n", intno);
-#if defined(__sparc__) && !defined(CONFIG_SOLARIS)
-#undef env
-                    env = cpu_single_env;
-#define env cpu_single_env
-#endif
+                            export_env();
 			    env->exception_index = intno;
 			    env->error_code = 0;
 			    env->exception_kind = EXCP_INTR;
@@ -572,12 +564,8 @@ int cpu_exec(CPUState *env1)
                 if (!unlikely (env->exit_request)) {
                     env->current_tb = tb;
                     tc_ptr = tb->tc_ptr;
-                /* execute the generated code */
-#if defined(__sparc__) && !defined(CONFIG_SOLARIS)
-#undef env
-                    env = cpu_single_env;
-#define env cpu_single_env
-#endif
+                    /* execute the generated code */
+                    export_env();
                     next_tb = tcg_qemu_tb_exec(tc_ptr);
                     env->current_tb = NULL;
                     if ((next_tb & 3) == 2) {
