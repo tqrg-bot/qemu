@@ -21,10 +21,9 @@
 
 #define TARGET_LONG_BITS 32
 
-#define CPUState struct CPUMBState
+#define CPUMBState CPUState
 
 #include "cpu-defs.h"
-struct CPUMBState;
 #if !defined(CONFIG_USER_ONLY)
 #include "mmu.h"
 #endif
@@ -199,7 +198,7 @@ struct CPUMBState;
 #define CC_EQ  0
 
 #define NB_MMU_MODES    3
-typedef struct CPUMBState {
+struct CPUMBState {
     uint32_t debug;
     uint32_t btaken;
     uint32_t btarget;
@@ -230,7 +229,7 @@ typedef struct CPUMBState {
 #endif
 
     CPU_COMMON
-} CPUMBState;
+};
 
 CPUState *cpu_mb_init(const char *cpu_model);
 int cpu_mb_exec(CPUState *s);

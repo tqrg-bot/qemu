@@ -24,7 +24,7 @@
 
 #define TARGET_LONG_BITS 64
 
-#define CPUState struct CPUAlphaState
+#define CPUAlphaState CPUState
 
 #include "cpu-defs.h"
 
@@ -316,8 +316,6 @@ enum {
 #endif
     IPR_LAST,
 };
-
-typedef struct CPUAlphaState CPUAlphaState;
 
 typedef struct pal_handler_t pal_handler_t;
 struct pal_handler_t {

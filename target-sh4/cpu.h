@@ -36,7 +36,7 @@
 #define SH_CPU_SH7750_ALL (SH_CPU_SH7750 | SH_CPU_SH7750S | SH_CPU_SH7750R)
 #define SH_CPU_SH7751_ALL (SH_CPU_SH7751 | SH_CPU_SH7751R)
 
-#define CPUState struct CPUSH4State
+#define CPUSH4State CPUState
 
 #include "cpu-defs.h"
 
@@ -107,7 +107,7 @@ typedef struct memory_content {
     struct memory_content *next;
 } memory_content;
 
-typedef struct CPUSH4State {
+struct CPUSH4State {
     int id;			/* CPU model */
 
     uint32_t flags;		/* general execution flags */
@@ -157,7 +157,7 @@ typedef struct CPUSH4State {
     int intr_at_halt;		/* SR_BL ignored during sleep */
     memory_content *movcal_backup;
     memory_content **movcal_backup_tail;
-} CPUSH4State;
+};
 
 CPUSH4State *cpu_sh4_init(const char *cpu_model);
 int cpu_sh4_exec(CPUSH4State * s);

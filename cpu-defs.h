@@ -30,6 +30,7 @@
 #include "osdep.h"
 #include "qemu-queue.h"
 #include "targphys.h"
+#include "cpu-common.h"
 
 #ifndef TARGET_LONG_BITS
 #error TARGET_LONG_BITS must be defined before including this header

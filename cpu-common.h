@@ -18,6 +18,8 @@
 #include "bswap.h"
 #include "qemu-queue.h"
 
+struct CPUState;
+
 #if !defined(CONFIG_USER_ONLY)
 
 /* address in the RAM (different from a physical address) */

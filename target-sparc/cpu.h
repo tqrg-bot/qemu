@@ -21,7 +21,7 @@
 # endif
 #endif
 
-#define CPUState struct CPUSPARCState
+#define CPUSPARCState CPUState
 
 #include "cpu-defs.h"
 
@@ -318,7 +318,7 @@ struct QEMUFile;
 void cpu_put_timer(struct QEMUFile *f, CPUTimer *s);
 void cpu_get_timer(struct QEMUFile *f, CPUTimer *s);
 
-typedef struct CPUSPARCState {
+struct CPUSPARCState {
     target_ulong gregs[8]; /* general registers */
     target_ulong *regwptr; /* pointer to current register window */
     target_ulong pc;       /* program counter */
@@ -436,7 +436,7 @@ typedef struct CPUSPARCState {
 #define SOFTINT_REG_MASK (SOFTINT_STIMER|SOFTINT_INTRMASK|SOFTINT_TIMER)
 #endif
     sparc_def_t *def;
-} CPUSPARCState;
+};
 
 #ifndef NO_CPU_IO_DEFS
 /* helper.c */
