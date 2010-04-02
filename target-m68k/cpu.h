@@ -22,7 +22,7 @@
 
 #define TARGET_LONG_BITS 32
 
-#define CPUState struct CPUM68KState
+#define CPUM68KState CPUState
 
 #include "qemu-common.h"
 #include "cpu-defs.h"
@@ -57,7 +57,7 @@
 
 #define NB_MMU_MODES 2
 
-typedef struct CPUM68KState {
+struct CPUM68KState {
     uint32_t dregs[8];
     uint32_t aregs[8];
     uint32_t pc;
@@ -113,7 +113,7 @@ typedef struct CPUM68KState {
     CPU_COMMON
 
     uint32_t features;
-} CPUM68KState;
+};
 
 void m68k_tcg_init(void);
 void cpu_m68k_close(CPUM68KState *s);

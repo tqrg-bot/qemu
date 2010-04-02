@@ -71,7 +71,7 @@
 
 #endif /* defined (TARGET_PPC64) */
 
-#define CPUState struct CPUPPCState
+#define CPUPPCState CPUState
 
 #include "cpu-defs.h"
 
@@ -309,7 +309,6 @@ typedef struct opc_handler_t opc_handler_t;
 
 /*****************************************************************************/
 /* Types used to describe some PowerPC registers */
-typedef struct CPUPPCState CPUPPCState;
 typedef struct ppc_tb_t ppc_tb_t;
 typedef struct ppc_spr_t ppc_spr_t;
 typedef struct ppc_dcr_t ppc_dcr_t;

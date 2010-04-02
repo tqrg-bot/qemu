@@ -42,7 +42,7 @@
 #define ELF_MACHINE	EM_386
 #endif
 
-#define CPUState struct CPUX86State
+#define CPUX86State CPUState
 
 #include "cpu-defs.h"
 
@@ -604,7 +604,7 @@ typedef struct {
 
 #define NB_MMU_MODES 2
 
-typedef struct CPUX86State {
+struct CPUX86State {
     /* standard registers */
     target_ulong regs[CPU_NB_REGS];
     target_ulong eip;
@@ -752,7 +752,7 @@ typedef struct CPUX86State {
     XMMReg ymmh_regs[CPU_NB_REGS];
 
     uint64_t xcr0;
-} CPUX86State;
+};
 
 void cpu_x86_close(CPUX86State *s);
 void x86_cpudef_setup(void);

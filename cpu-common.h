@@ -18,6 +18,8 @@
 #include "bswap.h"
 #include "qemu-queue.h"
 
+struct CPUState;
+
 #if !defined(CONFIG_USER_ONLY)
 
 enum device_endian {

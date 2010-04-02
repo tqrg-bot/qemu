@@ -21,11 +21,10 @@
 
 #define TARGET_LONG_BITS 32
 
-#define CPUState struct CPUMBState
+#define CPUMBState CPUState
 
 #include "cpu-defs.h"
 #include "softfloat.h"
-struct CPUMBState;
 #if !defined(CONFIG_USER_ONLY)
 #include "mmu.h"
 #endif
@@ -224,7 +223,7 @@ struct CPUMBState;
 #define STREAM_CONTROL   (1 << 3)
 #define STREAM_NONBLOCK  (1 << 4)
 
-typedef struct CPUMBState {
+struct CPUMBState {
     uint32_t debug;
     uint32_t btaken;
     uint32_t btarget;
@@ -256,7 +255,7 @@ typedef struct CPUMBState {
 #endif
 
     CPU_COMMON
-} CPUMBState;
+};
 
 void cpu_mb_close(CPUState *s);
 void do_interrupt(CPUState *env);

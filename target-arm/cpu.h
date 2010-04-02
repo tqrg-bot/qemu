@@ -23,7 +23,7 @@
 
 #define ELF_MACHINE	EM_ARM
 
-#define CPUState struct CPUARMState
+#define CPUARMState CPUState
 
 #include "config.h"
 #include "qemu-common.h"
@@ -76,7 +76,7 @@ struct arm_boot_info;
    s<2n+1> maps to the most significant half of d<n>
  */
 
-typedef struct CPUARMState {
+struct CPUARMState {
     /* Regs for current mode.  */
     uint32_t regs[16];
     /* Frequently accessed CPSR bits are stored separately for efficiently.
@@ -222,7 +222,7 @@ typedef struct CPUARMState {
     } cp[15];
     void *nvic;
     struct arm_boot_info *boot_info;
-} CPUARMState;
+};
 
 void arm_translate_init(void);
 void cpu_arm_close(CPUARMState *s);

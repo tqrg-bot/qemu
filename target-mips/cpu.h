@@ -5,7 +5,7 @@
 
 #define ELF_MACHINE	EM_MIPS
 
-#define CPUState struct CPUMIPSState
+#define CPUMIPSState CPUState
 
 #include "config.h"
 #include "qemu-common.h"
@@ -19,8 +19,6 @@
 typedef unsigned char           uint_fast8_t;
 typedef unsigned int            uint_fast16_t;
 #endif
-
-struct CPUMIPSState;
 
 typedef struct r4k_tlb_t r4k_tlb_t;
 struct r4k_tlb_t {
@@ -173,7 +171,6 @@ struct TCState {
     int32_t CP0_Debug_tcstatus;
 };
 
-typedef struct CPUMIPSState CPUMIPSState;
 struct CPUMIPSState {
     TCState active_tc;
     CPUMIPSFPUContext active_fpu;

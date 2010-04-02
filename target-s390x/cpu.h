@@ -23,7 +23,7 @@
 
 #define ELF_MACHINE	EM_S390
 
-#define CPUState struct CPUS390XState
+#define CPUS390XState CPUState
 
 #include "cpu-defs.h"
 #define TARGET_PAGE_BITS 12
@@ -56,7 +56,7 @@ typedef struct ExtQueue {
     uint32_t param64;
 } ExtQueue;
 
-typedef struct CPUS390XState {
+struct CPUS390XState {
     uint64_t regs[16];	/* GP registers */
 
     uint32_t aregs[16];	/* access registers */
@@ -100,7 +100,7 @@ typedef struct CPUS390XState {
     QEMUTimer *tod_timer;
 
     QEMUTimer *cpu_timer;
-} CPUS390XState;
+};
 
 #if defined(CONFIG_USER_ONLY)
 static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)

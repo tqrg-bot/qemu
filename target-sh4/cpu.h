@@ -37,7 +37,7 @@
 #define SH_CPU_SH7750_ALL (SH_CPU_SH7750 | SH_CPU_SH7750S | SH_CPU_SH7750R)
 #define SH_CPU_SH7751_ALL (SH_CPU_SH7751 | SH_CPU_SH7751R)
 
-#define CPUState struct CPUSH4State
+#define CPUSH4State CPUState
 
 #include "cpu-defs.h"
 
@@ -135,7 +135,7 @@ typedef struct memory_content {
     struct memory_content *next;
 } memory_content;
 
-typedef struct CPUSH4State {
+struct CPUSH4State {
     uint32_t flags;		/* general execution flags */
     uint32_t gregs[24];		/* general registers */
     float32 fregs[32];		/* floating point registers */
@@ -187,7 +187,7 @@ typedef struct CPUSH4State {
     int in_sleep;		/* SR_BL ignored during sleep */
     memory_content *movcal_backup;
     memory_content **movcal_backup_tail;
-} CPUSH4State;
+};
 
 int cpu_sh4_handle_mmu_fault(CPUSH4State * env, target_ulong address, int rw,
 			     int mmu_idx, int is_softmmu);

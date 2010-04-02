@@ -22,7 +22,7 @@
 
 #define TARGET_LONG_BITS 32
 
-#define CPUState struct CPUCRISState
+#define CPUCRISState CPUState
 
 #include "cpu-defs.h"
 
@@ -99,7 +99,7 @@
 
 #define NB_MMU_MODES 2
 
-typedef struct CPUCRISState {
+struct CPUCRISState {
 	uint32_t regs[16];
 	/* P0 - P15 are referred to as special registers in the docs.  */
 	uint32_t pregs[16];
@@ -162,7 +162,7 @@ typedef struct CPUCRISState {
 
 	/* Members after CPU_COMMON are preserved across resets.  */
 	void *load_info;
-} CPUCRISState;
+};
 
 void cpu_cris_close(CPUCRISState *s);
 void do_interrupt(CPUCRISState *env);
