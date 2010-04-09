@@ -309,7 +309,7 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_CRIS)
                     do_interrupt(env);
 #elif defined(TARGET_M68K)
-                    do_interrupt(0);
+                    do_interrupt(env);
 #endif
                     env->exception_index = -1;
 #endif
@@ -532,7 +532,7 @@ int cpu_exec(CPUState *env1)
                            provide/save the vector when the interrupt is
                            first signalled.  */
                         env->exception_index = EXCP_INTR;
-                        do_interrupt(1);
+                        do_interrupt(env);
                         next_tb = 0;
                     }
 #endif

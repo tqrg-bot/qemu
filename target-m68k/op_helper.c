@@ -21,7 +21,7 @@
 
 #if defined(CONFIG_USER_ONLY)
 
-void do_interrupt(int is_hw)
+void do_interrupt(CPUState *env_)
 {
     env->exception_index = -1;
 }
@@ -90,7 +90,7 @@ static void do_rte(void)
     env->aregs[7] = sp + 8;
 }
 
-void do_interrupt(int is_hw)
+void do_interrupt(CPUState *env_)
 {
     uint32_t sp;
     uint32_t fmt;
