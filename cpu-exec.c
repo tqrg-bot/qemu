@@ -603,7 +603,6 @@ int cpu_exec(CPUState *env1)
                                 cpu_exec_nocache(insns_left, tb);
                             }
                             env->exception_index = EXCP_INTERRUPT;
-                            next_tb = 0;
                             cpu_loop_exit();
                         }
                     }
