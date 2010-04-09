@@ -278,10 +278,10 @@ int cpu_exec(CPUState *env1)
                        which will be handled outside the cpu execution
                        loop */
 #if defined(TARGET_I386)
-                    do_interrupt_user(env->exception_index,
-                                      env->exception_is_int,
-                                      env->error_code,
-                                      env->exception_next_eip);
+                    do_interrupt(env->exception_index,
+			   	 env->exception_is_int,
+			    	 env->error_code,
+			    	 env->exception_next_eip, 0);
                     /* successfully delivered */
                     env->old_exception = -1;
 #endif

@@ -595,6 +595,7 @@ static inline unsigned int get_sp_mask(unsigned int e2)
         return 0xffff;
 }
 
+#ifndef CONFIG_USER_ONLY
 static int exeption_has_error_code(int intno)
 {
         switch(intno) {
@@ -609,6 +610,7 @@ static int exeption_has_error_code(int intno)
         }
 	return 0;
 }
+#endif
 
 #ifdef TARGET_X86_64
 #define SET_ESP(val, sp_mask)\
@@ -641,6 +643,12 @@ do {\
     stl_kernel(SEG_ADDL(ssp, sp, sp_mask), (uint32_t)(val));\
 }
 
+#define PUSHQ(sp, val)\
+{\
+    sp -= 8;\
+    stq_kernel(sp, (val));\
+}
+
 #define POPW(ssp, sp, sp_mask, val)\
 {\
     val = lduw_kernel((ssp) + (sp & (sp_mask)));\
@@ -653,7 +661,14 @@ do {\
     sp += 4;\
 }
 
+#define POPQ(sp, val)\
+{\
+    val = ldq_kernel(sp);\
+    sp += 8;\
+}
+
 /* protected mode interrupt */
+#ifndef CONFIG_USER_ONLY
 static void do_interrupt_protected(int intno, int is_int, int error_code,
                                    unsigned int next_eip, int is_hw)
 {
@@ -848,19 +863,6 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
 }
 
 #ifdef TARGET_X86_64
-
-#define PUSHQ(sp, val)\
-{\
-    sp -= 8;\
-    stq_kernel(sp, (val));\
-}
-
-#define POPQ(sp, val)\
-{\
-    val = ldq_kernel(sp);\
-    sp += 8;\
-}
-
 static inline target_ulong get_rsp_from_tss(int level)
 {
     int index;
@@ -995,6 +997,7 @@ static void do_interrupt64(int intno, int is_int, int error_code,
     env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
 }
 #endif
+#endif
 
 #ifdef TARGET_X86_64
 #if defined(CONFIG_USER_ONLY)
@@ -1116,6 +1119,7 @@ void helper_sysret(int dflag)
 #endif
 
 /* real mode interrupt */
+#ifndef CONFIG_USER_ONLY
 static void do_interrupt_real(int intno, int is_int, int error_code,
                               unsigned int next_eip)
 {
@@ -1151,10 +1155,12 @@ static void do_interrupt_real(int intno, int is_int, int error_code,
     env->segs[R_CS].base = (selector << 4);
     env->eflags &= ~(IF_MASK | TF_MASK | AC_MASK | RF_MASK);
 }
+#endif
 
+#if defined(CONFIG_USER_ONLY)
 /* fake user mode interrupt */
-void do_interrupt_user(int intno, int is_int, int error_code,
-                       target_ulong next_eip)
+void do_interrupt(int intno, int is_int, int error_code,
+	    	  target_ulong next_eip, int is_hw)
 {
     SegmentCache *dt;
     target_ulong ptr;
@@ -1183,7 +1189,7 @@ void do_interrupt_user(int intno, int is_int, int error_code,
         EIP = next_eip;
 }
 
-#if !defined(CONFIG_USER_ONLY)
+#else
 static void handle_even_inj(int intno, int is_int, int error_code,
 		int is_hw, int rm)
 {
@@ -1202,7 +1208,6 @@ static void handle_even_inj(int intno, int is_int, int error_code,
 	    stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), event_inj);
     }
 }
-#endif
 
 /*
  * Begin execution of an interruption. is_int is TRUE if coming from
@@ -1264,13 +1269,12 @@ void do_interrupt(int intno, int is_int, int error_code,
         do_interrupt_real(intno, is_int, error_code, next_eip);
     }
 
-#if !defined(CONFIG_USER_ONLY)
     if (env->hflags & HF_SVMI_MASK) {
 	    uint32_t event_inj = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj));
 	    stl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj), event_inj & ~SVM_EVTINJ_VALID);
     }
-#endif
 }
+#endif
 
 /* This should come from sysemu.h - if we could include it here... */
 void qemu_system_reset_request(void);
