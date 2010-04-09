@@ -606,8 +606,8 @@ void do_interrupt (CPUState *env)
                 env->CP0_Status, env->CP0_Cause, env->CP0_BadVAddr,
                 env->CP0_DEPC);
     }
-#endif
     env->exception_index = EXCP_NONE;
+#endif
 }
 
 #if !defined(CONFIG_USER_ONLY)

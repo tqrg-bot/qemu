@@ -273,23 +273,18 @@ int cpu_exec(CPUState *env1)
                         cpu_handle_debug_exception(env);
                     break;
                 } else {
-#if defined(CONFIG_USER_ONLY)
-                    /* if user mode only, we simulate a fake exception
-                       which will be handled outside the cpu execution
-                       loop */
-#if defined(TARGET_I386)
-                    do_interrupt(env);
-                    /* successfully delivered */
-                    env->old_exception = -1;
-#endif
-                    ret = env->exception_index;
-                    break;
-#else
 		    do_interrupt(env);
 #if defined(TARGET_I386)
                     /* successfully delivered */
                     env->old_exception = -1;
 #endif
+#if defined(CONFIG_USER_ONLY)
+                    /* if user mode only, we simulate a fake exception
+                       which will be handled outside the cpu execution
+                       loop */
+                    ret = env->exception_index;
+                    break;
+#else
                     env->exception_index = -1;
 #endif
                 }

@@ -2033,7 +2033,6 @@ void ppc_store_msr (CPUPPCState *env, target_ulong value)
 #if defined (CONFIG_USER_ONLY)
 void do_interrupt (CPUState *env)
 {
-    env->exception_index = POWERPC_EXCP_NONE;
     env->error_code = 0;
 }
 

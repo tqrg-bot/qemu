@@ -23,7 +23,6 @@
 
 void do_interrupt(CPUState *env_)
 {
-    env->exception_index = -1;
 }
 
 #else

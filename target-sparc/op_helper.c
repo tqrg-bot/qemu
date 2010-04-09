@@ -3945,6 +3945,7 @@ trap_state* cpu_tsptr(CPUState* env)
 
 void do_interrupt(CPUState *env)
 {
+#if !defined(CONFIG_USER_ONLY)
     int intno = env->exception_index;
     trap_state* tsptr;
 
@@ -4040,6 +4041,7 @@ void do_interrupt(CPUState *env)
     env->pc = env->tbr;
     env->npc = env->pc + 4;
     env->exception_index = -1;
+#endif
 }
 #else
 #ifdef DEBUG_PCALL
@@ -4079,6 +4081,7 @@ static const char * const excp_names[0x80] = {
 
 void do_interrupt(CPUState *env)
 {
+#if !defined(CONFIG_USER_ONLY)
     int cwp, intno = env->exception_index;
 
 #ifdef DEBUG_PCALL
@@ -4117,13 +4120,11 @@ void do_interrupt(CPUState *env)
         count++;
     }
 #endif
-#if !defined(CONFIG_USER_ONLY)
     if (env->psret == 0) {
         cpu_abort(env, "Trap 0x%02x while interrupts disabled, Error state",
                   env->exception_index);
         return;
     }
-#endif
     env->psret = 0;
     cwp = cwp_dec(env->cwp - 1);
     set_cwp(cwp);
@@ -4135,6 +4136,7 @@ void do_interrupt(CPUState *env)
     env->pc = env->tbr;
     env->npc = env->pc + 4;
     env->exception_index = -1;
+#endif
 }
 #endif
 

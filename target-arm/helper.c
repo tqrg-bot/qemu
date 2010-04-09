@@ -483,7 +483,6 @@ uint32_t HELPER(abs)(uint32_t x)
 
 void do_interrupt (CPUState *env)
 {
-    env->exception_index = -1;
 }
 
 int cpu_arm_handle_mmu_fault (CPUState *env, target_ulong address, int rw,

@@ -43,7 +43,6 @@
 
 void do_interrupt (CPUState *env)
 {
-	env->exception_index = -1;
 	env->pregs[PR_ERP] = env->pc;
 }
 

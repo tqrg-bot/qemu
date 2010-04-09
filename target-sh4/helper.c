@@ -31,7 +31,6 @@
 
 void do_interrupt (CPUState *env)
 {
-  env->exception_index = -1;
 }
 
 int cpu_sh4_handle_mmu_fault(CPUState * env, target_ulong address, int rw,
