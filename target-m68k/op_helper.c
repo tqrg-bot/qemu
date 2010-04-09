@@ -100,35 +100,35 @@ void do_interrupt(int is_hw)
     fmt = 0;
     retaddr = env->pc;
 
-    if (!is_hw) {
-        switch (env->exception_index) {
-        case EXCP_RTE:
-            /* Return from an exception.  */
-            do_rte();
-            return;
-        case EXCP_HALT_INSN:
-            if (semihosting_enabled
-                    && (env->sr & SR_S) != 0
-                    && (env->pc & 3) == 0
-                    && lduw_code(env->pc - 4) == 0x4e71
-                    && ldl_code(env->pc) == 0x4e7bf000) {
-                env->pc += 4;
-                do_m68k_semihosting(env, env->dregs[0]);
-                return;
-            }
-            env->halted = 1;
-            env->exception_index = EXCP_HLT;
-            cpu_loop_exit();
+    switch (env->exception_index) {
+    case EXCP_RTE:
+        /* Return from an exception.  */
+        do_rte();
+        return;
+    case EXCP_HALT_INSN:
+        if (semihosting_enabled
+                && (env->sr & SR_S) != 0
+                && (env->pc & 3) == 0
+                && lduw_code(env->pc - 4) == 0x4e71
+                && ldl_code(env->pc) == 0x4e7bf000) {
+            env->pc += 4;
+            do_m68k_semihosting(env, env->dregs[0]);
             return;
         }
-        if (env->exception_index >= EXCP_TRAP0
-            && env->exception_index <= EXCP_TRAP15) {
-            /* Move the PC after the trap instruction.  */
-            retaddr += 2;
-        }
+        env->halted = 1;
+        env->exception_index = EXCP_HLT;
+        cpu_loop_exit();
+        return;
+    case EXCP_INTR:
+        vector = env->pending_vector << 2;
+	break;
+    case EXCP_TRAP0...EXCP_TRAP15:
+        /* Move the PC after the trap instruction and fall through.  */
+        retaddr += 2;
+    default:
+        vector = env->exception_index << 2;
+	break;
     }
-
-    vector = env->exception_index << 2;
 
     sp = env->aregs[7];
 
@@ -138,7 +138,7 @@ void do_interrupt(int is_hw)
     fmt |= env->sr;
 
     env->sr |= SR_S;
-    if (is_hw) {
+    if (env->exception_index == EXCP_INTR) {
         env->sr = (env->sr & ~SR_I) | (env->pending_level << SR_I_SHIFT);
         env->sr &= ~SR_M;
     }

@@ -53,6 +53,7 @@
 
 #define EXCP_RTE            0x100
 #define EXCP_HALT_INSN      0x101
+#define EXCP_INTR           0x102
 
 #define NB_MMU_MODES 2
 

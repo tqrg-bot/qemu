@@ -531,7 +531,7 @@ int cpu_exec(CPUState *env1)
                            hardware doesn't rely on this, so we
                            provide/save the vector when the interrupt is
                            first signalled.  */
-                        env->exception_index = env->pending_vector;
+                        env->exception_index = EXCP_INTR;
                         do_interrupt(1);
                         next_tb = 0;
                     }
