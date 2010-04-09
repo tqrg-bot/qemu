@@ -54,6 +54,28 @@ int qemu_cpu_has_work(CPUState *env)
     return cpu_has_work(env);
 }
 
+static CPUDebugExcpHandler *debug_excp_handler;
+
+CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler)
+{
+    CPUDebugExcpHandler *old_handler = debug_excp_handler;
+
+    debug_excp_handler = handler;
+    return old_handler;
+}
+
+static void cpu_handle_debug_exception(CPUState *env)
+{
+    CPUWatchpoint *wp;
+
+    if (!env->watchpoint_hit)
+        QTAILQ_FOREACH(wp, &env->watchpoints, entry)
+            wp->flags &= ~BP_WATCHPOINT_HIT;
+
+    if (debug_excp_handler)
+        debug_excp_handler(env);
+}
+
 void cpu_loop_exit(void)
 {
     env->current_tb = NULL;
@@ -187,28 +209,6 @@ static inline TranslationBlock *tb_find_fast(void)
         tb = tb_find_slow(pc, cs_base, flags);
     }
     return tb;
-}
-
-static CPUDebugExcpHandler *debug_excp_handler;
-
-CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler)
-{
-    CPUDebugExcpHandler *old_handler = debug_excp_handler;
-
-    debug_excp_handler = handler;
-    return old_handler;
-}
-
-static void cpu_handle_debug_exception(CPUState *env)
-{
-    CPUWatchpoint *wp;
-
-    if (!env->watchpoint_hit)
-        QTAILQ_FOREACH(wp, &env->watchpoints, entry)
-            wp->flags &= ~BP_WATCHPOINT_HIT;
-
-    if (debug_excp_handler)
-        debug_excp_handler(env);
 }
 
 /* main execution loop */
