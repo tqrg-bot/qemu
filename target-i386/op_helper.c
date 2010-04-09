@@ -669,8 +669,8 @@ do {\
 
 /* protected mode interrupt */
 #ifndef CONFIG_USER_ONLY
-static void do_interrupt_protected(int intno, int is_int, int error_code,
-                                   unsigned int next_eip, int is_hw)
+static void do_interrupt_protected(int intno, int kind, int error_code,
+                                   unsigned int next_eip)
 {
     SegmentCache *dt;
     target_ulong ptr, ssp;
@@ -680,9 +680,9 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
     uint32_t old_eip, sp_mask;
 
     has_error_code = 0;
-    if (!is_int && !is_hw)
+    if (kind == EXCP_EXCEPTION)
         has_error_code = exeption_has_error_code(intno);
-    if (is_int)
+    if (kind == EXCP_SOFT)
         old_eip = next_eip;
     else
         old_eip = env->eip;
@@ -732,7 +732,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
     dpl = (e2 >> DESC_DPL_SHIFT) & 3;
     cpl = env->hflags & HF_CPL_MASK;
     /* check privilege if software int */
-    if (is_int && dpl < cpl)
+    if (kind == EXCP_SOFT && dpl < cpl)
         raise_exception_err(EXCP0D_GPF, intno * 8 + 2);
     /* check valid bit */
     if (!(e2 & DESC_P_MASK))
@@ -881,8 +881,8 @@ static inline target_ulong get_rsp_from_tss(int level)
 }
 
 /* 64 bit interrupt */
-static void do_interrupt64(int intno, int is_int, int error_code,
-                           target_ulong next_eip, int is_hw)
+static void do_interrupt64(int intno, int kind, int error_code,
+                           target_ulong next_eip)
 {
     SegmentCache *dt;
     target_ulong ptr;
@@ -892,9 +892,9 @@ static void do_interrupt64(int intno, int is_int, int error_code,
     target_ulong old_eip, esp, offset;
 
     has_error_code = 0;
-    if (!is_int && !is_hw)
+    if (kind == EXCP_EXCEPTION)
         has_error_code = exeption_has_error_code(intno);
-    if (is_int)
+    if (kind == EXCP_SOFT)
         old_eip = next_eip;
     else
         old_eip = env->eip;
@@ -919,7 +919,7 @@ static void do_interrupt64(int intno, int is_int, int error_code,
     dpl = (e2 >> DESC_DPL_SHIFT) & 3;
     cpl = env->hflags & HF_CPL_MASK;
     /* check privilege if software int */
-    if (is_int && dpl < cpl)
+    if (kind == EXCP_SOFT && dpl < cpl)
         raise_exception_err(EXCP0D_GPF, intno * 16 + 2);
     /* check valid bit */
     if (!(e2 & DESC_P_MASK))
@@ -1120,7 +1120,7 @@ void helper_sysret(int dflag)
 
 /* real mode interrupt */
 #ifndef CONFIG_USER_ONLY
-static void do_interrupt_real(int intno, int is_int, int error_code,
+static void do_interrupt_real(int intno, int kind, int error_code,
                               unsigned int next_eip)
 {
     SegmentCache *dt;
@@ -1138,7 +1138,7 @@ static void do_interrupt_real(int intno, int is_int, int error_code,
     selector = lduw_kernel(ptr + 2);
     esp = ESP;
     ssp = env->segs[R_SS].base;
-    if (is_int)
+    if (kind == EXCP_SOFT)
         old_eip = next_eip;
     else
         old_eip = env->eip;
@@ -1159,8 +1159,8 @@ static void do_interrupt_real(int intno, int is_int, int error_code,
 
 #if defined(CONFIG_USER_ONLY)
 /* fake user mode interrupt */
-void do_interrupt(int intno, int is_int, int error_code,
-	    	  target_ulong next_eip, int is_hw)
+void do_interrupt(int intno, int kind, int error_code,
+	    	  target_ulong next_eip)
 {
     SegmentCache *dt;
     target_ulong ptr;
@@ -1179,24 +1179,24 @@ void do_interrupt(int intno, int is_int, int error_code,
     dpl = (e2 >> DESC_DPL_SHIFT) & 3;
     cpl = env->hflags & HF_CPL_MASK;
     /* check privilege if software int */
-    if (is_int && dpl < cpl)
+    if (kind == EXCP_SOFT && dpl < cpl)
         raise_exception_err(EXCP0D_GPF, (intno << shift) + 2);
 
     /* Since we emulate only user space, we cannot do more than
        exiting the emulation with the suitable exception and error
        code */
-    if (is_int)
+    if (kind == EXCP_SOFT)
         EIP = next_eip;
 }
 
 #else
-static void handle_even_inj(int intno, int is_int, int error_code,
-		int is_hw, int rm)
+static void handle_even_inj(int intno, int kind, int error_code,
+			    int rm)
 {
     uint32_t event_inj = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.event_inj));
     if (!(event_inj & SVM_EVTINJ_VALID)) {
 	    int type;
-	    if (is_int)
+	    if (kind == EXCP_SOFT)
 		    type = SVM_EVTINJ_TYPE_SOFT;
 	    else
 		    type = SVM_EVTINJ_TYPE_EXEPT;
@@ -1210,18 +1210,18 @@ static void handle_even_inj(int intno, int is_int, int error_code,
 }
 
 /*
- * Begin execution of an interruption. is_int is TRUE if coming from
- * the int instruction. next_eip is the EIP value AFTER the interrupt
- * instruction. It is only relevant if is_int is TRUE.
+ * Begin execution of an interruption. kind says how the interrupt was
+ * generated. next_eip is the EIP value AFTER the interrupt
+ * instruction. It is only relevant if kind is EXCP_SOFT.
  */
-void do_interrupt(int intno, int is_int, int error_code,
-                  target_ulong next_eip, int is_hw)
+void do_interrupt(int intno, int kind, int error_code,
+                  target_ulong next_eip)
 {
     if (qemu_loglevel_mask(CPU_LOG_INT)) {
         if ((env->cr[0] & CR0_PE_MASK)) {
             static int count;
             qemu_log("%6d: v=%02x e=%04x i=%d cpl=%d IP=%04x:" TARGET_FMT_lx " pc=" TARGET_FMT_lx " SP=%04x:" TARGET_FMT_lx,
-                    count, intno, error_code, is_int,
+                    count, intno, error_code, kind,
                     env->hflags & HF_CPL_MASK,
                     env->segs[R_CS].selector, EIP,
                     (int)env->segs[R_CS].base + EIP,
@@ -1251,22 +1251,22 @@ void do_interrupt(int intno, int is_int, int error_code,
     if (env->cr[0] & CR0_PE_MASK) {
 #if !defined(CONFIG_USER_ONLY)
         if (env->hflags & HF_SVMI_MASK)
-            handle_even_inj(intno, is_int, error_code, is_hw, 0);
+            handle_even_inj(intno, kind, error_code, 0);
 #endif
 #ifdef TARGET_X86_64
         if (env->hflags & HF_LMA_MASK) {
-            do_interrupt64(intno, is_int, error_code, next_eip, is_hw);
+            do_interrupt64(intno, kind, error_code, next_eip);
         } else
 #endif
         {
-            do_interrupt_protected(intno, is_int, error_code, next_eip, is_hw);
+            do_interrupt_protected(intno, kind, error_code, next_eip);
         }
     } else {
 #if !defined(CONFIG_USER_ONLY)
         if (env->hflags & HF_SVMI_MASK)
-            handle_even_inj(intno, is_int, error_code, is_hw, 1);
+            handle_even_inj(intno, kind, error_code, 1);
 #endif
-        do_interrupt_real(intno, is_int, error_code, next_eip);
+        do_interrupt_real(intno, kind, error_code, next_eip);
     }
 
     if (env->hflags & HF_SVMI_MASK) {
@@ -1323,23 +1323,23 @@ static int check_exception(int intno, int *error_code)
 
 /*
  * Signal an interruption. It is executed in the main CPU loop.
- * is_int is TRUE if coming from the int instruction. next_eip is the
+ * kind tells if coming from the int instruction. next_eip is the
  * EIP value AFTER the interrupt instruction. It is only relevant if
- * is_int is TRUE.
+ * kind is EXCP_SOFT.
  */
-static void QEMU_NORETURN raise_interrupt(int intno, int is_int, int error_code,
+static void QEMU_NORETURN raise_interrupt(int intno, int kind, int error_code,
                                           int next_eip_addend)
 {
-    if (!is_int) {
+    if (kind == EXCP_SOFT) {
+        helper_svm_check_intercept_param(SVM_EXIT_SWINT, 0);
+    } else {
         helper_svm_check_intercept_param(SVM_EXIT_EXCP_BASE + intno, error_code);
         intno = check_exception(intno, &error_code);
-    } else {
-        helper_svm_check_intercept_param(SVM_EXIT_SWINT, 0);
     }
 
     env->exception_index = intno;
     env->error_code = error_code;
-    env->exception_is_int = is_int;
+    env->exception_kind = kind;
     env->exception_next_eip = env->eip + next_eip_addend;
     cpu_loop_exit();
 }
@@ -1348,12 +1348,12 @@ static void QEMU_NORETURN raise_interrupt(int intno, int is_int, int error_code,
 
 void raise_exception_err(int exception_index, int error_code)
 {
-    raise_interrupt(exception_index, 0, error_code, 0);
+    raise_interrupt(exception_index, EXCP_EXCEPTION, error_code, 0);
 }
 
 void raise_exception(int exception_index)
 {
-    raise_interrupt(exception_index, 0, 0, 0);
+    raise_interrupt(exception_index, EXCP_EXCEPTION, 0, 0);
 }
 
 void raise_exception_env(int exception_index, CPUState *nenv)
@@ -1876,7 +1876,7 @@ void helper_into(int next_eip_addend)
     int eflags;
     eflags = helper_cc_compute_all(CC_OP);
     if (eflags & CC_O) {
-        raise_interrupt(EXCP04_INTO, 1, 0, next_eip_addend);
+        raise_interrupt(EXCP04_INTO, EXCP_SOFT, 0, next_eip_addend);
     }
 }
 
@@ -4718,7 +4718,7 @@ void helper_reset_rf(void)
 
 void helper_raise_interrupt(int intno, int next_eip_addend)
 {
-    raise_interrupt(intno, 1, 0, next_eip_addend);
+    raise_interrupt(intno, EXCP_SOFT, 0, next_eip_addend);
 }
 
 void helper_raise_exception(int exception_index)
@@ -5058,16 +5058,16 @@ void helper_vmrun(int aflag, int next_eip_addend)
         case SVM_EVTINJ_TYPE_INTR:
                 env->exception_index = vector;
                 env->error_code = event_inj_err;
-                env->exception_is_int = 0;
+                env->exception_kind = EXCP_INTR;
                 env->exception_next_eip = -1;
                 qemu_log_mask(CPU_LOG_TB_IN_ASM, "INTR");
                 /* XXX: is it always correct ? */
-                do_interrupt(vector, 0, 0, 0, 1);
+                do_interrupt(vector, EXCP_INTR, 0, 0);
                 break;
         case SVM_EVTINJ_TYPE_NMI:
                 env->exception_index = EXCP02_NMI;
                 env->error_code = event_inj_err;
-                env->exception_is_int = 0;
+                env->exception_kind = EXCP_INTR;
                 env->exception_next_eip = EIP;
                 qemu_log_mask(CPU_LOG_TB_IN_ASM, "NMI");
                 cpu_loop_exit();
@@ -5075,7 +5075,7 @@ void helper_vmrun(int aflag, int next_eip_addend)
         case SVM_EVTINJ_TYPE_EXEPT:
                 env->exception_index = vector;
                 env->error_code = event_inj_err;
-                env->exception_is_int = 0;
+                env->exception_kind = EXCP_EXCEPTION;
                 env->exception_next_eip = -1;
                 qemu_log_mask(CPU_LOG_TB_IN_ASM, "EXEPT");
                 cpu_loop_exit();
@@ -5083,7 +5083,7 @@ void helper_vmrun(int aflag, int next_eip_addend)
         case SVM_EVTINJ_TYPE_SOFT:
                 env->exception_index = vector;
                 env->error_code = event_inj_err;
-                env->exception_is_int = 1;
+                env->exception_kind = EXCP_SOFT;
                 env->exception_next_eip = EIP;
                 qemu_log_mask(CPU_LOG_TB_IN_ASM, "SOFT");
                 cpu_loop_exit();

@@ -660,7 +660,11 @@ typedef struct CPUX86State {
 
     /* exception/interrupt handling */
     int error_code;
-    int exception_is_int;
+    enum {
+        EXCP_EXCEPTION,
+        EXCP_SOFT,
+        EXCP_INTR
+    } exception_kind;
     target_ulong exception_next_eip;
     target_ulong dr[8]; /* debug registers */
     union {

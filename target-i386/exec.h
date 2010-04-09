@@ -68,7 +68,7 @@ register struct CPUX86State *env asm(AREG0);
 
 /* op_helper.c */
 void do_interrupt(int intno, int is_int, int error_code,
-                  target_ulong next_eip, int is_hw);
+                  target_ulong next_eip);
 void QEMU_NORETURN raise_exception_err(int exception_index, int error_code);
 void QEMU_NORETURN raise_exception(int exception_index);
 void QEMU_NORETURN raise_exception_env(int exception_index, CPUState *nenv);
