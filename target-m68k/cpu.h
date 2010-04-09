@@ -250,6 +250,17 @@ static inline void cpu_pc_from_tb(CPUState *env, TranslationBlock *tb)
     env->pc = tb->pc;
 }
 
+static inline int get_ccr(CPUState *env)
+{
+    cpu_m68k_flush_flags(env, env->cc_op);
+    return env->cc_dest | (env->cc_x << 4);
+}
+
+static inline int get_sr(CPUState *env)
+{
+    return (env->sr & 0xffe0) | get_ccr(env);
+}
+
 static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
                                         target_ulong *cs_base, int *flags)
 {

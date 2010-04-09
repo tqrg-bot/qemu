@@ -3107,7 +3107,7 @@ void cpu_dump_state(CPUState *env, FILE *f,
                      i, u.l.upper, u.l.lower, *(double *)&u.d);
       }
     cpu_fprintf (f, "PC = %08x   ", env->pc);
-    sr = env->sr;
+    sr = get_sr(env);
     cpu_fprintf (f, "SR = %04x %c%c%c%c%c ", sr, (sr & 0x10) ? 'X' : '-',
                  (sr & CCF_N) ? 'N' : '-', (sr & CCF_Z) ? 'Z' : '-',
                  (sr & CCF_V) ? 'V' : '-', (sr & CCF_C) ? 'C' : '-');
