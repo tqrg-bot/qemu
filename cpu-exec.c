@@ -78,8 +78,34 @@ static void cpu_handle_debug_exception(CPUState *env)
 
 void cpu_loop_exit(void)
 {
+#if defined(__sparc__) && !defined(CONFIG_SOLARIS)
+#undef env
+                    env = cpu_single_env;
+#define env cpu_single_env
+#endif
+
+    /* if an exception is pending, we execute it here */
     env->current_tb = NULL;
-    longjmp(env->jmp_env, 1);
+    if (env->exception_index >= 0) {
+        if (env->exception_index < EXCP_INTERRUPT) {
+            do_interrupt(env);
+#if defined(TARGET_I386)
+            /* successfully delivered */
+            env->old_exception = -1;
+#endif
+            /* if user mode only, we simulate a fake exception which will be
+               handled outside the cpu execution loop.  Otherwise,
+               clear exception_index so that we go on executing */
+#if !defined(CONFIG_USER_ONLY)
+            env->exception_index = -1;
+#endif
+        } else {
+            if (env->exception_index == EXCP_DEBUG) {
+                cpu_handle_debug_exception(env);
+            }
+        }
+    }
+    longjmp (env->jmp_env, 1);
 }
 
 /* exit the current TB from a signal handler. The host registers are
@@ -257,39 +283,19 @@ int cpu_exec(CPUState *env1)
     env->exception_index = -1;
 
     /* prepare setjmp context for exception handling */
-    for(;;) {
-        if (setjmp(env->jmp_env) == 0) {
+    setjmp(env->jmp_env);
+
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
 #undef env
                     env = cpu_single_env;
 #define env cpu_single_env
 #endif
-            /* if an exception is pending, we execute it here */
-            if (env->exception_index >= 0) {
-                if (env->exception_index < EXCP_INTERRUPT) {
-		    do_interrupt(env);
-#if defined(TARGET_I386)
-                    /* successfully delivered */
-                    env->old_exception = -1;
-#endif
-                    /* if user mode only, we simulate a fake exception
-                       which will be handled outside the cpu execution
-                       loop */
-#if !defined(CONFIG_USER_ONLY)
-                    env->exception_index = -1;
-		    continue;
-#endif
-		}
 
-                if (env->exception_index == EXCP_DEBUG)
-                    cpu_handle_debug_exception(env);
-                ret = env->exception_index;
-                break;
-            }
-
+    while (env->exception_index == -1) {
             if (kvm_enabled()) {
                 kvm_cpu_exec(env);
-                longjmp(env->jmp_env, 1);
+		/* Give a chance to process exceptions.  */
+                cpu_loop_exit();
             }
 
             next_tb = 0; /* force lookup of first TB */
@@ -605,10 +611,9 @@ int cpu_exec(CPUState *env1)
                 /* reset soft MMU for next block (it can currently
                    only be set by a memory fault) */
             } /* for(;;) */
-        }
     } /* for(;;) */
 
-
+    ret = env->exception_index;
 #if defined(TARGET_I386)
     /* restore flags in standard format */
     env->eflags = env->eflags | helper_cc_compute_all(CC_OP) | (DF & DF_MASK);
