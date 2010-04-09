@@ -285,31 +285,10 @@ int cpu_exec(CPUState *env1)
                     ret = env->exception_index;
                     break;
 #else
+		    do_interrupt(env);
 #if defined(TARGET_I386)
-                    /* simulate a real cpu exception. On i386, it can
-                       trigger new exceptions, but we do not handle
-                       double or triple faults yet. */
-                    do_interrupt(env);
                     /* successfully delivered */
                     env->old_exception = -1;
-#elif defined(TARGET_PPC)
-                    do_interrupt(env);
-#elif defined(TARGET_MICROBLAZE)
-                    do_interrupt(env);
-#elif defined(TARGET_MIPS)
-                    do_interrupt(env);
-#elif defined(TARGET_SPARC)
-                    do_interrupt(env);
-#elif defined(TARGET_ARM)
-                    do_interrupt(env);
-#elif defined(TARGET_SH4)
-		    do_interrupt(env);
-#elif defined(TARGET_ALPHA)
-                    do_interrupt(env);
-#elif defined(TARGET_CRIS)
-                    do_interrupt(env);
-#elif defined(TARGET_M68K)
-                    do_interrupt(env);
 #endif
                     env->exception_index = -1;
 #endif
