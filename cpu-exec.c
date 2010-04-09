@@ -278,10 +278,7 @@ int cpu_exec(CPUState *env1)
                        which will be handled outside the cpu execution
                        loop */
 #if defined(TARGET_I386)
-                    do_interrupt(env->exception_index,
-			   	 env->exception_kind,
-			    	 env->error_code,
-			    	 env->exception_next_eip);
+                    do_interrupt(env);
                     /* successfully delivered */
                     env->old_exception = -1;
 #endif
@@ -292,10 +289,7 @@ int cpu_exec(CPUState *env1)
                     /* simulate a real cpu exception. On i386, it can
                        trigger new exceptions, but we do not handle
                        double or triple faults yet. */
-                    do_interrupt(env->exception_index,
-                                 env->exception_kind,
-                                 env->error_code,
-                                 env->exception_next_eip);
+                    do_interrupt(env);
                     /* successfully delivered */
                     env->old_exception = -1;
 #elif defined(TARGET_PPC)
@@ -372,11 +366,19 @@ int cpu_exec(CPUState *env1)
                                    !(env->hflags2 & HF2_NMI_MASK)) {
                             env->interrupt_request &= ~CPU_INTERRUPT_NMI;
                             env->hflags2 |= HF2_NMI_MASK;
-                            do_interrupt(EXCP02_NMI, EXCP_INTR, 0, 0);
+			    env->exception_index = EXCP02_NMI;
+			    env->error_code = 0;
+			    env->exception_kind = EXCP_INTR;
+			    env->exception_next_eip = -1;
+                            do_interrupt(env);
                             next_tb = 0;
 			} else if (interrupt_request & CPU_INTERRUPT_MCE) {
                             env->interrupt_request &= ~CPU_INTERRUPT_MCE;
-                            do_interrupt(EXCP12_MCHK, EXCP_EXCEPTION, 0, 0);
+			    env->exception_index = EXCP12_MCHK;
+			    env->error_code = 0;
+			    env->exception_kind = EXCP_EXCEPTION;
+			    env->exception_next_eip = -1;
+                            do_interrupt(env);
                             next_tb = 0;
                         } else if ((interrupt_request & CPU_INTERRUPT_HARD) &&
                                    (((env->hflags2 & HF2_VINTR_MASK) && 
@@ -394,7 +396,11 @@ int cpu_exec(CPUState *env1)
                     env = cpu_single_env;
 #define env cpu_single_env
 #endif
-                            do_interrupt(intno, EXCP_INTR, 0, 0);
+			    env->exception_index = intno;
+			    env->error_code = 0;
+			    env->exception_kind = EXCP_INTR;
+			    env->exception_next_eip = -1;
+                            do_interrupt(env);
                             /* ensure that no TB jump will be modified as
                                the program flow was changed */
                             next_tb = 0;
@@ -407,7 +413,11 @@ int cpu_exec(CPUState *env1)
                             svm_check_intercept(SVM_EXIT_VINTR);
                             intno = ldl_phys(env->vm_vmcb + offsetof(struct vmcb, control.int_vector));
                             qemu_log_mask(CPU_LOG_TB_IN_ASM, "Servicing virtual hardware INT=0x%02x\n", intno);
-                            do_interrupt(intno, EXCP_INTR, 0, 0);
+			    env->exception_index = intno;
+			    env->error_code = 0;
+			    env->exception_kind = EXCP_INTR;
+			    env->exception_next_eip = -1;
+                            do_interrupt(env);
                             env->interrupt_request &= ~CPU_INTERRUPT_VIRQ;
                             next_tb = 0;
 #endif
@@ -463,7 +473,6 @@ int cpu_exec(CPUState *env1)
                             }
                         }
 		    } else if (interrupt_request & CPU_INTERRUPT_TIMER) {
-			//do_interrupt(0, 0, 0, 0, 0);
 			env->interrupt_request &= ~CPU_INTERRUPT_TIMER;
 		    }
 #elif defined(TARGET_ARM)

@@ -1159,13 +1159,13 @@ static void do_interrupt_real(int intno, int kind, int error_code,
 
 #if defined(CONFIG_USER_ONLY)
 /* fake user mode interrupt */
-void do_interrupt(int intno, int kind, int error_code,
-	    	  target_ulong next_eip)
+void do_interrupt(CPUState *env)
 {
     SegmentCache *dt;
     target_ulong ptr;
     int dpl, cpl, shift;
     uint32_t e2;
+    int intno, kind;
 
     dt = &env->idt;
     if (env->hflags & HF_LMA_MASK) {
@@ -1173,12 +1173,14 @@ void do_interrupt(int intno, int kind, int error_code,
     } else {
         shift = 3;
     }
+    intno = env->exception_index;
     ptr = dt->base + (intno << shift);
     e2 = ldl_kernel(ptr + 4);
 
     dpl = (e2 >> DESC_DPL_SHIFT) & 3;
     cpl = env->hflags & HF_CPL_MASK;
     /* check privilege if software int */
+    kind = env->exception_kind;
     if (kind == EXCP_SOFT && dpl < cpl)
         raise_exception_err(EXCP0D_GPF, (intno << shift) + 2);
 
@@ -1186,7 +1188,7 @@ void do_interrupt(int intno, int kind, int error_code,
        exiting the emulation with the suitable exception and error
        code */
     if (kind == EXCP_SOFT)
-        EIP = next_eip;
+        EIP = env->exception_next_eip;
 }
 
 #else
@@ -1210,13 +1212,17 @@ static void handle_even_inj(int intno, int kind, int error_code,
 }
 
 /*
- * Begin execution of an interruption. kind says how the interrupt was
- * generated. next_eip is the EIP value AFTER the interrupt
- * instruction. It is only relevant if kind is EXCP_SOFT.
+ * Begin execution of an interruption. env says how the interrupt was
+ * generated and, for a soft interrupt, the EIP value AFTER the interrupt
+ * instruction.
  */
-void do_interrupt(int intno, int kind, int error_code,
-                  target_ulong next_eip)
+void do_interrupt(CPUState *env)
 {
+    int intno = env->exception_index;
+    int kind = env->exception_kind;
+    int error_code = env->error_code;
+    target_ulong next_eip = env->exception_next_eip;
+
     if (qemu_loglevel_mask(CPU_LOG_INT)) {
         if ((env->cr[0] & CR0_PE_MASK)) {
             static int count;
@@ -5062,7 +5068,7 @@ void helper_vmrun(int aflag, int next_eip_addend)
                 env->exception_next_eip = -1;
                 qemu_log_mask(CPU_LOG_TB_IN_ASM, "INTR");
                 /* XXX: is it always correct ? */
-                do_interrupt(vector, EXCP_INTR, 0, 0);
+                do_interrupt(env);
                 break;
         case SVM_EVTINJ_TYPE_NMI:
                 env->exception_index = EXCP02_NMI;
