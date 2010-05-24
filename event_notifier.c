@@ -11,6 +11,7 @@
  */
 
 #include "event_notifier.h"
+#include "qemu-char.h"
 #ifdef CONFIG_EVENTFD
 #include <sys/eventfd.h>
 #endif
@@ -36,6 +37,12 @@ void event_notifier_cleanup(EventNotifier *e)
 int event_notifier_get_fd(EventNotifier *e)
 {
     return e->fd;
+}
+
+int event_notifier_set_handler(EventNotifier *e,
+                               EventNotifierHandler *handler)
+{
+    return qemu_set_fd_handler(e->fd, (IOHandler *)handler, NULL, e);
 }
 
 int event_notifier_set(EventNotifier *e)
