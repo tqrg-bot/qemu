@@ -15,9 +15,17 @@
 
 #include "qemu-common.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 struct EventNotifier {
+#ifdef _WIN32
+    HANDLE event;
+#else
     int rfd;
     int wfd;
+#endif
 };
 
 typedef void EventNotifierHandler(EventNotifier *);
