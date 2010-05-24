@@ -16,7 +16,8 @@
 #include "qemu-common.h"
 
 struct EventNotifier {
-	int fd;
+    int rfd;
+    int wfd;
 };
 
 typedef void EventNotifierHandler(EventNotifier *);
