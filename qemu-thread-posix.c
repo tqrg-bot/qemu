@@ -16,8 +16,11 @@
 #include <time.h>
 #include <signal.h>
 #include <stdint.h>
+#include <assert.h>
 #include <string.h>
 #include "qemu-thread.h"
+
+static pthread_t pthread_null;
 
 static void error_exit(int err, const char *msg)
 {
@@ -34,6 +37,7 @@ void qemu_mutex_init(QemuMutex *mutex)
     pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_ERRORCHECK);
     err = pthread_mutex_init(&mutex->lock, &mutexattr);
     pthread_mutexattr_destroy(&mutexattr);
+    mutex->owner = pthread_null;
     if (err)
         error_exit(err, __func__);
 }
@@ -52,19 +56,27 @@ void qemu_mutex_lock(QemuMutex *mutex)
     int err;
 
     err = pthread_mutex_lock(&mutex->lock);
+    mutex->owner = pthread_self();
     if (err)
         error_exit(err, __func__);
 }
 
 int qemu_mutex_trylock(QemuMutex *mutex)
 {
-    return pthread_mutex_trylock(&mutex->lock);
+    int err;
+    err = pthread_mutex_trylock(&mutex->lock);
+    if (err == 0) {
+        mutex->owner = pthread_self();
+    }
+
+    return !!err;
 }
 
 void qemu_mutex_unlock(QemuMutex *mutex)
 {
     int err;
 
+    mutex->owner = pthread_null;
     err = pthread_mutex_unlock(&mutex->lock);
     if (err)
         error_exit(err, __func__);
@@ -110,7 +122,10 @@ void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex)
 {
     int err;
 
+    assert(pthread_equal(mutex->owner, pthread_self()));
+    mutex->owner = pthread_null;
     err = pthread_cond_wait(&cond->cond, &mutex->lock);
+    mutex->owner = pthread_self();
     if (err)
         error_exit(err, __func__);
 }

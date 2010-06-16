@@ -4,6 +4,7 @@
 
 struct QemuMutex {
     pthread_mutex_t lock;
+    pthread_t owner;
 };
 
 struct QemuCond {
