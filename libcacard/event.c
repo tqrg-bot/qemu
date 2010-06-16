@@ -49,7 +49,7 @@ static QemuCond vevent_queue_condition;
 void vevent_queue_init(void)
 {
     qemu_mutex_init(&vevent_queue_lock);
-    qemu_cond_init(&vevent_queue_condition);
+    qemu_cond_init(&vevent_queue_condition, &vevent_queue_lock);
     vevent_queue_head = vevent_queue_tail = NULL;
 }
 
@@ -88,7 +88,7 @@ VEvent *vevent_wait_next_vevent(void)
 
     qemu_mutex_lock(&vevent_queue_lock);
     while ((vevent = vevent_dequeue_vevent()) == NULL) {
-        qemu_cond_wait(&vevent_queue_condition, &vevent_queue_lock);
+        qemu_cond_wait(&vevent_queue_condition);
     }
     qemu_mutex_unlock(&vevent_queue_lock);
     return vevent;

@@ -8,6 +8,7 @@ struct QemuMutex {
 };
 
 struct QemuCond {
+    QemuMutex *mutex;
     LONG waiters, target;
     HANDLE sema;
     HANDLE continue_event;

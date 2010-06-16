@@ -132,7 +132,7 @@ event_thread(void *arg)
             /* this reader hasn't been told its status from qemu yet, wait for
              * that status */
             while (pending_reader != NULL) {
-                qemu_cond_wait(&pending_reader_condition, &pending_reader_lock);
+                qemu_cond_wait(&pending_reader_condition);
             }
             qemu_mutex_unlock(&pending_reader_lock);
             /* now recheck the id */
@@ -152,7 +152,7 @@ event_thread(void *arg)
              * */
             qemu_mutex_lock(&pending_reader_lock);
             while (pending_reader != NULL) {
-                qemu_cond_wait(&pending_reader_condition, &pending_reader_lock);
+                qemu_cond_wait(&pending_reader_condition);
             }
             pending_reader = vreader_reference(event->reader);
             qemu_mutex_unlock(&pending_reader_lock);
@@ -513,7 +513,7 @@ main(
 
     qemu_mutex_init(&write_lock);
     qemu_mutex_init(&pending_reader_lock);
-    qemu_cond_init(&pending_reader_condition);
+    qemu_cond_init(&pending_reader_condition, &pending_reader_lock);
 
     vcard_emul_init(command_line_options);
 

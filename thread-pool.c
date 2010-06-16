@@ -209,7 +209,7 @@ static void thread_pool_cancel(BlockDriverAIOCB *acb)
     } else {
         pending_cancellations++;
         while (elem->state != THREAD_CANCELED && elem->state != THREAD_DONE) {
-            qemu_cond_wait(&check_cancel, &lock);
+            qemu_cond_wait(&check_cancel);
         }
         pending_cancellations--;
     }
@@ -277,7 +277,7 @@ static void thread_pool_init(void)
     QLIST_INIT(&head);
     event_notifier_init(&notifier, false);
     qemu_mutex_init(&lock);
-    qemu_cond_init(&check_cancel);
+    qemu_cond_init(&check_cancel, &lock);
     qemu_sem_init(&sem, 0);
     qemu_aio_set_event_notifier(&notifier, event_notifier_ready,
                                 thread_pool_active);

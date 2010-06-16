@@ -103,11 +103,12 @@ void qemu_mutex_unlock(QemuMutex *mutex)
         error_exit(err, __func__);
 }
 
-void qemu_cond_init(QemuCond *cond)
+void qemu_cond_init(QemuCond *cond, QemuMutex *mutex)
 {
     int err;
 
     err = pthread_cond_init(&cond->cond, NULL);
+    cond->mutex = mutex;
     if (err)
         error_exit(err, __func__);
 }
@@ -125,6 +126,7 @@ void qemu_cond_signal(QemuCond *cond)
 {
     int err;
 
+    assert (pthread_equal(cond->mutex->owner, pthread_self()));
     err = pthread_cond_signal(&cond->cond);
     if (err)
         error_exit(err, __func__);
@@ -134,19 +136,20 @@ void qemu_cond_broadcast(QemuCond *cond)
 {
     int err;
 
+    assert (pthread_equal(cond->mutex->owner, pthread_self()));
     err = pthread_cond_broadcast(&cond->cond);
     if (err)
         error_exit(err, __func__);
 }
 
-void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex)
+void qemu_cond_wait(QemuCond *cond)
 {
     int err;
 
-    assert (pthread_equal(mutex->owner, pthread_self()));
-    mutex->owner = pthread_null;
-    err = pthread_cond_wait(&cond->cond, &mutex->lock);
-    mutex->owner = pthread_self();
+    assert (pthread_equal(cond->mutex->owner, pthread_self()));
+    cond->mutex->owner = pthread_null;
+    err = pthread_cond_wait(&cond->cond, &cond->mutex->lock);
+    cond->mutex->owner = pthread_self();
     if (err)
         error_exit(err, __func__);
 }

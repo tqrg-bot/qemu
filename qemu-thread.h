@@ -28,17 +28,11 @@ void qemu_mutex_unlock(QemuMutex *mutex);
 #define rcu_read_lock() do { } while (0)
 #define rcu_read_unlock() do { } while (0)
 
-void qemu_cond_init(QemuCond *cond);
+void qemu_cond_init(QemuCond *cond, QemuMutex *mutex);
 void qemu_cond_destroy(QemuCond *cond);
-
-/*
- * IMPORTANT: The implementation does not guarantee that pthread_cond_signal
- * and pthread_cond_broadcast can be called except while the same mutex is
- * held as in the corresponding pthread_cond_wait calls!
- */
 void qemu_cond_signal(QemuCond *cond);
 void qemu_cond_broadcast(QemuCond *cond);
-void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex);
+void qemu_cond_wait(QemuCond *cond);
 
 void qemu_sem_init(QemuSemaphore *sem, int init);
 void qemu_sem_post(QemuSemaphore *sem);

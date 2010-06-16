@@ -236,7 +236,7 @@ static void *handle_apdu_thread(void* arg)
 
     while (1) {
         qemu_mutex_lock(&card->handle_apdu_mutex);
-        qemu_cond_wait(&card->handle_apdu_cond, &card->handle_apdu_mutex);
+        qemu_cond_wait(&card->handle_apdu_cond);
         qemu_mutex_unlock(&card->handle_apdu_mutex);
         if (card->quit_apdu_thread) {
             card->quit_apdu_thread = 0; /* debugging */
@@ -494,7 +494,7 @@ static int emulated_initfn(CCIDCardState *base)
     qemu_mutex_init(&card->event_list_mutex);
     qemu_mutex_init(&card->vreader_mutex);
     qemu_mutex_init(&card->handle_apdu_mutex);
-    qemu_cond_init(&card->handle_apdu_cond);
+    qemu_cond_init(&card->handle_apdu_cond, &card->handle_apdu_mutex);
     card->reader = NULL;
     card->quit_apdu_thread = 0;
     if (init_pipe_signaling(card) < 0) {

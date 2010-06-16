@@ -83,9 +83,11 @@ void qemu_mutex_unlock(QemuMutex *mutex)
     LeaveCriticalSection(&mutex->lock);
 }
 
-void qemu_cond_init(QemuCond *cond)
+void qemu_cond_init(QemuCond *cond, QemuMutex *mutex)
 {
-    memset(cond, 0, sizeof(*cond));
+    cond->mutex = mutex;
+    cond->waiters = 0;
+    cond->target = 0;
 
     cond->sema = CreateSemaphore(NULL, 0, LONG_MAX, NULL);
     if (!cond->sema) {
@@ -118,6 +120,7 @@ void qemu_cond_destroy(QemuCond *cond)
 void qemu_cond_signal(QemuCond *cond)
 {
     DWORD result;
+    assert(cond->mutex->owner == GetCurrentThreadId());
 
     /*
      * Signal only when there are waiters.  cond->waiters is
@@ -149,6 +152,7 @@ void qemu_cond_broadcast(QemuCond *cond)
      * As in pthread_cond_signal, access to cond->waiters and
      * cond->target is locked via the external mutex.
      */
+    assert(cond->mutex->owner == GetCurrentThreadId());
     if (cond->waiters == 0) {
         return;
     }
@@ -170,7 +174,7 @@ void qemu_cond_broadcast(QemuCond *cond)
     WaitForSingleObject(cond->continue_event, INFINITE);
 }
 
-void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex)
+void qemu_cond_wait(QemuCond *cond)
 {
     /*
      * This access is protected under the mutex.
@@ -183,7 +187,8 @@ void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex)
      * waiters count above, so there's no problem with
      * leaving mutex unlocked before we wait on semaphore.
      */
-    qemu_mutex_unlock(mutex);
+    qemu_mutex_unlock(cond->mutex);
+
     WaitForSingleObject(cond->sema, INFINITE);
 
     /* Now waiters must rendez-vous with the signaling thread and
@@ -203,7 +208,8 @@ void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex)
         SetEvent(cond->continue_event);
     }
 
-    qemu_mutex_lock(mutex);
+    /* lock external mutex again */
+    qemu_mutex_lock(cond->mutex);
 }
 
 void qemu_sem_init(QemuSemaphore *sem, int init)
