@@ -11,10 +11,6 @@
 #include "targphys.h"
 #endif
 
-#ifndef NEED_CPU_H
-#include "poison.h"
-#endif
-
 #include "bswap.h"
 #include "qemu-queue.h"
 
