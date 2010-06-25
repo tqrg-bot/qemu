@@ -29,6 +29,7 @@
 #include <string.h>
 #include <inttypes.h>
 
+#include "qemu-common.h"
 #include "cpu.h"
 #include "exec-all.h"
 #include "disas.h"
@@ -36,7 +37,6 @@
 #include "helper.h"
 #include "mmu.h"
 #include "crisv32-decode.h"
-#include "qemu-common.h"
 
 #define GEN_HELPER 1
 #include "helper.h"

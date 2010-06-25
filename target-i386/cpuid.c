@@ -21,6 +21,7 @@
 #include <string.h>
 #include <inttypes.h>
 
+#include "qemu-common.h"
 #include "cpu.h"
 #include "kvm.h"
 

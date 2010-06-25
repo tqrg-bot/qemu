@@ -24,13 +24,13 @@
 #include <inttypes.h>
 #include <assert.h>
 
+#include "qemu-common.h"
 #include "cpu.h"
 #include "exec-all.h"
 #include "disas.h"
 #include "tcg-op.h"
 #include "helper.h"
 #include "microblaze-decode.h"
-#include "qemu-common.h"
 
 #define GEN_HELPER 1
 #include "helper.h"

@@ -25,7 +25,8 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include <cpu.h>
+#include "qemu-common.h"
+#include "cpu.h"
 
 #define GET_FPA11() (qemufpa)
 

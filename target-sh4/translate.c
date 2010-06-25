@@ -26,11 +26,11 @@
 #define SH4_DEBUG_DISAS
 //#define SH4_SINGLE_STEP
 
+#include "qemu-common.h"
 #include "cpu.h"
 #include "exec-all.h"
 #include "disas.h"
 #include "tcg-op.h"
-#include "qemu-common.h"
 
 #include "helper.h"
 #define GEN_HELPER 1

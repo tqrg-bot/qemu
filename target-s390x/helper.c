@@ -22,10 +22,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "qemu-common.h"
 #include "cpu.h"
 #include "exec-all.h"
 #include "gdbstub.h"
-#include "qemu-common.h"
 #include "qemu-timer.h"
 
 //#define DEBUG_S390

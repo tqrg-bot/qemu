@@ -22,9 +22,9 @@
 #include <string.h>
 #include <inttypes.h>
 
+#include "qemu-common.h"
 #include "cpu.h"
 #include "exec-all.h"
-#include "qemu-common.h"
 #include "kvm.h"
 #ifndef CONFIG_USER_ONLY
 #include "sysemu.h"
