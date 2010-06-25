@@ -122,15 +122,12 @@ static inline char *realpath(const char *path, char *resolved_path)
 
 /* FIXME: Remove NEED_CPU_H.  */
 #ifndef NEED_CPU_H
-
 #include <setjmp.h>
 #include "osdep.h"
 #include "bswap.h"
-
+#include "poison.h"
 #else
-
 #include "cpu.h"
-
 #endif /* !defined(NEED_CPU_H) */
 
 /* bottom halves */
