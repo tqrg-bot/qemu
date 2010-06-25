@@ -80,7 +80,7 @@ typedef struct APICState APICState;
 
 struct APICState {
     SysBusDevice busdev;
-    void *cpu_env;
+    CPUState *cpu_env;
     uint32_t apicbase;
     uint8_t id;
     uint8_t arb_id;
@@ -1020,7 +1020,7 @@ static SysBusDeviceInfo apic_info = {
     .qdev.no_user = 1,
     .qdev.props = (Property[]) {
         DEFINE_PROP_UINT8("id", APICState, id, -1),
-        DEFINE_PROP_PTR("cpu_env", APICState, cpu_env),
+        DEFINE_PROP_CPU("cpu_env", APICState, cpu_env),
         DEFINE_PROP_END_OF_LIST(),
     }
 };

@@ -867,7 +867,7 @@ DeviceState *cpu_get_current_apic(void)
     }
 }
 
-static DeviceState *apic_init(void *env, uint8_t apic_id)
+static DeviceState *apic_init(CPUState *env, uint8_t apic_id)
 {
     DeviceState *dev;
     SysBusDevice *d;
@@ -875,7 +875,7 @@ static DeviceState *apic_init(void *env, uint8_t apic_id)
 
     dev = qdev_create(NULL, "apic");
     qdev_prop_set_uint8(dev, "id", apic_id);
-    qdev_prop_set_ptr(dev, "cpu_env", env);
+    qdev_prop_set_cpu(dev, "cpu_env", env);
     qdev_init_nofail(dev);
     d = sysbus_from_qdev(dev);
 
