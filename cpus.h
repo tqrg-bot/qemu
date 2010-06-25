@@ -7,6 +7,8 @@ void qemu_main_loop_start(void);
 void resume_all_vcpus(void);
 void pause_all_vcpus(void);
 void cpu_stop_current(void);
+CPUState *cpu_get_by_id(int id);
+int cpu_get_id(CPUState *env);
 
 void cpu_synchronize_all_states(void);
 void cpu_synchronize_all_post_reset(void);

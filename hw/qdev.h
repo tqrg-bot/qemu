@@ -101,6 +101,7 @@ enum PropertyType {
     PROP_TYPE_VLAN,
     PROP_TYPE_PTR,
     PROP_TYPE_BIT,
+    PROP_TYPE_CPU,
 };
 
 struct PropertyInfo {
@@ -234,6 +235,7 @@ extern PropertyInfo qdev_prop_drive;
 extern PropertyInfo qdev_prop_netdev;
 extern PropertyInfo qdev_prop_vlan;
 extern PropertyInfo qdev_prop_pci_devfn;
+extern PropertyInfo qdev_prop_cpu;
 
 #define DEFINE_PROP(_name, _state, _field, _prop, _type) { \
         .name      = (_name),                                    \
@@ -288,6 +290,8 @@ extern PropertyInfo qdev_prop_pci_devfn;
     DEFINE_PROP(_n, _s, _f, qdev_prop_drive, BlockDriverState *)
 #define DEFINE_PROP_MACADDR(_n, _s, _f)         \
     DEFINE_PROP(_n, _s, _f, qdev_prop_macaddr, MACAddr)
+#define DEFINE_PROP_CPU(_n, _s, _f)             \
+    DEFINE_PROP(_n, _s, _f, qdev_prop_cpu, CPUState*)
 
 #define DEFINE_PROP_END_OF_LIST()               \
     {}
@@ -309,6 +313,7 @@ void qdev_prop_set_netdev(DeviceState *dev, const char *name, VLANClientState *v
 void qdev_prop_set_vlan(DeviceState *dev, const char *name, VLANState *value);
 int qdev_prop_set_drive(DeviceState *dev, const char *name, BlockDriverState *value) QEMU_WARN_UNUSED_RESULT;
 void qdev_prop_set_drive_nofail(DeviceState *dev, const char *name, BlockDriverState *value);
+void qdev_prop_set_cpu(DeviceState *dev, const char *name, CPUState *value);
 void qdev_prop_set_macaddr(DeviceState *dev, const char *name, uint8_t *value);
 /* FIXME: Remove opaque pointer properties.  */
 void qdev_prop_set_ptr(DeviceState *dev, const char *name, void *value);

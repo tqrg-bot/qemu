@@ -2,6 +2,7 @@
 #include "qdev.h"
 #include "qerror.h"
 #include "blockdev.h"
+#include "cpus.h"
 
 void *qdev_get_prop_ptr(DeviceState *dev, Property *prop)
 {
@@ -300,6 +301,48 @@ PropertyInfo qdev_prop_string = {
     .parse = parse_string,
     .print = print_string,
     .free  = free_string,
+};
+
+/* --- cpu --- */
+
+static int parse_cpu(DeviceState *dev, Property *prop, const char *str)
+{
+    CPUState **ptr = qdev_get_prop_ptr(dev, prop);
+    char *end;
+    int id;
+
+    if (!*str) {
+        return -ENOENT;
+    }
+
+    id = strtol (str, &end, 0);
+    if (*end) {
+        return -ENOENT;
+    }
+
+    *ptr = cpu_get_by_id(id);
+    if (*ptr == NULL) {
+        return -ENOENT;
+    }
+    return 0;
+}
+
+static int print_cpu(DeviceState *dev, Property *prop, char *dest, size_t len)
+{
+    CPUState **ptr = qdev_get_prop_ptr(dev, prop);
+    if (*ptr) {
+        return snprintf(dest, len, "%d", cpu_get_id(*ptr));
+    } else {
+        return snprintf(dest, len, "<null>");
+    }
+}
+
+PropertyInfo qdev_prop_cpu = {
+    .name  = "cpu",
+    .type  = PROP_TYPE_CPU,
+    .size  = sizeof(DriveInfo*),
+    .parse = parse_cpu,
+    .print = print_cpu,
 };
 
 /* --- drive --- */
@@ -719,6 +762,11 @@ void qdev_prop_set_macaddr(DeviceState *dev, const char *name, uint8_t *value)
 void qdev_prop_set_ptr(DeviceState *dev, const char *name, void *value)
 {
     qdev_prop_set(dev, name, &value, PROP_TYPE_PTR);
+}
+
+void qdev_prop_set_cpu(DeviceState *dev, const char *name, CPUState *value)
+{
+    qdev_prop_set(dev, name, &value, PROP_TYPE_CPU);
 }
 
 void qdev_prop_set_defaults(DeviceState *dev, Property *props)

@@ -111,6 +111,24 @@ void cpu_synchronize_all_post_init(void)
     }
 }
 
+CPUState *cpu_get_by_id(int id)
+{
+    CPUState *cpu;
+
+    for (cpu = first_cpu; cpu; cpu = cpu->next_cpu) {
+        if (cpu->cpu_index == id) {
+            return cpu;
+        }
+    }
+
+    return NULL;
+}
+
+int cpu_get_id(CPUState *env)
+{
+    return env->cpu_index;
+}
+
 int cpu_is_stopped(CPUState *env)
 {
     return !vm_running || env->stopped;
