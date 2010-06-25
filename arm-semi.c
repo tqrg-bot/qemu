@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "cpu.h"
+#include "config.h"
 #ifdef CONFIG_USER_ONLY
 #include "qemu.h"
 

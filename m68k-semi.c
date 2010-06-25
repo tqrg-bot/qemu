@@ -27,7 +27,7 @@
 #include <sys/time.h>
 #include <time.h>
 
-#include "cpu.h"
+#include "config.h"
 #if defined(CONFIG_USER_ONLY)
 #include "qemu.h"
 #define SEMIHOSTING_HEAP_SIZE (128 * 1024 * 1024)

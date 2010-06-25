@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "qemu-common.h"
 #include "config.h"
 #include "cpu.h"
 #include "exec-all.h"

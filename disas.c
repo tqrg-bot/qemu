@@ -1,5 +1,6 @@
 /* General "disassemble this chunk" code.  Used for debugging. */
 #include "config.h"
+#include "qemu-common.h"
 #include "dis-asm.h"
 #include "elf.h"
 #include <errno.h>

@@ -25,6 +25,7 @@
 #include <stdlib.h>
 
 #include "config.h"
+#include "qemu-common.h"
 #include "cpu.h"
 #include "mmu.h"
 #include "exec-all.h"

@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <string.h>
 
+#include "qemu-common.h"
 #include "cpu.h"
 
 #undef DEBUG_REMAP

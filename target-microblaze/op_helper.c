@@ -18,6 +18,7 @@
  */
 
 #include <assert.h>
+#include "qemu-common.h"
 #include "exec.h"
 #include "helper.h"
 #include "host-utils.h"

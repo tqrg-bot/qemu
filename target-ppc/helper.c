@@ -23,10 +23,10 @@
 #include <inttypes.h>
 #include <signal.h>
 
+#include "qemu-common.h"
 #include "cpu.h"
 #include "exec-all.h"
 #include "helper_regs.h"
-#include "qemu-common.h"
 #include "kvm.h"
 
 //#define DEBUG_MMU

@@ -18,6 +18,8 @@
  */
 #include <assert.h>
 #include <stdlib.h>
+
+#include "qemu-common.h"
 #include "exec.h"
 #include "helper.h"
 

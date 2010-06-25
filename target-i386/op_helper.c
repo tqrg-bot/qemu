@@ -17,6 +17,7 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #define CPU_NO_GLOBAL_REGS
+#include "qemu-common.h"
 #include "exec.h"
 #include "exec-all.h"
 #include "host-utils.h"
