@@ -6,6 +6,8 @@ int qemu_init_main_loop(void);
 void qemu_main_loop_start(void);
 void resume_all_vcpus(void);
 void pause_all_vcpus(void);
+CPUState *cpu_get_by_id(int id);
+int cpu_get_id(CPUState *env);
 
 /* vl.c */
 extern int smp_cores;
