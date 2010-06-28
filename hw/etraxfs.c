@@ -87,8 +87,7 @@ void bareetraxfs_init (ram_addr_t ram_size,
                           0x555, 0x2aa, 0);
     cpu_irq = cris_pic_init_cpu(env);
     dev = qdev_create(NULL, "etraxfs,pic");
-    /* FIXME: Is there a proper way to signal vectors to the CPU core?  */
-    qdev_prop_set_ptr(dev, "interrupt_vector", &env->interrupt_vector);
+    qdev_prop_set_cpu(dev, "cpu_env", env);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_mmio_map(s, 0, 0x3001c000);
