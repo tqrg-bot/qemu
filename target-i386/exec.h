@@ -21,13 +21,6 @@
 #include "cpu.h"
 #include "exec-all.h"
 
-/* XXX: factorize this mess */
-#ifdef TARGET_X86_64
-#define TARGET_LONG_BITS 64
-#else
-#define TARGET_LONG_BITS 32
-#endif
-
 #include "qemu-common.h"
 #include "qemu-log.h"
 
