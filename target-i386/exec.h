@@ -18,6 +18,8 @@
  */
 #include "config.h"
 #include "dyngen-exec.h"
+#include "cpu.h"
+#include "exec-all.h"
 
 /* XXX: factorize this mess */
 #ifdef TARGET_X86_64
@@ -25,8 +27,6 @@
 #else
 #define TARGET_LONG_BITS 32
 #endif
-
-#include "cpu-defs.h"
 
 #include "qemu-common.h"
 #include "qemu-log.h"
@@ -51,9 +51,6 @@
 #define ST0    (env->fpregs[env->fpstt].d)
 #define ST(n)  (env->fpregs[(env->fpstt + (n)) & 7].d)
 #define ST1    ST(1)
-
-#include "cpu.h"
-#include "exec-all.h"
 
 /* op_helper.c */
 void do_interrupt(int intno, int is_int, int error_code,

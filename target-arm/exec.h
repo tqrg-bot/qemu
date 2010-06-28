@@ -18,11 +18,10 @@
  */
 #include "config.h"
 #include "dyngen-exec.h"
-
-#define M0   env->iwmmxt.val
-
 #include "cpu.h"
 #include "exec-all.h"
+
+#define M0   env->iwmmxt.val
 
 static inline int cpu_has_work(CPUState *env)
 {

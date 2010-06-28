@@ -20,9 +20,7 @@
 #define __PPC_H__
 
 #include "config.h"
-
 #include "dyngen-exec.h"
-
 #include "cpu.h"
 #include "exec-all.h"
 

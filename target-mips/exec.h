@@ -6,8 +6,6 @@
 #include "config.h"
 #include "mips-defs.h"
 #include "dyngen-exec.h"
-#include "cpu-defs.h"
-
 #include "cpu.h"
 #include "exec-all.h"
 

@@ -1,8 +1,8 @@
 #ifndef EXEC_SPARC_H
 #define EXEC_SPARC_H 1
+
 #include "config.h"
 #include "dyngen-exec.h"
-
 #include "cpu.h"
 #include "exec-all.h"
 

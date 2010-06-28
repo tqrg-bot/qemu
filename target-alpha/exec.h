@@ -21,15 +21,13 @@
 #define __ALPHA_EXEC_H__
 
 #include "config.h"
-
 #include "dyngen-exec.h"
+#include "cpu.h"
+#include "exec-all.h"
 
 #define TARGET_LONG_BITS 64
 
 #define FP_STATUS (env->fp_status)
-
-#include "cpu.h"
-#include "exec-all.h"
 
 #if !defined(CONFIG_USER_ONLY)
 #include "softmmu_exec.h"
