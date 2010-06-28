@@ -26,8 +26,6 @@
 
 #define TARGET_LONG_BITS 64
 
-register struct CPUAlphaState *env asm(AREG0);
-
 #define FP_STATUS (env->fp_status)
 
 #include "cpu.h"

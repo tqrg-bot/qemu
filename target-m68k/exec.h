@@ -19,8 +19,6 @@
  */
 #include "dyngen-exec.h"
 
-register struct CPUM68KState *env asm(AREG0);
-
 #include "cpu.h"
 #include "exec-all.h"
 

@@ -28,8 +28,6 @@
 
 #include "cpu-defs.h"
 
-register struct CPUX86State *env asm(AREG0);
-
 #include "qemu-common.h"
 #include "qemu-log.h"
 

@@ -19,8 +19,6 @@
 
 #include "dyngen-exec.h"
 
-register struct CPUS390XState *env asm(AREG0);
-
 #include "config.h"
 #include "cpu.h"
 #include "exec-all.h"

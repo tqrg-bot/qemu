@@ -22,8 +22,6 @@
 #include "config.h"
 #include "dyngen-exec.h"
 
-register struct CPUSH4State *env asm(AREG0);
-
 #include "cpu.h"
 #include "exec-all.h"
 

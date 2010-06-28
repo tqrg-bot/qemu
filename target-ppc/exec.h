@@ -29,8 +29,6 @@
 /* Precise emulation is needed to correctly emulate exception flags */
 #define USE_PRECISE_EMULATION 1
 
-register struct CPUPPCState *env asm(AREG0);
-
 #if !defined(CONFIG_USER_ONLY)
 #include "softmmu_exec.h"
 #endif /* !defined(CONFIG_USER_ONLY) */

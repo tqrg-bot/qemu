@@ -18,8 +18,6 @@
  */
 #include "dyngen-exec.h"
 
-register struct CPUMBState *env asm(AREG0);
-
 #include "cpu.h"
 #include "exec-all.h"
 

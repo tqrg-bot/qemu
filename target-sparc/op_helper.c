@@ -1,3 +1,4 @@
+#define NEED_GLOBAL_ENV
 #include "qemu-common.h"
 #include "exec.h"
 #include "host-utils.h"

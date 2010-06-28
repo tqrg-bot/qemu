@@ -19,8 +19,6 @@
 #include "config.h"
 #include "dyngen-exec.h"
 
-register struct CPUARMState *env asm(AREG0);
-
 #define M0   env->iwmmxt.val
 
 #include "cpu.h"
