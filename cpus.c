@@ -544,9 +544,8 @@ void qemu_main_loop_start(void)
 {
 }
 
-void qemu_init_vcpu(void *_env)
+void qemu_init_vcpu(CPUState *env)
 {
-    CPUState *env = _env;
     int r;
 
     env->nr_cores = smp_cores;
@@ -564,7 +563,7 @@ void qemu_init_vcpu(void *_env)
     }
 }
 
-int qemu_cpu_is_self(void *env)
+int qemu_cpu_is_self(CPUState *env)
 {
     return 1;
 }
@@ -582,7 +581,7 @@ void pause_all_vcpus(void)
 {
 }
 
-void qemu_cpu_kick(void *env)
+void qemu_cpu_kick(CPUState *env)
 {
 }
 
@@ -861,9 +860,36 @@ static void qemu_cpu_kick_thread(CPUState *env)
 #endif
 }
 
-void qemu_cpu_kick(void *_env)
+void qemu_cpu_kick(CPUState *env)
 {
-    CPUState *env = _env;
+    qemu_cond_broadcast(env->halt_cond);
+    qemu_thread_signal(env->thread, SIG_IPI);
+}
+
+int qemu_cpu_self(CPUState *env)
+{
+    QemuThread this;
+
+    qemu_thread_self(&this);
+
+    return qemu_thread_equal(&this, env->thread);
+}
+
+static void cpu_signal(int sig)
+{
+    if (cpu_single_env)
+        cpu_exit(cpu_single_env);
+    exit_request = 1;
+}
+
+static void tcg_init_ipi(void)
+{
+    sigset_t set;
+    struct sigaction sigact;
+
+    memset(&sigact, 0, sizeof(sigact));
+    sigact.sa_handler = cpu_signal;
+    sigaction(SIG_IPI, &sigact, NULL);
 
     qemu_cond_broadcast(env->halt_cond);
     if (!env->thread_kicked) {
@@ -886,11 +912,9 @@ void qemu_cpu_kick_self(void)
 #endif
 }
 
-int qemu_cpu_is_self(void *_env)
+int qemu_cpu_is_self(CPUState *env)
 {
-    CPUState *env = _env;
-
-    return qemu_thread_is_self(env->thread);
+    return env && qemu_thread_is_self(env->thread);
 }
 
 void qemu_mutex_lock_iothread(void)
@@ -958,10 +982,8 @@ void resume_all_vcpus(void)
     }
 }
 
-static void qemu_tcg_init_vcpu(void *_env)
+static void qemu_tcg_init_vcpu(CPUState *env)
 {
-    CPUState *env = _env;
-
     /* share a single thread for all cpus with TCG */
     if (!tcg_cpu_thread) {
         env->thread = qemu_mallocz(sizeof(QemuThread));
@@ -990,10 +1012,8 @@ static void qemu_kvm_start_vcpu(CPUState *env)
     }
 }
 
-void qemu_init_vcpu(void *_env)
+void qemu_init_vcpu(CPUState *env)
 {
-    CPUState *env = _env;
-
     env->nr_cores = smp_cores;
     env->nr_threads = smp_threads;
     if (kvm_enabled()) {
@@ -1146,7 +1166,7 @@ void set_cpu_log(const char *optarg)
 int64_t cpu_get_icount(void)
 {
     int64_t icount;
-    CPUState *env = cpu_single_env;;
+    CPUState *env = cpu_single_env;
 
     icount = qemu_icount;
     if (env) {
