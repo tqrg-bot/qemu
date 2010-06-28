@@ -6,12 +6,10 @@
 #include "config.h"
 #include "mips-defs.h"
 #include "dyngen-exec.h"
-#include "cpu-defs.h"
-
-register struct CPUMIPSState *env asm(AREG0);
-
 #include "cpu.h"
 #include "exec-all.h"
+
+register struct CPUMIPSState *env asm(AREG0);
 
 #if !defined(CONFIG_USER_ONLY)
 #include "softmmu_exec.h"

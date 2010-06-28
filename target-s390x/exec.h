@@ -17,13 +17,12 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dyngen-exec.h"
-
-register struct CPUS390XState *env asm(AREG0);
-
 #include "config.h"
+#include "dyngen-exec.h"
 #include "cpu.h"
 #include "exec-all.h"
+
+register struct CPUS390XState *env asm(AREG0);
 
 #if !defined(CONFIG_USER_ONLY)
 #include "softmmu_exec.h"

@@ -18,6 +18,10 @@
  */
 #include "config.h"
 #include "dyngen-exec.h"
+#include "cpu.h"
+#include "exec-all.h"
+#include "qemu-common.h"
+#include "qemu-log.h"
 
 /* XXX: factorize this mess */
 #ifdef TARGET_X86_64
@@ -26,12 +30,7 @@
 #define TARGET_LONG_BITS 32
 #endif
 
-#include "cpu-defs.h"
-
 register struct CPUX86State *env asm(AREG0);
-
-#include "qemu-common.h"
-#include "qemu-log.h"
 
 #undef EAX
 #define EAX (env->regs[R_EAX])
@@ -62,9 +61,6 @@ register struct CPUX86State *env asm(AREG0);
 #define ST0    (env->fpregs[env->fpstt].d)
 #define ST(n)  (env->fpregs[(env->fpstt + (n)) & 7].d)
 #define ST1    ST(1)
-
-#include "cpu.h"
-#include "exec-all.h"
 
 /* op_helper.c */
 void do_interrupt(int intno, int is_int, int error_code,

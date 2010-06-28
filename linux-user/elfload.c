@@ -14,6 +14,7 @@
 #include <time.h>
 
 #include "qemu.h"
+#include "qemu-log.h"
 #include "disas.h"
 
 #ifdef _ARCH_PPC64

@@ -17,12 +17,12 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
+#include "config.h"
 #include "dyngen-exec.h"
-
-register struct CPUM68KState *env asm(AREG0);
-
 #include "cpu.h"
 #include "exec-all.h"
+
+register struct CPUM68KState *env asm(AREG0);
 
 #if !defined(CONFIG_USER_ONLY)
 #include "softmmu_exec.h"

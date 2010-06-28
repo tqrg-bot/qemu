@@ -18,11 +18,10 @@
  */
 #include "config.h"
 #include "dyngen-exec.h"
-
-register struct CPUARMState *env asm(AREG0);
-
 #include "cpu.h"
 #include "exec-all.h"
+
+register struct CPUARMState *env asm(AREG0);
 
 static inline int cpu_has_work(CPUState *env)
 {
