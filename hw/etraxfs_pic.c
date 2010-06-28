@@ -39,7 +39,7 @@
 struct etrax_pic
 {
     SysBusDevice busdev;
-    void *interrupt_vector;
+    CPUState *cpu_env;
     qemu_irq parent_irq;
     qemu_irq parent_nmi;
     uint32_t regs[R_MAX];
@@ -70,9 +70,9 @@ static void pic_update(struct etrax_pic *fs)
         }
     }
 
-    if (fs->interrupt_vector) {
-        /* hack alert: ptr property */
-        *(uint32_t*)(fs->interrupt_vector) = vector;
+    if (fs->cpu_env) {
+        /* hack alert: accessing target-specific CPUState field */
+        fs->cpu_env->interrupt_vector = vector;
     }
     qemu_set_irq(fs->parent_irq, !!vector);
 }
@@ -156,7 +156,7 @@ static SysBusDeviceInfo etraxfs_pic_info = {
     .qdev.name  = "etraxfs,pic",
     .qdev.size  = sizeof(struct etrax_pic),
     .qdev.props = (Property[]) {
-        DEFINE_PROP_PTR("interrupt_vector", struct etrax_pic, interrupt_vector),
+        DEFINE_PROP_CPU("cpu_env", struct etrax_pic, cpu_env),
         DEFINE_PROP_END_OF_LIST(),
     }
 };
