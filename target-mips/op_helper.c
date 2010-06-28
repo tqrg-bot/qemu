@@ -23,6 +23,11 @@
 #include "host-utils.h"
 
 #include "helper.h"
+
+#ifndef CONFIG_USER_ONLY
+static inline void cpu_mips_tlb_flush (CPUState *env, int flush_global);
+#endif
+
 /*****************************************************************************/
 /* Exceptions processing helpers */
 
