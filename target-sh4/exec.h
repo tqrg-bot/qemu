@@ -24,8 +24,6 @@
 #include "cpu.h"
 #include "exec-all.h"
 
-register struct CPUSH4State *env asm(AREG0);
-
 static inline int cpu_has_work(CPUState *env)
 {
     return (env->interrupt_request & CPU_INTERRUPT_HARD);

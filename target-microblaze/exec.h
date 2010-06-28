@@ -21,8 +21,6 @@
 #include "cpu.h"
 #include "exec-all.h"
 
-register struct CPUMBState *env asm(AREG0);
-
 #if !defined(CONFIG_USER_ONLY)
 #include "softmmu_exec.h"
 #endif

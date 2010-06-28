@@ -23,8 +23,6 @@
 #include "qemu-common.h"
 #include "qemu-log.h"
 
-register struct CPUX86State *env asm(AREG0);
-
 #undef EAX
 #define EAX (env->regs[R_EAX])
 #undef ECX

@@ -25,8 +25,6 @@
 #include "cpu.h"
 #include "exec-all.h"
 
-register struct CPUAlphaState *env asm(AREG0);
-
 #define FP_STATUS (env->fp_status)
 
 #if !defined(CONFIG_USER_ONLY)
