@@ -23,13 +23,6 @@
 #include "qemu-common.h"
 #include "qemu-log.h"
 
-/* XXX: factorize this mess */
-#ifdef TARGET_X86_64
-#define TARGET_LONG_BITS 64
-#else
-#define TARGET_LONG_BITS 32
-#endif
-
 register struct CPUX86State *env asm(AREG0);
 
 #undef EAX
