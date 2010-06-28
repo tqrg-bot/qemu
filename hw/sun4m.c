@@ -368,7 +368,7 @@ static unsigned long sun4m_load_kernel(const char *kernel_filename,
     return kernel_size;
 }
 
-static void *iommu_init(target_phys_addr_t addr, uint32_t version, qemu_irq irq)
+static DeviceState *iommu_init(target_phys_addr_t addr, uint32_t version, qemu_irq irq)
 {
     DeviceState *dev;
     SysBusDevice *s;
@@ -380,11 +380,12 @@ static void *iommu_init(target_phys_addr_t addr, uint32_t version, qemu_irq irq)
     sysbus_connect_irq(s, 0, irq);
     sysbus_mmio_map(s, 0, addr);
 
-    return s;
+    return dev;
 }
 
 static void *sparc32_dma_init(target_phys_addr_t daddr, qemu_irq parent_irq,
-                              void *iommu, qemu_irq *dev_irq, int is_ledma)
+                              DeviceState *iommu, qemu_irq *dev_irq,
+                              int is_ledma)
 {
     DeviceState *dev;
     SysBusDevice *s;
@@ -863,7 +864,8 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
                           const char *initrd_filename, const char *cpu_model)
 {
     unsigned int i;
-    void *iommu, *espdma, *ledma, *nvram;
+    DeviceState *iommu;
+    void *espdma, *ledma, *nvram;
     qemu_irq *cpu_irqs[MAX_CPUS], slavio_irq[32], slavio_cpu_irq[MAX_CPUS],
         espdma_irq, ledma_irq;
     qemu_irq esp_reset, dma_enable;
@@ -1548,7 +1550,8 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
                           const char *initrd_filename, const char *cpu_model)
 {
     unsigned int i;
-    void *iounits[MAX_IOUNITS], *espdma, *ledma, *nvram;
+    DeviceState *iounits[MAX_IOUNITS];
+    void *espdma, *ledma, *nvram;
     qemu_irq *cpu_irqs[MAX_CPUS], sbi_irq[32], sbi_cpu_irq[MAX_CPUS],
         espdma_irq, ledma_irq;
     qemu_irq esp_reset, dma_enable;
@@ -1741,7 +1744,8 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
                           const char *kernel_cmdline,
                           const char *initrd_filename, const char *cpu_model)
 {
-    void *iommu, *espdma, *ledma, *nvram;
+    DeviceState *iommu;
+    void *espdma, *ledma, *nvram;
     qemu_irq *cpu_irqs, slavio_irq[8], espdma_irq, ledma_irq;
     qemu_irq esp_reset, dma_enable;
     qemu_irq fdc_tc;
