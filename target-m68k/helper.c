@@ -53,7 +53,8 @@ static m68k_def_t m68k_cpu_defs[] = {
     {NULL, 0},
 };
 
-void m68k_cpu_list(FILE *f, fprintf_function cpu_fprintf)
+void m68k_cpu_list(FILE *f, fprintf_function cpu_fprintf,
+		   const char *optarg)
 {
     unsigned int i;
 

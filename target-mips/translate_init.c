@@ -500,7 +500,8 @@ static const mips_def_t *cpu_mips_find_by_name (const char *name)
     return NULL;
 }
 
-void mips_cpu_list (FILE *f, fprintf_function cpu_fprintf)
+void mips_cpu_list (FILE *f, fprintf_function cpu_fprintf,
+		    const char *optarg)
 {
     int i;
 

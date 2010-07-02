@@ -1438,7 +1438,8 @@ static int cpu_sparc_find_by_name(sparc_def_t *cpu_def, const char *cpu_model)
     return -1;
 }
 
-void sparc_cpu_list(FILE *f, fprintf_function cpu_fprintf)
+void sparc_cpu_list(FILE *f, fprintf_function cpu_fprintf,
+		    const char *optarg)
 {
     unsigned int i;
 

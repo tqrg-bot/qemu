@@ -832,7 +832,7 @@ int main(int argc, char **argv)
             if (strcmp(cpu_model, "?") == 0) {
 /* XXX: implement xxx_cpu_list for targets that still miss it */
 #if defined(cpu_list)
-                    cpu_list(stdout, &fprintf);
+                    cpu_list(stdout, &fprintf, "");
 #endif
                 exit(1);
             }

@@ -3490,7 +3490,8 @@ struct
 	{32, "crisv32"},
 };
 
-void cris_cpu_list(FILE *f, fprintf_function cpu_fprintf)
+void cris_cpu_list(FILE *f, fprintf_function cpu_fprintf,
+		   const char *optarg)
 {
     unsigned int i;
 

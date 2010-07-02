@@ -932,7 +932,7 @@ uint64_t cpu_get_tsc(CPUX86State *env);
 #define cpu_exec cpu_x86_exec
 #define cpu_gen_code cpu_x86_gen_code
 #define cpu_signal_handler cpu_x86_signal_handler
-#define cpu_list_id x86_cpu_list
+#define cpu_list x86_cpu_list
 #define cpudef_setup	x86_cpudef_setup
 
 #define CPU_SAVE_VERSION 12

@@ -198,7 +198,8 @@ int cpu_sh4_handle_mmu_fault(CPUSH4State * env, target_ulong address, int rw,
 #define cpu_handle_mmu_fault cpu_sh4_handle_mmu_fault
 void do_interrupt(CPUSH4State * env);
 
-void sh4_cpu_list(FILE *f, fprintf_function cpu_fprintf);
+void sh4_cpu_list(FILE *f, fprintf_function cpu_fprintf,
+		  const char *optarg);
 #if !defined(CONFIG_USER_ONLY)
 void cpu_sh4_invalidate_tlb(CPUSH4State *s);
 uint32_t cpu_sh4_read_mmaped_itlb_addr(CPUSH4State *s,

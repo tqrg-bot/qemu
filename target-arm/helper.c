@@ -400,7 +400,8 @@ static const struct arm_cpu_t arm_cpu_names[] = {
     { 0, NULL}
 };
 
-void arm_cpu_list(FILE *f, fprintf_function cpu_fprintf)
+void arm_cpu_list(FILE *f, fprintf_function cpu_fprintf,
+		  const char *optarg)
 {
     int i;
 

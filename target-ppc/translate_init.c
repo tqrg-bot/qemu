@@ -10030,7 +10030,8 @@ const ppc_def_t *cpu_ppc_find_by_name (const char *name)
     return ret;
 }
 
-void ppc_cpu_list (FILE *f, fprintf_function cpu_fprintf)
+void ppc_cpu_list (FILE *f, fprintf_function cpu_fprintf,
+		   const char *optarg)
 {
     int i, max;
 

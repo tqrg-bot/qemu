@@ -2975,10 +2975,8 @@ int main(int argc, char **argv, char **envp)
             cpu_model = argv[optind++];
             if (cpu_model == NULL || strcmp(cpu_model, "?") == 0) {
 /* XXX: implement xxx_cpu_list for targets that still miss it */
-#if defined(cpu_list_id)
-                cpu_list_id(stdout, &fprintf, "");
-#elif defined(cpu_list)
-                cpu_list(stdout, &fprintf); /* deprecated */
+#if defined(cpu_list)
+                cpu_list(stdout, &fprintf, "");
 #endif
                 exit(1);
             }

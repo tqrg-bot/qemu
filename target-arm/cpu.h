@@ -375,7 +375,7 @@ static inline int arm_feature(CPUARMState *env, int feature)
     return (env->features & (1u << feature)) != 0;
 }
 
-void arm_cpu_list(FILE *f, fprintf_function cpu_fprintf);
+void arm_cpu_list(FILE *f, fprintf_function cpu_fprintf, const char *optarg);
 
 /* Interface between CPU and Interrupt controller.  */
 void armv7m_nvic_set_pending(void *opaque, int irq);
