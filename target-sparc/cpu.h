@@ -451,10 +451,7 @@ typedef struct CPUSPARCState {
 
 #ifndef NO_CPU_IO_DEFS
 /* helper.c */
-CPUSPARCState *cpu_sparc_init(const char *cpu_model);
 void cpu_sparc_set_id(CPUSPARCState *env, unsigned int cpu);
-void sparc_cpu_list(FILE *f, fprintf_function cpu_fprintf,
-                    const char *optarg);
 int cpu_sparc_handle_mmu_fault(CPUSPARCState *env1, target_ulong address, int rw,
                                int mmu_idx, int is_softmmu);
 #define cpu_handle_mmu_fault cpu_sparc_handle_mmu_fault
@@ -463,9 +460,6 @@ void dump_mmu(FILE *f, fprintf_function cpu_fprintf, CPUState *env);
 
 /* translate.c */
 void gen_intermediate_code_init(CPUSPARCState *env);
-
-/* cpu-exec.c */
-int cpu_sparc_exec(CPUSPARCState *s);
 
 /* op_helper.c */
 target_ulong cpu_get_psr(CPUState *env1);
@@ -514,7 +508,6 @@ target_phys_addr_t cpu_get_phys_page_nofault(CPUState *env, target_ulong addr,
                                            int mmu_idx);
 
 #endif
-int cpu_sparc_signal_handler(int host_signum, void *pinfo, void *puc);
 
 #define cpu_init cpu_sparc_init
 #define cpu_exec cpu_sparc_exec

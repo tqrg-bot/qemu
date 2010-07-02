@@ -116,15 +116,8 @@ typedef struct CPUM68KState {
 } CPUM68KState;
 
 void m68k_tcg_init(void);
-CPUM68KState *cpu_m68k_init(const char *cpu_model);
-int cpu_m68k_exec(CPUM68KState *s);
 void cpu_m68k_close(CPUM68KState *s);
 void do_interrupt(int is_hw);
-/* you can call this signal handler from your SIGBUS and SIGSEGV
-   signal handlers to inform the virtual CPU of exceptions. non zero
-   is returned if the signal was handled by the virtual CPU.  */
-int cpu_m68k_signal_handler(int host_signum, void *pinfo,
-                           void *puc);
 void cpu_m68k_flush_flags(CPUM68KState *, int);
 
 enum {
@@ -198,9 +191,6 @@ static inline int m68k_feature(CPUM68KState *env, int feature)
 {
     return (env->features & (1u << feature)) != 0;
 }
-
-void m68k_cpu_list(FILE *f, fprintf_function cpu_fprintf,
-                   const char *optarg);
 
 void register_m68k_insns (CPUM68KState *env);
 

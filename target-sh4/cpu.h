@@ -189,17 +189,11 @@ typedef struct CPUSH4State {
     memory_content **movcal_backup_tail;
 } CPUSH4State;
 
-CPUSH4State *cpu_sh4_init(const char *cpu_model);
-int cpu_sh4_exec(CPUSH4State * s);
-int cpu_sh4_signal_handler(int host_signum, void *pinfo,
-                           void *puc);
 int cpu_sh4_handle_mmu_fault(CPUSH4State * env, target_ulong address, int rw,
 			     int mmu_idx, int is_softmmu);
 #define cpu_handle_mmu_fault cpu_sh4_handle_mmu_fault
 void do_interrupt(CPUSH4State * env);
 
-void sh4_cpu_list(FILE *f, fprintf_function cpu_fprintf,
-		  const char *optarg);
 #if !defined(CONFIG_USER_ONLY)
 void cpu_sh4_invalidate_tlb(CPUSH4State *s);
 uint32_t cpu_sh4_read_mmaped_itlb_addr(CPUSH4State *s,

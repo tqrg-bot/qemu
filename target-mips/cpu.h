@@ -497,9 +497,6 @@ void do_unassigned_access(target_phys_addr_t addr, int is_write, int is_exec,
                           int unused, int size);
 #endif
 
-void mips_cpu_list (FILE *f, fprintf_function cpu_fprintf,
-		    const char *optarg);
-
 #define cpu_init cpu_mips_init
 #define cpu_exec cpu_mips_exec
 #define cpu_gen_code cpu_mips_gen_code
@@ -617,10 +614,7 @@ enum {
 /* Dummy exception for conditional stores.  */
 #define EXCP_SC 0x100
 
-int cpu_mips_exec(CPUMIPSState *s);
-CPUMIPSState *cpu_mips_init(const char *cpu_model);
 //~ uint32_t cpu_mips_get_clock (void);
-int cpu_mips_signal_handler(int host_signum, void *pinfo, void *puc);
 
 /* mips_timer.c */
 uint32_t cpu_mips_get_random (CPUState *env);

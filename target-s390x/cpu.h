@@ -268,17 +268,10 @@ static inline int get_ilc(uint8_t opc)
 #define ILC_LATER_INC_2 0x22
 
 
-CPUS390XState *cpu_s390x_init(const char *cpu_model);
 void s390x_translate_init(void);
-int cpu_s390x_exec(CPUS390XState *s);
 void cpu_s390x_close(CPUS390XState *s);
 void do_interrupt (CPUState *env);
 
-/* you can call this signal handler from your SIGBUS and SIGSEGV
-   signal handlers to inform the virtual CPU of exceptions. non zero
-   is returned if the signal was handled by the virtual CPU.  */
-int cpu_s390x_signal_handler(int host_signum, void *pinfo,
-                           void *puc);
 int cpu_s390x_handle_mmu_fault (CPUS390XState *env, target_ulong address, int rw,
                               int mmu_idx, int is_softmuu);
 #define cpu_handle_mmu_fault cpu_s390x_handle_mmu_fault

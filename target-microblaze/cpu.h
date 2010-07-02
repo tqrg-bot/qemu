@@ -258,15 +258,8 @@ typedef struct CPUMBState {
     CPU_COMMON
 } CPUMBState;
 
-CPUState *cpu_mb_init(const char *cpu_model);
-int cpu_mb_exec(CPUState *s);
 void cpu_mb_close(CPUState *s);
 void do_interrupt(CPUState *env);
-/* you can call this signal handler from your SIGBUS and SIGSEGV
-   signal handlers to inform the virtual CPU of exceptions. non zero
-   is returned if the signal was handled by the virtual CPU.  */
-int cpu_mb_signal_handler(int host_signum, void *pinfo,
-                          void *puc);
 
 enum {
     CC_OP_DYNAMIC, /* Use env->cc_op  */

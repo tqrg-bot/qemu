@@ -224,19 +224,12 @@ typedef struct CPUARMState {
     struct arm_boot_info *boot_info;
 } CPUARMState;
 
-CPUARMState *cpu_arm_init(const char *cpu_model);
 void arm_translate_init(void);
-int cpu_arm_exec(CPUARMState *s);
 void cpu_arm_close(CPUARMState *s);
 void do_interrupt(CPUARMState *);
 void switch_mode(CPUARMState *, int);
 uint32_t do_arm_semihosting(CPUARMState *env);
 
-/* you can call this signal handler from your SIGBUS and SIGSEGV
-   signal handlers to inform the virtual CPU of exceptions. non zero
-   is returned if the signal was handled by the virtual CPU.  */
-int cpu_arm_signal_handler(int host_signum, void *pinfo,
-                           void *puc);
 int cpu_arm_handle_mmu_fault (CPUARMState *env, target_ulong address, int rw,
                               int mmu_idx, int is_softmuu);
 #define cpu_handle_mmu_fault cpu_arm_handle_mmu_fault
@@ -374,8 +367,6 @@ static inline int arm_feature(CPUARMState *env, int feature)
 {
     return (env->features & (1u << feature)) != 0;
 }
-
-void arm_cpu_list(FILE *f, fprintf_function cpu_fprintf, const char *optarg);
 
 /* Interface between CPU and Interrupt controller.  */
 void armv7m_nvic_set_pending(void *opaque, int irq);

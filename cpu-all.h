@@ -766,6 +766,9 @@ void page_set_flags(target_ulong start, target_ulong end, int flags);
 int page_check_range(target_ulong start, target_ulong len, int flags);
 #endif
 
+int cpu_signal_handler(int host_signum, void *pinfo, void *puc);
+CPUState * cpu_init (const char *cpu_model);
+int cpu_exec(CPUState *s);
 CPUState *cpu_copy(CPUState *env);
 CPUState *qemu_get_cpu(int cpu);
 
@@ -775,6 +778,7 @@ void cpu_dump_state(CPUState *env, FILE *f, fprintf_function cpu_fprintf,
                     int flags);
 void cpu_dump_statistics(CPUState *env, FILE *f, fprintf_function cpu_fprintf,
                          int flags);
+void cpu_list(FILE *f, fprintf_function cpu_fprintf, const char *optarg);
 
 void QEMU_NORETURN cpu_abort(CPUState *env, const char *fmt, ...)
     GCC_FMT_ATTR(2, 3);

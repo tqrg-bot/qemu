@@ -164,15 +164,8 @@ typedef struct CPUCRISState {
 	void *load_info;
 } CPUCRISState;
 
-CPUCRISState *cpu_cris_init(const char *cpu_model);
-int cpu_cris_exec(CPUCRISState *s);
 void cpu_cris_close(CPUCRISState *s);
 void do_interrupt(CPUCRISState *env);
-/* you can call this signal handler from your SIGBUS and SIGSEGV
-   signal handlers to inform the virtual CPU of exceptions. non zero
-   is returned if the signal was handled by the virtual CPU.  */
-int cpu_cris_signal_handler(int host_signum, void *pinfo,
-                           void *puc);
 
 enum {
     CC_OP_DYNAMIC, /* Use env->cc_op  */
@@ -213,6 +206,7 @@ enum {
 #define cpu_exec cpu_cris_exec
 #define cpu_gen_code cpu_cris_gen_code
 #define cpu_signal_handler cpu_cris_signal_handler
+#define cpu_list cris_cpu_list
 
 #define CPU_SAVE_VERSION 1
 
@@ -264,9 +258,5 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
             (env->pregs[PR_CCS] & (S_FLAG | P_FLAG | U_FLAG
 				     | X_FLAG | PFIX_FLAG));
 }
-
-#define cpu_list cris_cpu_list
-void cris_cpu_list(FILE *f, fprintf_function cpu_fprintf,
-                   const char *optarg);
 
 #endif

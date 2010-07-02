@@ -999,15 +999,8 @@ struct mmu_ctx_t {
 #endif
 
 /*****************************************************************************/
-CPUPPCState *cpu_ppc_init (const char *cpu_model);
 void ppc_translate_init(void);
-int cpu_ppc_exec (CPUPPCState *s);
 void cpu_ppc_close (CPUPPCState *s);
-/* you can call this signal handler from your SIGBUS and SIGSEGV
-   signal handlers to inform the virtual CPU of exceptions. non zero
-   is returned if the signal was handled by the virtual CPU.  */
-int cpu_ppc_signal_handler (int host_signum, void *pinfo,
-                            void *puc);
 int cpu_ppc_handle_mmu_fault (CPUPPCState *env, target_ulong address, int rw,
                               int mmu_idx, int is_softmmu);
 #define cpu_handle_mmu_fault cpu_ppc_handle_mmu_fault
@@ -1041,9 +1034,6 @@ int ppc_load_slb_vsid (CPUPPCState *env, target_ulong rb, target_ulong *rt);
 void ppc_store_sr (CPUPPCState *env, int srnum, target_ulong value);
 #endif /* !defined(CONFIG_USER_ONLY) */
 void ppc_store_msr (CPUPPCState *env, target_ulong value);
-
-void ppc_cpu_list (FILE *f, fprintf_function cpu_fprintf,
-		   const char *optarg);
 
 const ppc_def_t *cpu_ppc_find_by_name (const char *name);
 int cpu_ppc_register_internal (CPUPPCState *env, const ppc_def_t *def);
