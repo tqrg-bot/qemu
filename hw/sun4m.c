@@ -865,7 +865,7 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
 {
     unsigned int i;
     DeviceState *iommu, *espdma, *ledma;
-    void *nvram;
+    M48t59State *nvram;
     qemu_irq *cpu_irqs[MAX_CPUS], slavio_irq[32], slavio_cpu_irq[MAX_CPUS],
         espdma_irq, ledma_irq;
     qemu_irq esp_reset, dma_enable;
@@ -1551,7 +1551,7 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
 {
     unsigned int i;
     DeviceState *iounits[MAX_IOUNITS], *espdma, *ledma;
-    void *nvram;
+    M48t59State *nvram;
     qemu_irq *cpu_irqs[MAX_CPUS], sbi_irq[32], sbi_cpu_irq[MAX_CPUS],
         espdma_irq, ledma_irq;
     qemu_irq esp_reset, dma_enable;
@@ -1745,7 +1745,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
                           const char *initrd_filename, const char *cpu_model)
 {
     DeviceState *iommu, *espdma, *ledma;
-    void *nvram;
+    M48t59State *nvram;
     qemu_irq *cpu_irqs, slavio_irq[8], espdma_irq, ledma_irq;
     qemu_irq esp_reset, dma_enable;
     qemu_irq fdc_tc;
