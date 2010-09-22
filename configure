@@ -191,6 +191,10 @@ for opt do
   ;;
   --cpu=*) cpu="$optarg"
   ;;
+  CFLAGS=*) CFLAGS="$CFLAGS"
+  ;;
+  LDFLAGS=*) LDFLAGS="$LDFLAGS"
+  ;;
   --extra-cflags=*) QEMU_CFLAGS="$optarg $QEMU_CFLAGS"
   ;;
   --extra-ldflags=*) LDFLAGS="$optarg $LDFLAGS"
@@ -228,12 +232,17 @@ sdl_config="${cross_prefix}${SDL_CONFIG-sdl-config}"
 # default flags for all hosts
 QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
 CFLAGS="-g $CFLAGS"
-QEMU_CFLAGS="-Wall -Wundef -Wwrite-strings -Wmissing-prototypes $QEMU_CFLAGS"
+QEMU_CFLAGS="-Wall -Wundef -Wendif-labels -Wwrite-strings -Wmissing-prototypes $QEMU_CFLAGS"
 QEMU_CFLAGS="-Wstrict-prototypes -Wredundant-decls $QEMU_CFLAGS"
 QEMU_CFLAGS="-D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE $QEMU_CFLAGS"
 QEMU_CFLAGS="-D_FORTIFY_SOURCE=2 $QEMU_CFLAGS"
 QEMU_INCLUDES="-I. -I\$(SRC_PATH)"
-LDFLAGS="-g $LDFLAGS"
+
+if test "$debug" = "no" ; then
+  : ${CFLAGS='-O2 -g'}
+else
+  : ${CFLAGS='-g'}
+fi
 
 # make source path absolute
 source_path=`cd "$source_path"; pwd`
@@ -513,9 +522,9 @@ for opt do
   ;;
   --install=*) install="$optarg"
   ;;
-  --extra-cflags=*)
+  CFLAGS=*|--extra-cflags=*)
   ;;
-  --extra-ldflags=*)
+  LDFLAGS=*|--extra-ldflags=*)
   ;;
   --cpu=*)
   ;;
@@ -910,8 +919,6 @@ echo "Advanced options (experts only):"
 echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
-echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
-echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
 echo "  --make=MAKE              use specified make [$make]"
 echo "  --install=INSTALL        use specified install [$install]"
 echo "  --static                 enable static build [$static]"
@@ -1014,6 +1021,15 @@ echo "  --disable-smartcard      disable smartcard support"
 echo "  --enable-smartcard       enable smartcard support"
 echo "  --disable-smartcard-nss  disable smartcard nss support"
 echo "  --enable-smartcard-nss   enable smartcard nss support"
+echo ""
+echo "Deprecated options:"
+echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
+echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
+echo ""
+echo "Some influential environment variables can be passed on the command line:"
+echo "  CFLAGS      C compiler flags"
+echo "  LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a"
+echo "              nonstandard directory <lib dir>"
 echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
 exit 1
@@ -2538,10 +2554,6 @@ fi
 ##########################################
 # End of CC checks
 # After here, no more $cc or $ld runs
-
-if test "$debug" = "no" ; then
-  CFLAGS="-O2 $CFLAGS"
-fi
 
 # Consult white-list to determine whether to enable werror
 # by default.  Only enable by default for git builds
