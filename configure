@@ -81,6 +81,9 @@ sysroot="/usr/gnemul/qemu-%M"
 static="no"
 sparc_cpu=""
 cross_prefix=""
+cross_compiling="no"
+default_cross_prefix=""
+host=""
 audio_drv_list=""
 audio_card_list="ac97 es1370 sb16 hda"
 audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus hda"
@@ -183,7 +186,17 @@ opengl=""
 for opt do
   optarg=`expr "x$opt" : 'x[^=]*=\(.*\)'`
   case "$opt" in
-  --cross-prefix=*) cross_prefix="$optarg"
+  --host=*)
+    host="$optarg"
+    default_cross_prefix="$host-"
+    cross_compiling=yes
+  ;;
+  --cross-prefix=*)
+    cross_prefix="$optarg"
+    if test -n "$cross_prefix"; then
+      host=`echo "$cross_prefix" | sed 's/-$//' `
+      cross_compiling=yes
+    fi
   ;;
   CC=*|--cc=*) CC="$optarg"
   ;;
@@ -224,15 +237,15 @@ done
 # Using uname is really, really broken.  Once we have the right set of checks
 # we can eliminate it's usage altogether
 
-cc="${cross_prefix}${CC-gcc}"
-cpp="${cross_prefix}${CPP-cpp}"
-ar="${cross_prefix}${AR-ar}"
-objcopy="${cross_prefix}${OBJCOPY-objcopy}"
-ld="${cross_prefix}${LD-ld}"
-strip="${cross_prefix}${STRIP-strip}"
-windres="${cross_prefix}${WINDRES-windres}"
-pkg_config="${cross_prefix}${PKG_CONFIG-pkg-config}"
-sdl_config="${cross_prefix}${SDL_CONFIG-sdl-config}"
+cc="${cross_prefix}${CC-${default_cross_prefix}gcc}"
+cpp="${cross_prefix}${CPP-${default_cross_prefix}cpp}"
+ar="${cross_prefix}${AR-${default_cross_prefix}ar}"
+objcopy="${cross_prefix}${OBJCOPY-${default_cross_prefix}objcopy}"
+ld="${cross_prefix}${LD-${default_cross_prefix}ld}"
+strip="${cross_prefix}${STRIP-${default_cross_prefix}strip}"
+windres="${cross_prefix}${WINDRES-${default_cross_prefix}windres}"
+pkg_config="${cross_prefix}${PKG_CONFIG-${default_cross_prefix}pkg-config}"
+sdl_config="${cross_prefix}${SDL_CONFIG-${default_cross_prefix}sdl-config}"
 
 # default flags for all hosts
 QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
@@ -932,7 +945,7 @@ echo "Available targets: $default_target_list" | \
     fold -s -w 53 | sed -e 's/^/                           /'
 echo "  --with-sysroot=PREFIX    where to find shared libraries, etc."
 echo "                           use %M for cpu name [$sysroot]"
-echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
+echo "  --host=HOST              cross-compile for host triplet HOST [$host]"
 echo "  --enable-static          enable static build [$static]"
 echo "  --mandir=PATH            install man pages in PATH"
 echo "  --datadir=PATH           install firmware in PATH"
@@ -1031,6 +1044,7 @@ echo "Deprecated options:"
 echo "  --interp-prefix=PREFIX   where to find shared libraries, etc."
 echo "                           use %M for cpu name [$sysroot]"
 echo "  --source-path=PATH       path of source code [$srcdir]"
+echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
 echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
 echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
@@ -1143,7 +1157,7 @@ feature_not_found() {
   exit 1;
 }
 
-if test -z "$cross_prefix" ; then
+if test "$cross_compiling" = no; then
 
 # ---
 # big/little endian test
@@ -1349,7 +1363,7 @@ else
   fi
   sdl=no
 fi
-if test -n "$cross_prefix" && test "$(basename "$sdlconfig")" = sdl-config; then
+if test "$cross_compiling" = yes && test "$(basename "$sdlconfig")" = sdl-config; then
   echo warning: using "\"$sdlconfig\"" to detect cross-compiled sdl >&2
 fi
 
@@ -2658,6 +2672,7 @@ echo "Manual directory  `eval echo $mandir`"
 echo "Target sysroot    `eval echo $sysroot`"
 fi
 echo "Source path       $srcdir"
+echo "Host machine      $host"
 echo "C compiler        $cc"
 echo "C preprocessor    $cpp"
 echo "CFLAGS            $CFLAGS"
