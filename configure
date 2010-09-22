@@ -545,7 +545,7 @@ for opt do
   ;;
   --enable-gprof) gprof="yes"
   ;;
-  --static)
+  --enable-static|--static)
     static="yes"
     LDFLAGS="-static $LDFLAGS"
   ;;
@@ -932,7 +932,7 @@ echo ""
 echo "Advanced options (experts only):"
 echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
-echo "  --static                 enable static build [$static]"
+echo "  --enable-static          enable static build [$static]"
 echo "  --mandir=PATH            install man pages in PATH"
 echo "  --datadir=PATH           install firmware in PATH"
 echo "  --docdir=PATH            install documentation in PATH"
@@ -1040,6 +1040,7 @@ echo "  --audio-drv-list=LIST    set audio drivers list"
 echo "  --block-drv-whitelist=L  set block driver list for QEMU (not qemu-img)"
 echo "  --make=MAKE              use specified make [$make]"
 echo "  --install=INSTALL        use specified install [$install]"
+echo "  --static                 enable static build [$static]"
 echo ""
 echo "Some influential environment variables can be passed on the command line:"
 echo "  CC          C compiler command"
