@@ -3,14 +3,14 @@ all: build-all
 	@true
 
 include ../../config-host.mak
-include $(SRC_PATH)/rules.mak
+include $(srcdir)/rules.mak
 
-$(call set-vpath, $(SRC_PATH)/pc-bios/optionrom)
+$(call set-vpath, $(srcdir)/pc-bios/optionrom)
 
 .PHONY : all clean build-all
 
 CFLAGS := -Wall -Wstrict-prototypes -Werror -fomit-frame-pointer -fno-builtin
-CFLAGS += -I$(SRC_PATH)
+CFLAGS += -I$(srcdir)
 CFLAGS += $(call cc-option, $(CFLAGS), -fno-stack-protector)
 QEMU_CFLAGS = $(CFLAGS)
 
@@ -23,7 +23,7 @@ build-all: multiboot.bin linuxboot.bin
 	$(call quiet-command,$(OBJCOPY) -O binary -j .text $< $@,"  Building $(TARGET_DIR)$@")
 
 %.bin: %.raw
-	$(call quiet-command,$(SHELL) $(SRC_PATH)/scripts/signrom.sh $< $@,"  Signing $(TARGET_DIR)$@")
+	$(call quiet-command,$(SHELL) $(srcdir)/scripts/signrom.sh $< $@,"  Signing $(TARGET_DIR)$@")
 
 clean:
 	rm -f *.o *.d *.raw *.img *.bin *~

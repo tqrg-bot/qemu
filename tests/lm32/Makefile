@@ -82,10 +82,10 @@ TESTCASES += test_xori.tst
 
 all: build
 
-%.o: $(SRC_PATH)/tests/lm32/%.c
+%.o: $(srcdir)/tests/lm32/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-%.o: $(SRC_PATH)/tests/lm32/%.S
+%.o: $(srcdir)/tests/lm32/%.S
 	$(AS) $(ASFLAGS) -c $< -o $@
 
 %.tst: %.o macros.inc $(CRT)

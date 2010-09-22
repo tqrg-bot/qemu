@@ -2,15 +2,15 @@
 
 include ../config-host.mak
 include config.mak
-include $(SRC_PATH)/rules.mak
+include $(srcdir)/rules.mak
 
 .PHONY: all
 
-$(call set-vpath, $(SRC_PATH))
+$(call set-vpath, $(srcdir))
 
 QEMU_CFLAGS+=-I..
 
-include $(SRC_PATH)/Makefile.objs
+include $(srcdir)/Makefile.objs
 
 all: $(libdis-y)
 # Dummy command so that make thinks it has done something

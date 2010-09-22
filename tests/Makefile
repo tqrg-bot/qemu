@@ -1,7 +1,7 @@
 -include ../config-host.mak
--include $(SRC_PATH)/rules.mak
+-include $(srcdir)/rules.mak
 
-$(call set-vpath, $(SRC_PATH)/tests)
+$(call set-vpath, $(srcdir)/tests)
 
 QEMU=../i386-linux-user/qemu-i386
 QEMU_X86_64=../x86_64-linux-user/qemu-x86_64
@@ -66,7 +66,7 @@ run-test-mmap: test-mmap
 	-$(QEMU) -p 32768 ./test-mmap 32768
 
 run-runcom: runcom
-	-$(QEMU) ./runcom $(SRC_PATH)/tests/pi_10.com
+	-$(QEMU) ./runcom $(srcdir)/tests/pi_10.com
 
 run-test_path: test_path
 	./test_path

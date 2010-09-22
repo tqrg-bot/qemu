@@ -3,15 +3,15 @@
 include ../config-host.mak
 include ../config-all-devices.mak
 include config.mak
-include $(SRC_PATH)/rules.mak
+include $(srcdir)/rules.mak
 
 .PHONY: all
 
-$(call set-vpath, $(SRC_PATH):$(SRC_PATH)/hw)
+$(call set-vpath, $(srcdir):$(srcdir)/hw)
 
-QEMU_CFLAGS+=-I.. -I$(SRC_PATH)/fpu
+QEMU_CFLAGS+=-I.. -I$(srcdir)/fpu
 
-include $(SRC_PATH)/Makefile.objs
+include $(srcdir)/Makefile.objs
 
 all: $(hw-obj-y)
 # Dummy command so that make thinks it has done something

@@ -14,7 +14,7 @@ OBJCOPY = $(CROSS)objcopy
 # we rely on GCC inline:ing the stuff we tell it to in many places here.
 CFLAGS  = -Winline -Wall -g -O2 -static
 NOSTDFLAGS = -nostartfiles -nostdlib
-ASFLAGS += -g -Wa,-I,$(SRC_PATH)/tests/cris/
+ASFLAGS += -g -Wa,-I,$(srcdir)/tests/cris/
 LDLIBS  =
 NOSTDLIBS = -lgcc
 
@@ -124,10 +124,10 @@ TESTCASES += check_gcctorture_pr28634-1.ctst
 
 all: build
 
-%.o: $(SRC_PATH)/tests/cris/%.c
+%.o: $(srcdir)/tests/cris/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-%.o: $(SRC_PATH)/tests/cris/%.s
+%.o: $(srcdir)/tests/cris/%.s
 	$(AS) $(ASFLAGS) -c $< -o $@
 
 %.tst: %.o

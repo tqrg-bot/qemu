@@ -7,16 +7,16 @@ CONFIG_NO_KVM = $(if $(subst n,,$(CONFIG_KVM)),n,y)
 include ../config-host.mak
 include config-devices.mak
 include config-target.mak
-include $(SRC_PATH)/rules.mak
+include $(srcdir)/rules.mak
 ifneq ($(HWDIR),)
 include $(HWDIR)/config.mak
 endif
 
-TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
-$(call set-vpath, $(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw)
+TARGET_PATH=$(srcdir)/target-$(TARGET_BASE_ARCH)
+$(call set-vpath, $(srcdir):$(TARGET_PATH):$(srcdir)/hw)
 QEMU_CFLAGS+= -I.. -I$(TARGET_PATH) -DNEED_CPU_H
 
-include $(SRC_PATH)/Makefile.objs
+include $(srcdir)/Makefile.objs
 
 ifdef CONFIG_USER_ONLY
 # user emulator name
@@ -52,12 +52,12 @@ TARGET_TYPE=system
 endif
 
 $(QEMU_PROG).stp:
-	$(call quiet-command,sh $(SRC_PATH)/scripts/tracetool \
+	$(call quiet-command,sh $(srcdir)/scripts/tracetool \
 		--$(TRACE_BACKEND) \
 		--binary $(bindir)/$(QEMU_PROG) \
 		--target-arch $(TARGET_ARCH) \
 		--target-type $(TARGET_TYPE) \
-		--stap < $(SRC_PATH)/trace-events > $(QEMU_PROG).stp,"  GEN   $(QEMU_PROG).stp")
+		--stap < $(srcdir)/trace-events > $(QEMU_PROG).stp,"  GEN   $(QEMU_PROG).stp")
 else
 stap:
 endif
@@ -104,9 +104,9 @@ signal.o: QEMU_CFLAGS += $(HELPER_CFLAGS)
 
 ifdef CONFIG_LINUX_USER
 
-$(call set-vpath, $(SRC_PATH)/linux-user:$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR))
+$(call set-vpath, $(srcdir)/linux-user:$(srcdir)/linux-user/$(TARGET_ABI_DIR))
 
-QEMU_CFLAGS+=-I$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR) -I$(SRC_PATH)/linux-user
+QEMU_CFLAGS+=-I$(srcdir)/linux-user/$(TARGET_ABI_DIR) -I$(srcdir)/linux-user
 obj-y = main.o syscall.o strace.o mmap.o signal.o thunk.o \
       elfload.o linuxload.o uaccess.o gdbstub.o cpu-uname.o \
       qemu-malloc.o user-exec.o $(oslib-obj-y)
@@ -137,9 +137,9 @@ endif #CONFIG_LINUX_USER
 
 ifdef CONFIG_DARWIN_USER
 
-$(call set-vpath, $(SRC_PATH)/darwin-user)
+$(call set-vpath, $(srcdir)/darwin-user)
 
-QEMU_CFLAGS+=-I$(SRC_PATH)/darwin-user -I$(SRC_PATH)/darwin-user/$(TARGET_ARCH)
+QEMU_CFLAGS+=-I$(srcdir)/darwin-user -I$(srcdir)/darwin-user/$(TARGET_ARCH)
 
 # Leave some space for the regular program loading zone
 LDFLAGS+=-Wl,-segaddr,__STD_PROG_ZONE,0x1000 -image_base 0x0e000000
@@ -164,9 +164,9 @@ endif #CONFIG_DARWIN_USER
 
 ifdef CONFIG_BSD_USER
 
-$(call set-vpath, $(SRC_PATH)/bsd-user)
+$(call set-vpath, $(srcdir)/bsd-user)
 
-QEMU_CFLAGS+=-I$(SRC_PATH)/bsd-user -I$(SRC_PATH)/bsd-user/$(TARGET_ARCH)
+QEMU_CFLAGS+=-I$(srcdir)/bsd-user -I$(srcdir)/bsd-user/$(TARGET_ARCH)
 
 obj-y = main.o bsdload.o elfload.o mmap.o signal.o strace.o syscall.o \
         gdbstub.o uaccess.o user-exec.o
@@ -402,14 +402,14 @@ $(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y)
 	$(call LINK,$(obj-y) $(obj-$(TARGET_BASE_ARCH)-y))
 
 
-gdbstub-xml.c: $(TARGET_XML_FILES) $(SRC_PATH)/scripts/feature_to_c.sh
-	$(call quiet-command,rm -f $@ && $(SHELL) $(SRC_PATH)/scripts/feature_to_c.sh $@ $(TARGET_XML_FILES),"  GEN   $(TARGET_DIR)$@")
+gdbstub-xml.c: $(TARGET_XML_FILES) $(srcdir)/scripts/feature_to_c.sh
+	$(call quiet-command,rm -f $@ && $(SHELL) $(srcdir)/scripts/feature_to_c.sh $@ $(TARGET_XML_FILES),"  GEN   $(TARGET_DIR)$@")
 
-hmp-commands.h: $(SRC_PATH)/hmp-commands.hx
-	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -h < $< > $@,"  GEN   $(TARGET_DIR)$@")
+hmp-commands.h: $(srcdir)/hmp-commands.hx
+	$(call quiet-command,sh $(srcdir)/scripts/hxtool -h < $< > $@,"  GEN   $(TARGET_DIR)$@")
 
-qmp-commands.h: $(SRC_PATH)/qmp-commands.hx
-	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -h < $< > $@,"  GEN   $(TARGET_DIR)$@")
+qmp-commands.h: $(srcdir)/qmp-commands.hx
+	$(call quiet-command,sh $(srcdir)/scripts/hxtool -h < $< > $@,"  GEN   $(TARGET_DIR)$@")
 
 clean:
 	rm -f *.o *.a *~ $(PROGS) nwfpe/*.o fpu/*.o

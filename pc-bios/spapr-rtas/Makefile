@@ -3,13 +3,13 @@ all: build-all
 	@true
 
 include ../../config-host.mak
-include $(SRC_PATH)/rules.mak
+include $(srcdir)/rules.mak
 
-$(call set-vpath, $(SRC_PATH)/pc-bios/spapr-rtas)
+$(call set-vpath, $(srcdir)/pc-bios/spapr-rtas)
 
 .PHONY : all clean build-all
 
-#CFLAGS += -I$(SRC_PATH)
+#CFLAGS += -I$(srcdir)
 #QEMU_CFLAGS = $(CFLAGS)
 
 build-all: spapr-rtas.bin
