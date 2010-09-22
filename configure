@@ -577,7 +577,7 @@ for opt do
   ;;
   --enable-audio-drivers=*|--audio-drv-list=*) audio_drv_list="$optarg"
   ;;
-  --block-drv-whitelist=*) block_drv_whitelist=`echo "$optarg" | sed -e 's/,/ /g'`
+  --enable-block-drivers=*|block-drv-whitelist=*) block_drv_whitelist=`echo "$optarg" | sed -e 's/,/ /g'`
   ;;
   --enable-debug-tcg) debug_tcg="yes"
   ;;
@@ -952,8 +952,7 @@ echo "  --enable-vnc             enable VNC"
 echo "  --enable-cocoa           enable COCOA (Mac OS X only)"
 echo "  --enable-audio-drivers=LIST    set audio drivers list:"
 echo "                           Available drivers: $audio_possible_drivers"
-echo "  --block-drv-whitelist=L  set block driver whitelist"
-echo "                           (affects only QEMU, not qemu-img)"
+echo "  --enable-block-drivers=LIST    set block driver list for QEMU (not qemu-img)"
 echo "  --enable-mixemu          enable mixer emulation"
 echo "  --disable-xen            disable xen backend driver support"
 echo "  --enable-xen             enable xen backend driver support"
@@ -1038,6 +1037,7 @@ echo "  --oss-lib                path to OSS library"
 echo "  --audio-card-list=LIST   set list of emulated audio cards [$audio_card_list]"
 echo "                           Available cards: $audio_possible_cards"
 echo "  --audio-drv-list=LIST    set audio drivers list"
+echo "  --block-drv-whitelist=L  set block driver list for QEMU (not qemu-img)"
 echo "  --make=MAKE              use specified make [$make]"
 echo "  --install=INSTALL        use specified install [$install]"
 echo ""
