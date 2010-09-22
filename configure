@@ -575,7 +575,7 @@ for opt do
   ;;
   --audio-card-list=*) audio_card_list=`echo "$optarg" | sed -e 's/,/ /g'`
   ;;
-  --audio-drv-list=*) audio_drv_list="$optarg"
+  --enable-audio-drivers=*|--audio-drv-list=*) audio_drv_list="$optarg"
   ;;
   --block-drv-whitelist=*) block_drv_whitelist=`echo "$optarg" | sed -e 's/,/ /g'`
   ;;
@@ -950,7 +950,7 @@ echo "  --enable-sdl             enable SDL"
 echo "  --disable-vnc            disable VNC"
 echo "  --enable-vnc             enable VNC"
 echo "  --enable-cocoa           enable COCOA (Mac OS X only)"
-echo "  --audio-drv-list=LIST    set audio drivers list:"
+echo "  --enable-audio-drivers=LIST    set audio drivers list:"
 echo "                           Available drivers: $audio_possible_drivers"
 echo "  --block-drv-whitelist=L  set block driver whitelist"
 echo "                           (affects only QEMU, not qemu-img)"
@@ -1037,6 +1037,7 @@ echo "  --fmod-inc               path to FMOD includes"
 echo "  --oss-lib                path to OSS library"
 echo "  --audio-card-list=LIST   set list of emulated audio cards [$audio_card_list]"
 echo "                           Available cards: $audio_possible_cards"
+echo "  --audio-drv-list=LIST    set audio drivers list"
 echo "  --make=MAKE              use specified make [$make]"
 echo "  --install=INSTALL        use specified install [$install]"
 echo ""
