@@ -193,6 +193,8 @@ for opt do
   ;;
   CFLAGS=*) CFLAGS="$CFLAGS"
   ;;
+  CPPFLAGS=*) CPPFLAGS="$CFLAGS"
+  ;;
   LDFLAGS=*) LDFLAGS="$LDFLAGS"
   ;;
   --extra-cflags=*) QEMU_CFLAGS="$optarg $QEMU_CFLAGS"
@@ -521,6 +523,8 @@ for opt do
   --make=*) make="$optarg"
   ;;
   --install=*) install="$optarg"
+  ;;
+  CPPFLAGS=*)
   ;;
   CFLAGS=*|--extra-cflags=*)
   ;;
@@ -1028,6 +1032,8 @@ echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
 echo ""
 echo "Some influential environment variables can be passed on the command line:"
 echo "  CFLAGS      C compiler flags"
+echo "  CPPFLAGS    C preprocessor flags, e.g. -I<include dir> if you have"
+echo "              headers in a nonstandard directory <include dir>"
 echo "  LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a"
 echo "              nonstandard directory <lib dir>"
 echo ""
@@ -2633,6 +2639,7 @@ fi
 echo "Source path       $source_path"
 echo "C compiler        $cc"
 echo "CFLAGS            $CFLAGS"
+echo "CPPFLAGS          $CPPFLAGS"
 echo "QEMU_CFLAGS       $QEMU_CFLAGS"
 echo "LDFLAGS           $LDFLAGS"
 echo "make              $make"
@@ -3049,6 +3056,7 @@ echo "OBJCOPY=$objcopy" >> $config_host_mak
 echo "LD=$ld" >> $config_host_mak
 echo "WINDRES=$windres" >> $config_host_mak
 echo "CFLAGS=$CFLAGS" >> $config_host_mak
+echo "CPPFLAGS=$CPPFLAGS" >> $config_host_mak
 echo "QEMU_CFLAGS=$QEMU_CFLAGS" >> $config_host_mak
 echo "QEMU_INCLUDES=$QEMU_INCLUDES" >> $config_host_mak
 if test "$sparse" = "yes" ; then
