@@ -187,7 +187,7 @@ for opt do
   ;;
   CC=*|--cc=*) CC="$optarg"
   ;;
-  --source-path=*) source_path="$optarg"
+  --srcdir=*|--source-path=*) source_path="$optarg"
   ;;
   CPP=*) CPP="$optarg"
   ;;
@@ -515,7 +515,7 @@ for opt do
   ;;
   --with-sysroot=*|--interp-prefix=*) sysroot="$optarg"
   ;;
-  --source-path=*)
+  --srcdir=*|--source-path=*)
   ;;
   --cross-prefix=*)
   ;;
@@ -926,7 +926,7 @@ echo "  --with-oss-lib           path to OSS library"
 echo "  --with-headers=PATH      look for kernel includes in PATH"
 echo ""
 echo "Advanced options (experts only):"
-echo "  --source-path=PATH       path of source code [$source_path]"
+echo "  --srcdir=PATH            path of source code [$source_path]"
 echo "  --enable-targets=LIST    choose compiled targets [default: build everything]"
 echo "Available targets: $default_target_list" | \
     fold -s -w 53 | sed -e 's/^/                           /'
@@ -1030,6 +1030,7 @@ echo ""
 echo "Deprecated options:"
 echo "  --interp-prefix=PREFIX   where to find shared libraries, etc."
 echo "                           use %M for cpu name [$sysroot]"
+echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
 echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
 echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
