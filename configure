@@ -567,11 +567,11 @@ for opt do
   ;;
   --enable-vnc) vnc="yes"
   ;;
-  --fmod-lib=*) fmod_lib="$optarg"
+  --with-fmod-lib=*|--fmod-lib=*) fmod_lib="$optarg"
   ;;
-  --fmod-inc=*) fmod_inc="$optarg"
+  --with-fmod-inc=*|--fmod-inc=*) fmod_inc="$optarg"
   ;;
-  --oss-lib=*) oss_lib="$optarg"
+  --with-oss-lib=*) oss_lib="$optarg"
   ;;
   --audio-card-list=*) audio_card_list=`echo "$optarg" | sed -e 's/,/ /g'`
   ;;
@@ -924,6 +924,11 @@ echo "  --target-list=LIST       set target list (default: build everything)"
 echo "Available targets: $default_target_list" | \
     fold -s -w 53 | sed -e 's/^/                           /'
 echo ""
+echo "Libraries:"
+echo "  --with-fmod-lib          path to FMOD library"
+echo "  --with-fmod-inc          path to FMOD includes"
+echo "  --with-oss-lib           path to OSS library"
+echo ""
 echo "Advanced options (experts only):"
 echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
@@ -996,9 +1001,6 @@ echo "                           emulation targets"
 echo "  --disable-guest-base     disable GUEST_BASE support"
 echo "  --enable-user-pie        build usermode emulation targets as PIE"
 echo "  --disable-user-pie       do not build usermode emulation targets as PIE"
-echo "  --fmod-lib               path to FMOD library"
-echo "  --fmod-inc               path to FMOD includes"
-echo "  --oss-lib                path to OSS library"
 echo "  --enable-uname-release=R Return R for uname -r in usermode emulation"
 echo "  --sparc_cpu=V            Build qemu for Sparc architecture v7, v8, v8plus, v8plusa, v9"
 echo "  --disable-uuid           disable uuid support"
@@ -1032,6 +1034,9 @@ echo "Deprecated options:"
 echo "  --cc=CC                  use C compiler CC [$cc]"
 echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
 echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
+echo "  --fmod-lib               path to FMOD library"
+echo "  --fmod-inc               path to FMOD includes"
+echo "  --oss-lib                path to OSS library"
 echo "  --make=MAKE              use specified make [$make]"
 echo "  --install=INSTALL        use specified install [$install]"
 echo ""
