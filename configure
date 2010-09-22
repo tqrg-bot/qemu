@@ -79,7 +79,7 @@ srcdir=`dirname "$0"`
 cpu=""
 sysroot="/usr/gnemul/qemu-%M"
 static="no"
-sparc_cpu=""
+with_arch=""
 cross_prefix=""
 cross_compiling="no"
 default_cross_prefix=""
@@ -219,20 +219,7 @@ for opt do
   ;;
   --extra-ldflags=*) LDFLAGS="$optarg $LDFLAGS"
   ;;
-  --sparc_cpu=*)
-    sparc_cpu="$optarg"
-    case $sparc_cpu in
-    v7|v8|v8plus|v8plusa)
-      cpu="sparc"
-    ;;
-    v9)
-      cpu="sparc64"
-    ;;
-    *)
-      echo "undefined SPARC architecture. Exiting";
-      exit 1
-    ;;
-    esac
+  --with-arch=*|--sparc_cpu=*) with_arch="$optarg"
   ;;
   esac
 done
@@ -664,7 +651,7 @@ for opt do
   ;;
   --enable-uname-release=*) uname_release="$optarg"
   ;;
-  --sparc_cpu=*)
+  --with-arch=*|--sparc_cpu=*)
   ;;
   --enable-werror) werror="yes"
   ;;
@@ -740,21 +727,43 @@ for opt do
 done
 
 #
-# If cpu ~= sparc and  sparc_cpu hasn't been defined, plug in the right
-# QEMU_CFLAGS/LDFLAGS (assume sparc_v8plus for 32-bit and sparc_v9 for 64-bit)
+# Plug in the right QEMU_CFLAGS/LDFLAGS for the architecture
 #
 host_guest_base="no"
+
 case "$cpu" in
-    sparc) case $sparc_cpu in
-           v7|v8)
-             QEMU_CFLAGS="-mcpu=${sparc_cpu} -D__sparc_${sparc_cpu}__ $QEMU_CFLAGS"
-           ;;
-           v8plus|v8plusa)
-             QEMU_CFLAGS="-mcpu=ultrasparc -D__sparc_${sparc_cpu}__ $QEMU_CFLAGS"
-           ;;
-           *) # sparc_cpu not defined in the command line
-             QEMU_CFLAGS="-mcpu=ultrasparc -D__sparc_v8plus__ $QEMU_CFLAGS"
-           esac
+    arm*|i386|x86_64|mips*|hppa*|s390|s390x)
+      test -n "$with_arch" && QEMU_CFLAGS="-march=${with_arch} $QEMU_CFLAGS"
+      ;;
+
+    sparc|sparc64)
+      case "$cpu:$with_arch" in
+      *:v7|*:v8)
+        QEMU_CFLAGS="-mcpu=${with_arch} -D__sparc_${with_arch}__ $QEMU_CFLAGS"
+        cpu=sparc
+      ;;
+      *:v8plus|*:v8plusa)
+        QEMU_CFLAGS="-mcpu=ultrasparc -D__sparc_${with_arch}__ $QEMU_CFLAGS"
+        cpu=sparc
+      ;;
+      *:v9)
+        QEMU_CFLAGS="-mcpu=ultrasparc -D__sparc_${with_arch}__ $QEMU_CFLAGS"
+        cpu=sparc64
+      ;;
+      sparc:*) QEMU_CFLAGS="-mcpu=ultrasparc -D__sparc_v8plus__ $QEMU_CFLAGS"
+      ;;
+      sparc64:*) QEMU_CFLAGS="-mcpu=ultrasparc -D__sparc_v9__ $QEMU_CFLAGS"
+      ;;
+      esac
+      ;;
+
+    *)
+      test -n "$with_arch" && QEMU_CFLAGS="-mcpu=${with_arch} $QEMU_CFLAGS"
+      ;;
+esac
+
+case "${cpu}" in
+    sparc)
            LDFLAGS="-m32 $LDFLAGS"
            QEMU_CFLAGS="-m32 -ffixed-g2 -ffixed-g3 $QEMU_CFLAGS"
            if test "$solaris" = "no" ; then
@@ -763,9 +772,8 @@ case "$cpu" in
            fi
            ;;
     sparc64)
-           QEMU_CFLAGS="-m64 -mcpu=ultrasparc -D__sparc_v9__ $QEMU_CFLAGS"
            LDFLAGS="-m64 $LDFLAGS"
-           QEMU_CFLAGS="-ffixed-g5 -ffixed-g6 -ffixed-g7 $QEMU_CFLAGS"
+           QEMU_CFLAGS="-m64 -ffixed-g5 -ffixed-g6 -ffixed-g7 $QEMU_CFLAGS"
            if test "$solaris" != "no" ; then
              QEMU_CFLAGS="-ffixed-g1 $QEMU_CFLAGS"
            fi
@@ -903,6 +911,7 @@ echo ""
 echo "Advanced options (experts only):"
 echo "  --srcdir=PATH            path of source code [$srcdir]"
 echo "  --build=BUILD            specify triplet for build machine [$build]"
+echo "  --with-arch=ARCH         build qemu for given architecture"
 echo "  --enable-targets=LIST    choose compiled targets [default: build everything]"
 echo "Available targets: $default_target_list" | \
     fold -s -w 53 | sed -e 's/^/                           /'
@@ -976,7 +985,6 @@ echo "  --disable-guest-base     disable GUEST_BASE support"
 echo "  --enable-user-pie        build usermode emulation targets as PIE"
 echo "  --disable-user-pie       do not build usermode emulation targets as PIE"
 echo "  --enable-uname-release=R Return R for uname -r in usermode emulation"
-echo "  --sparc_cpu=V            Build qemu for Sparc architecture v7, v8, v8plus, v8plusa, v9"
 echo "  --disable-uuid           disable uuid support"
 echo "  --enable-uuid            enable uuid support"
 echo "  --disable-vde            disable support for vde network"
@@ -1023,6 +1031,7 @@ echo "  --make=MAKE              use specified make [$make]"
 echo "  --install=INSTALL        use specified install [$install]"
 echo "  --static                 enable static build [$static]"
 echo "  --target-list=LIST       choose compiled targets [default: build everything]"
+echo "  --sparc_cpu=V            Build qemu for Sparc architecture v7, v8, v8plus, v8plusa, v9"
 echo ""
 echo "Some influential environment variables can be passed on the command line:"
 echo "  CC          C compiler command"
@@ -2675,8 +2684,13 @@ if test "$vnc" = "yes" ; then
     echo "VNC PNG support   $vnc_png"
     echo "VNC thread        $vnc_thread"
 fi
-if test -n "$sparc_cpu"; then
-    echo "Target Sparc Arch $sparc_cpu"
+echo "VNC TLS support   $vnc_tls"
+echo "VNC SASL support  $vnc_sasl"
+echo "VNC JPEG support  $vnc_jpeg"
+echo "VNC PNG support   $vnc_png"
+echo "VNC thread        $vnc_thread"
+if test -n "$with_arch"; then
+    echo "Target Arch       $with_arch"
 fi
 echo "xen support       $xen"
 echo "brlapi support    $brlapi"
