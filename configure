@@ -189,6 +189,8 @@ for opt do
   ;;
   --source-path=*) source_path="$optarg"
   ;;
+  CPP=*) CPP="$optarg"
+  ;;
   --cpu=*) cpu="$optarg"
   ;;
   CFLAGS=*) CFLAGS="$CFLAGS"
@@ -223,6 +225,7 @@ done
 # we can eliminate it's usage altogether
 
 cc="${cross_prefix}${CC-gcc}"
+cpp="${cross_prefix}${CPP-cpp}"
 ar="${cross_prefix}${AR-ar}"
 objcopy="${cross_prefix}${OBJCOPY-objcopy}"
 ld="${cross_prefix}${LD-ld}"
@@ -517,6 +520,8 @@ for opt do
   --cross-prefix=*)
   ;;
   CC=*|--cc=*)
+  ;;
+  CPP=*)
   ;;
   --host-cc=*)
   ;;
@@ -1033,6 +1038,7 @@ echo ""
 echo "Some influential environment variables can be passed on the command line:"
 echo "  CC          C compiler command"
 echo "  CFLAGS      C compiler flags"
+echo "  CPP         C preprocessor command"
 echo "  CPPFLAGS    C preprocessor flags, e.g. -I<include dir> if you have"
 echo "              headers in a nonstandard directory <include dir>"
 echo "  LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a"
@@ -2639,6 +2645,7 @@ echo "ELF interp prefix $interp_prefix"
 fi
 echo "Source path       $source_path"
 echo "C compiler        $cc"
+echo "C preprocessor    $cpp"
 echo "CFLAGS            $CFLAGS"
 echo "CPPFLAGS          $CPPFLAGS"
 echo "QEMU_CFLAGS       $QEMU_CFLAGS"
@@ -3052,6 +3059,7 @@ echo "INSTALL_DATA=$install -m0644 -p" >> $config_host_mak
 echo "INSTALL_PROG=$install -m0755 -p" >> $config_host_mak
 echo "CC=$cc" >> $config_host_mak
 echo "CC_I386=$cc_i386" >> $config_host_mak
+echo "CPP=$cpp" >> $config_host_mak
 echo "AR=$ar" >> $config_host_mak
 echo "OBJCOPY=$objcopy" >> $config_host_mak
 echo "LD=$ld" >> $config_host_mak
@@ -3570,7 +3578,7 @@ for rom in seabios vgabios ; do
     echo "SRC_PATH=$source_path/roms/$rom" >> $config_mak
     echo "CC=$cc" >> $config_mak
     echo "BCC=bcc" >> $config_mak
-    echo "CPP=${cross_prefix}cpp" >> $config_mak
+    echo "CPP=$cpp" >> $config_mak
     echo "OBJCOPY=objcopy" >> $config_mak
     echo "IASL=iasl" >> $config_mak
     echo "LD=$ld" >> $config_mak
