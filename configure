@@ -525,9 +525,9 @@ for opt do
   ;;
   --host-cc=*)
   ;;
-  --make=*) make="$optarg"
+  MAKE=*|--make=*) make="$optarg"
   ;;
-  --install=*) install="$optarg"
+  INSTALL=*|--install=*) install="$optarg"
   ;;
   CPPFLAGS=*)
   ;;
@@ -927,8 +927,6 @@ echo ""
 echo "Advanced options (experts only):"
 echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
-echo "  --make=MAKE              use specified make [$make]"
-echo "  --install=INSTALL        use specified install [$install]"
 echo "  --static                 enable static build [$static]"
 echo "  --mandir=PATH            install man pages in PATH"
 echo "  --datadir=PATH           install firmware in PATH"
@@ -1034,6 +1032,8 @@ echo "Deprecated options:"
 echo "  --cc=CC                  use C compiler CC [$cc]"
 echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
 echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
+echo "  --make=MAKE              use specified make [$make]"
+echo "  --install=INSTALL        use specified install [$install]"
 echo ""
 echo "Some influential environment variables can be passed on the command line:"
 echo "  CC          C compiler command"
@@ -1043,6 +1043,8 @@ echo "  CPPFLAGS    C preprocessor flags, e.g. -I<include dir> if you have"
 echo "              headers in a nonstandard directory <include dir>"
 echo "  LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a"
 echo "              nonstandard directory <lib dir>"
+echo "  MAKE        use specified make [$make]"
+echo "  INSTALL     use specified install [$install]"
 echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
 exit 1
@@ -1080,7 +1082,7 @@ if test "$solaris" = "yes" ; then
   if has $install; then
     :
   else
-    echo "Solaris install program not found. Use --install=/usr/ucb/install or"
+    echo "Solaris install program not found. Use INSTALL=/usr/ucb/install or"
     echo "install fileutils from www.blastwave.org using pkg-get -i fileutils"
     echo "to get ginstall which is used by default (which lives in /opt/csw/bin)"
     exit 1
@@ -1088,7 +1090,7 @@ if test "$solaris" = "yes" ; then
   if test "`path_of $install`" = "/usr/sbin/install" ; then
     echo "Error: Solaris /usr/sbin/install is not an appropriate install program."
     echo "try ginstall from the GNU fileutils available from www.blastwave.org"
-    echo "using pkg-get -i fileutils, or use --install=/usr/ucb/install"
+    echo "using pkg-get -i fileutils, or use INSTALL=/usr/ucb/install"
     exit 1
   fi
   if has ar; then
