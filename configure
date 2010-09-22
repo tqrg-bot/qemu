@@ -287,49 +287,25 @@ case "$cpu" in
   ;;
 esac
 
-check_define() {
-cat > $TMPC <<EOF
-#if !defined($1)
-#error Not defined
-#endif
-int main(void) { return 0; }
-EOF
-  compile_object
-}
-
 # OS specific
-if check_define __linux__ ; then
-  targetos="Linux"
-elif check_define _WIN32 ; then
-  targetos='MINGW32'
-elif check_define __OpenBSD__ ; then
-  targetos='OpenBSD'
-elif check_define __sun__ ; then
-  targetos='SunOS'
-elif check_define __HAIKU__ ; then
-  targetos='Haiku'
-else
-  targetos=`uname -s`
-fi
-
-case $targetos in
-CYGWIN*)
+case $host in
+*-*-cygwin*)
   mingw32="yes"
   QEMU_CFLAGS="-mno-cygwin $QEMU_CFLAGS"
   audio_possible_drivers="winwave sdl"
   audio_drv_list="winwave"
 ;;
-MINGW32*)
+*-*-mingw32)
   mingw32="yes"
   audio_possible_drivers="winwave dsound sdl fmod"
   audio_drv_list="winwave"
 ;;
-GNU/kFreeBSD)
+*-*-kfreebsd*-gnu)
   bsd="yes"
   audio_drv_list="oss"
   audio_possible_drivers="oss sdl esd pa"
 ;;
-FreeBSD)
+*-*-freebsd*)
   bsd="yes"
   make="${MAKE-gmake}"
   audio_drv_list="oss"
@@ -337,27 +313,27 @@ FreeBSD)
   # needed for kinfo_getvmmap(3) in libutil.h
   LIBS="-lutil $LIBS"
 ;;
-DragonFly)
+*-*-dragonfly*)
   bsd="yes"
   make="${MAKE-gmake}"
   audio_drv_list="oss"
   audio_possible_drivers="oss sdl esd pa"
 ;;
-NetBSD)
+*-*-netbsd*)
   bsd="yes"
   make="${MAKE-gmake}"
   audio_drv_list="oss"
   audio_possible_drivers="oss sdl esd"
   oss_lib="-lossaudio"
 ;;
-OpenBSD)
+*-*-openbsd*)
   bsd="yes"
   make="${MAKE-gmake}"
   audio_drv_list="oss"
   audio_possible_drivers="oss sdl esd"
   oss_lib="-lossaudio"
 ;;
-Darwin)
+*-*-darwin*)
   bsd="yes"
   darwin="yes"
   # on Leopard most of the system is 32-bit, so we have to ask the kernel it if we can
@@ -379,7 +355,7 @@ Darwin)
   LDFLAGS="-framework CoreFoundation -framework IOKit $LDFLAGS"
   libs_softmmu="-F/System/Library/Frameworks -framework Cocoa -framework IOKit $libs_softmmu"
 ;;
-SunOS)
+*-*-solaris*)
   solaris="yes"
   make="${MAKE-gmake}"
   install="${INSTALL-ginstall}"
@@ -415,11 +391,11 @@ SunOS)
   QEMU_CFLAGS="-std=gnu99 $QEMU_CFLAGS"
   LIBS="-lsocket -lnsl -lresolv $LIBS"
 ;;
-AIX)
+*-*-aix*)
   aix="yes"
   make="${MAKE-gmake}"
 ;;
-Haiku)
+*-*-haiku)
   haiku="yes"
   QEMU_CFLAGS="-DB_USE_POSITIVE_POSIX_ERRORS $QEMU_CFLAGS"
   LIBS="-lposix_error_mapper -lnetwork $LIBS"
@@ -2639,16 +2615,16 @@ if test "$softmmu" = yes ; then
   fi
 fi
 
-# Mac OS X ships with a broken assembler
 roms=
-if test \( "$cpu" = "i386" -o "$cpu" = "x86_64" \) -a \
-        "$targetos" != "Darwin" -a "$targetos" != "SunOS" -a \
-        "$softmmu" = yes ; then
-  roms="optionrom"
-fi
-if test "$cpu" = "ppc64" -a "$targetos" != "Darwin" ; then
-  roms="$roms spapr-rtas"
-fi
+case "$softmmu:$host" in
+  # Mac OS X ships with a broken assembler
+  no:* | \
+  yes:*-*-darwin* | \
+  yes:*-*-solaris*) ;;
+
+  yes:i[3456]86-* | yes:x86_64-* ) roms=optionrom;;
+  yes:ppc64-* ) roms=spapr-rtas;;
+esac
 
 echo "Install prefix    $prefix"
 echo "BIOS directory    `eval echo $datadir`"
