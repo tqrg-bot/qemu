@@ -43,7 +43,7 @@ unsigned long guest_base;
 int have_guest_base;
 #endif
 
-static const char *interp_prefix = CONFIG_QEMU_INTERP_PREFIX;
+static const char *sysroot = CONFIG_QEMU_SYSROOT;
 const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
 extern char **environ;
 enum BSDType bsd_type;
@@ -706,7 +706,7 @@ static void usage(void)
            "last change will stay in effect.\n"
            ,
            TARGET_ARCH,
-           interp_prefix,
+           sysroot,
            x86_stack_size,
            DEBUG_LOGFILE);
     exit(1);
@@ -815,7 +815,7 @@ int main(int argc, char **argv)
             else if (*r == 'k' || *r == 'K')
                 x86_stack_size *= 1024;
         } else if (!strcmp(r, "L")) {
-            interp_prefix = argv[optind++];
+            sysroot = argv[optind++];
         } else if (!strcmp(r, "p")) {
             qemu_host_page_size = atoi(argv[optind++]);
             if (qemu_host_page_size == 0 ||
@@ -873,8 +873,8 @@ int main(int argc, char **argv)
     /* Zero out image_info */
     memset(info, 0, sizeof(struct image_info));
 
-    /* Scan interp_prefix dir for replacement files. */
-    init_paths(interp_prefix);
+    /* Scan sysroot dir for replacement files. */
+    init_paths(sysroot);
 
     if (cpu_model == NULL) {
 #if defined(TARGET_I386)

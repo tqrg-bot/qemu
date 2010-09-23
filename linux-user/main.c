@@ -47,7 +47,7 @@ int have_guest_base;
 unsigned long reserved_va;
 #endif
 
-static const char *interp_prefix = CONFIG_QEMU_INTERP_PREFIX;
+static const char *sysroot = CONFIG_QEMU_SYSROOT;
 const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
 
 /* XXX: on x86 MAP_GROWSDOWN only works if ESP <= address + 32, so
@@ -2802,7 +2802,7 @@ static void usage(void)
            "last change will stay in effect.\n"
            ,
            TARGET_ARCH,
-           interp_prefix,
+           sysroot,
            guest_stack_size,
            DEBUG_LOGFILE);
     exit(1);
@@ -2955,7 +2955,7 @@ int main(int argc, char **argv, char **envp)
             else if (*r == 'k' || *r == 'K')
                 guest_stack_size *= 1024;
         } else if (!strcmp(r, "L")) {
-            interp_prefix = argv[optind++];
+            sysroot = argv[optind++];
         } else if (!strcmp(r, "p")) {
             if (optind >= argc)
                 break;
@@ -3046,8 +3046,8 @@ int main(int argc, char **argv, char **envp)
 
     memset(&bprm, 0, sizeof (bprm));
 
-    /* Scan interp_prefix dir for replacement files. */
-    init_paths(interp_prefix);
+    /* Scan sysroot dir for replacement files. */
+    init_paths(sysroot);
 
     if (cpu_model == NULL) {
 #if defined(TARGET_I386)

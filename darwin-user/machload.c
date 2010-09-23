@@ -45,7 +45,7 @@
 
 # define check_mach_header(x) (x.magic == MH_CIGAM)
 
-extern const char *interp_prefix;
+extern const char *sysroot;
 
 /* we don't have a good implementation for this */
 #define DONT_USE_DYLD_SHARED_MAP
@@ -364,7 +364,7 @@ int load_dylinker(struct mach_header *mh, struct dylinker_command *dc, int fd, i
 #ifdef OVERRIDE_DYLINKER
     dylinker_name = DYLINKER_NAME;
 #else
-    if(asprintf(&dylinker_name, "%s%s", interp_prefix, dylinker_name) == -1)
+    if(asprintf(&dylinker_name, "%s%s", sysroot, dylinker_name) == -1)
         qerror("can't allocate the new dylinker name\n");
 #endif
 
@@ -809,12 +809,12 @@ unsigned long setup_arg_pages(void * mh, char ** argv, char ** env)
         page_set_flags((int)env[i], (int)(env[i]+strlen(env[i])), PROT_READ | PAGE_VALID);
     }
 
-    /* Add on the stack the interp_prefix choosen if so */
-    if(interp_prefix[0])
+    /* Add on the stack the sysroot choosen if so */
+    if(sysroot[0])
     {
         char *dyld_root;
-        asprintf(&dyld_root, "DYLD_ROOT_PATH=%s", interp_prefix);
-        page_set_flags((int)dyld_root, (int)(dyld_root+strlen(interp_prefix)+1), PROT_READ | PAGE_VALID);
+        asprintf(&dyld_root, "DYLD_ROOT_PATH=%s", sysroot);
+        page_set_flags((int)dyld_root, (int)(dyld_root+strlen(sysroot)+1), PROT_READ | PAGE_VALID);
 
         stl(stack, (int)dyld_root);
         stack--;

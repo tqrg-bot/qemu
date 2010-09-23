@@ -41,7 +41,7 @@
 
 int singlestep;
 
-const char *interp_prefix = "";
+const char *sysroot = "";
 
 asm(".zerofill __STD_PROG_ZONE, __STD_PROG_ZONE, __std_prog_zone, 0x0dfff000");
 
@@ -721,7 +721,7 @@ static void usage(void)
            "-singlestep  always run in singlestep mode\n"
            TARGET_ARCH,
            TARGET_ARCH,
-           interp_prefix,
+           sysroot,
            stack_size,
            DEBUG_LOGFILE);
     exit(1);
@@ -790,7 +790,7 @@ int main(int argc, char **argv)
             else if (*r == 'k' || *r == 'K')
                 stack_size *= 1024;
         } else if (!strcmp(r, "L")) {
-            interp_prefix = argv[optind++];
+            sysroot = argv[optind++];
         } else if (!strcmp(r, "p")) {
             qemu_host_page_size = atoi(argv[optind++]);
             if (qemu_host_page_size == 0 ||

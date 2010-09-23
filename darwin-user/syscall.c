@@ -83,7 +83,7 @@ enum {
     bswap_in = 1
 };
 
-extern const char *interp_prefix;
+extern const char *sysroot;
 
 static inline long get_errno(long ret)
 {
