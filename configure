@@ -85,7 +85,6 @@ audio_drv_list=""
 audio_card_list="ac97 es1370 sb16 hda"
 audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus hda"
 block_drv_whitelist=""
-host_cc="gcc"
 helper_cflags=""
 libs_softmmu=""
 libs_tools=""
@@ -508,7 +507,7 @@ for opt do
   ;;
   --cc=*)
   ;;
-  --host-cc=*) host_cc="$optarg"
+  --host-cc=*)
   ;;
   --make=*) make="$optarg"
   ;;
@@ -911,8 +910,6 @@ echo "Advanced options (experts only):"
 echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
-echo "  --host-cc=CC             use C compiler CC [$host_cc] for code run at"
-echo "                           build time"
 echo "  --extra-cflags=CFLAGS    append extra C compiler flags QEMU_CFLAGS"
 echo "  --extra-ldflags=LDFLAGS  append extra linker flags LDFLAGS"
 echo "  --make=MAKE              use specified make [$make]"
@@ -2623,7 +2620,6 @@ echo "ELF interp prefix $interp_prefix"
 fi
 echo "Source path       $source_path"
 echo "C compiler        $cc"
-echo "Host C compiler   $host_cc"
 echo "CFLAGS            $CFLAGS"
 echo "QEMU_CFLAGS       $QEMU_CFLAGS"
 echo "LDFLAGS           $LDFLAGS"
@@ -3036,7 +3032,6 @@ echo "INSTALL_DATA=$install -m0644 -p" >> $config_host_mak
 echo "INSTALL_PROG=$install -m0755 -p" >> $config_host_mak
 echo "CC=$cc" >> $config_host_mak
 echo "CC_I386=$cc_i386" >> $config_host_mak
-echo "HOST_CC=$host_cc" >> $config_host_mak
 echo "AR=$ar" >> $config_host_mak
 echo "OBJCOPY=$objcopy" >> $config_host_mak
 echo "LD=$ld" >> $config_host_mak
@@ -3046,7 +3041,6 @@ echo "QEMU_CFLAGS=$QEMU_CFLAGS" >> $config_host_mak
 echo "QEMU_INCLUDES=$QEMU_INCLUDES" >> $config_host_mak
 if test "$sparse" = "yes" ; then
   echo "CC           := REAL_CC=\"\$(CC)\" cgcc"       >> $config_host_mak
-  echo "HOST_CC      := REAL_CC=\"\$(HOST_CC)\" cgcc"  >> $config_host_mak
   echo "QEMU_CFLAGS  += -Wbitwise -Wno-transparent-union -Wno-old-initializer -Wno-non-pointer-null" >> $config_host_mak
 fi
 echo "HELPER_CFLAGS=$helper_cflags" >> $config_host_mak

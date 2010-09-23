@@ -54,9 +54,6 @@ case $line in
  HOST_USB=*)
     # do nothing
     ;;
- HOST_CC=*)
-    # do nothing
-    ;;
  HOST_*=y) # configuration
     name=${line%=*}
     echo "#define $name 1"
