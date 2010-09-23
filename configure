@@ -20,16 +20,26 @@ TMPE="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.exe"
 trap "rm -f $TMPC $TMPO $TMPE" EXIT INT QUIT TERM
 rm -f config.log
 
+run_cc() {
+  echo "$cc $@" >&5
+  if $cc "$@" >&5 2>&5; then
+    return 0
+  else
+    echo exit status is $? >&5
+    echo failed program was: >&5
+    sed 's/^/| /' $TMPC >&5
+    return 1
+  fi
+}
+
 compile_object() {
-  echo $cc $QEMU_CFLAGS -c -o $TMPO $TMPC >> config.log
-  $cc $QEMU_CFLAGS -c -o $TMPO $TMPC >> config.log 2>&1
+  run_cc $QEMU_CFLAGS -c -o $TMPO $TMPC
 }
 
 compile_prog() {
   local_cflags="$1"
   local_ldflags="$2"
-  echo $cc $QEMU_CFLAGS $local_cflags -o $TMPE $TMPC $LDFLAGS $local_ldflags >> config.log
-  $cc $QEMU_CFLAGS $local_cflags -o $TMPE $TMPC $LDFLAGS $local_ldflags >> config.log 2>&1
+  run_cc $QEMU_CFLAGS $local_cflags -o $TMPE $TMPC $LDFLAGS $local_ldflags
 }
 
 # symbolically link $1 to $2.  Portable version of "ln -sf".
@@ -1038,6 +1048,9 @@ echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
 exit 1
 fi
+
+# create config.log file
+exec 5>config.log
 
 # check that the C compiler works.
 cat > $TMPC <<EOF
