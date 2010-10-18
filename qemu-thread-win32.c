@@ -83,6 +83,83 @@ void qemu_mutex_unlock(QemuMutex *mutex)
     LeaveCriticalSection(&mutex->lock);
 }
 
+void qemu_rwmutex_init(QemuRWMutex *mutex)
+{
+    InitializeCriticalSection(&mutex->readerCountLock);
+    InitializeCriticalSection(&mutex->writerLock);
+
+    /* A manual-reset event that we use as a poor man condition variable.  */
+    mutex->noReaders = CreateEvent (NULL, TRUE, TRUE, NULL);
+}
+
+void qemu_rwmutex_rdlock(QemuRWMutex *mutex)
+{
+    assert(mutex->writer != GetCurrentThreadId());
+
+    /*
+     * We need to lock the writerLock too, otherwise a writer could
+     * do the whole of qemu_rwmutex_wrlock after the readerCount changed
+     * from 0 to 1, but before the event was reset.
+     */
+    EnterCriticalSection(&mutex->writerLock);
+    EnterCriticalSection(&mutex->readerCountLock);
+    if (++mutex->readerCount == 1) {
+	/*
+         * This makes the rwlock pretty expensive if there's little
+	 * or no contention between readers.  But if this is the
+	 * case, you might as well use a normal mutex.
+	 */
+        ResetEvent(mutex->noReaders);
+    }
+    LeaveCriticalSection(&mutex->readerCountLock);
+    LeaveCriticalSection(&mutex->writerLock);
+}
+
+int qemu_rwmutex_wrlock(QemuRWMutex *mutex)
+{
+    int owned;
+
+    EnterCriticalSection(&mutex->writerLock);
+    /*
+     * readerCount cannot change from 0 to 1 here.  If it changes from
+     * 1 to 0, we'll just do a useless syscall.
+     */
+    if (mutex->readerCount > 0) {
+	WaitForSingleObject(mutex->noReaders, INFINITE);
+    }
+
+    assert(mutex->writer == NULL);
+    mutex->writer = GetCurrentThreadId();
+
+    /* writerLock remains locked.  */
+}
+
+void qemu_rwmutex_unlock(QemuRWMutex *mutex)
+{
+    /*
+     * For the writer, mutex->writer is read and written under the
+     * writerLock, so it's safe.
+     *
+     * But mutex->writer is also protected for the reader, because while
+     * there are readers (and we are one) mutex->noReaders is reset and
+     * no thread can proceed to write mutex->writer.
+     */
+    if (mutex->writer != GetCurrentThreadId()) {
+        /* We are a reader.  */
+        assert (mutex->readerCount > 0);
+        EnterCriticalSection(&mutex->readerCountLock);
+        if (--mutex->readerCount == 0) {
+            SetEvent(mutex->noReaders);
+        }
+        LeaveCriticalSection(&mutex->readerCountLock);
+
+    } else {
+        /* We are the writer.  */
+        mutex->writer = NULL;
+        LeaveCriticalSection(&mutex->writerLock);
+    }
+}
+
 void qemu_cond_init(QemuCond *cond, QemuMutex *mutex)
 {
     cond->mutex = mutex;

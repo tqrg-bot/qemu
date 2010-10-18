@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 typedef struct QemuMutex QemuMutex;
+typedef struct QemuRWMutex QemuRWMutex;
 typedef struct QemuCond QemuCond;
 typedef struct QemuSemaphore QemuSemaphore;
 typedef struct QemuThread QemuThread;
@@ -27,6 +28,11 @@ void qemu_mutex_unlock(QemuMutex *mutex);
 
 #define rcu_read_lock() do { } while (0)
 #define rcu_read_unlock() do { } while (0)
+
+void qemu_rwmutex_init(QemuRWMutex *mutex);
+void qemu_rwmutex_rdlock(QemuRWMutex *mutex);
+void qemu_rwmutex_wrlock(QemuRWMutex *mutex);
+void qemu_rwmutex_unlock(QemuRWMutex *mutex);
 
 void qemu_cond_init(QemuCond *cond, QemuMutex *mutex);
 void qemu_cond_destroy(QemuCond *cond);

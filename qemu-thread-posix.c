@@ -103,6 +103,46 @@ void qemu_mutex_unlock(QemuMutex *mutex)
         error_exit(err, __func__);
 }
 
+void qemu_rwmutex_init(QemuRWMutex *mutex)
+{
+    int err;
+
+    err = pthread_rwlock_init(&mutex->lock, NULL);
+    if (err) {
+        error_exit(err, __func__);
+    }
+}
+
+void qemu_rwmutex_rdlock(QemuRWMutex *mutex)
+{
+    int err;
+
+    err = pthread_rwlock_rdlock(&mutex->lock);
+    if (err) {
+        error_exit(err, __func__);
+    }
+}
+
+void qemu_rwmutex_wrlock(QemuRWMutex *mutex)
+{
+    int err;
+
+    err = pthread_rwlock_wrlock(&mutex->lock);
+    if (err) {
+        error_exit(err, __func__);
+    }
+}
+
+void qemu_rwmutex_unlock(QemuRWMutex *mutex)
+{
+    int err;
+
+    err = pthread_rwlock_unlock(&mutex->lock);
+    if (err) {
+        error_exit(err, __func__);
+    }
+}
+
 void qemu_cond_init(QemuCond *cond, QemuMutex *mutex)
 {
     int err;

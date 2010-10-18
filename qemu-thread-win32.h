@@ -7,6 +7,14 @@ struct QemuMutex {
     LONG owner;
 };
 
+struct QemuRWMutex {
+    CRITICAL_SECTION readerCountLock;
+    CRITICAL_SECTION writerLock;
+    HANDLE noReaders;
+    HANDLE writer;
+    int readerCount;
+};
+
 struct QemuCond {
     QemuMutex *mutex;
     LONG waiters, target;
