@@ -389,19 +389,6 @@ int cpu_is_stopped(CPUState *env)
     return !runstate_is_running() || env->stopped;
 }
 
-static void do_vm_stop(RunState state)
-{
-    if (runstate_is_running()) {
-        cpu_disable_ticks();
-        pause_all_vcpus();
-        runstate_set(state);
-        vm_state_notify(0, state);
-        bdrv_drain_all();
-        bdrv_flush_all();
-        monitor_protocol_event(QEVENT_STOP, NULL);
-    }
-}
-
 static int cpu_can_run(CPUState *env)
 {
     if (env->stop) {
@@ -964,7 +951,27 @@ void vm_stop(RunState state)
         cpu_stop_current();
         return;
     }
-    do_vm_stop(state);
+
+    if (runstate_is_running()) {
+        cpu_disable_ticks();
+        pause_all_vcpus();
+        runstate_set(state);
+        vm_state_notify(0, state);
+        bdrv_drain_all();
+        bdrv_flush_all();
+        monitor_protocol_event(QEVENT_STOP, NULL);
+    }
+}
+
+void vm_start(void)
+{
+    if (!runstate_is_running()) {
+        cpu_enable_ticks();
+        runstate_set(RUN_STATE_RUNNING);
+        vm_state_notify(1, RUN_STATE_RUNNING);
+        resume_all_vcpus();
+        monitor_protocol_event(QEVENT_RESUME, NULL);
+    }
 }
 
 /* does a state transition even if the VM is already stopped,

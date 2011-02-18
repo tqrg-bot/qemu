@@ -1257,17 +1257,6 @@ void vm_state_notify(int running, RunState state)
     }
 }
 
-void vm_start(void)
-{
-    if (!runstate_is_running()) {
-        cpu_enable_ticks();
-        runstate_set(RUN_STATE_RUNNING);
-        vm_state_notify(1, RUN_STATE_RUNNING);
-        resume_all_vcpus();
-        monitor_protocol_event(QEVENT_RESUME, NULL);
-    }
-}
-
 /* reset/shutdown handler */
 
 typedef struct QEMUResetEntry {
