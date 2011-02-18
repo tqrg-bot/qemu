@@ -78,7 +78,7 @@ uint64_t helper_load_pcc (void)
 #else
     /* In user-mode, vm_clock doesn't exist.  Just pass through the host cpu
        clock ticks.  Also, don't bother taking PCC_OFS into account.  */
-    return (uint32_t)cpu_get_real_ticks();
+    return (uint32_t)cpu_get_ticks();
 #endif
 }
 

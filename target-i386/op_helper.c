@@ -3128,7 +3128,7 @@ void helper_rdtsc(void)
     }
     helper_svm_check_intercept_param(SVM_EXIT_RDTSC, 0);
 
-    val = cpu_get_tsc(env) + env->tsc_offset;
+    val = cpu_get_ticks() + env->tsc_offset;
     EAX = (uint32_t)(val);
     EDX = (uint32_t)(val >> 32);
 }

@@ -242,6 +242,11 @@ void cpu_list_unlock(void)
 }
 #endif
 
+int64_t cpu_get_ticks(void)
+{
+    return cpu_get_real_ticks();
+}
+
 
 #ifdef TARGET_I386
 /***********************************************************/
@@ -249,11 +254,6 @@ void cpu_list_unlock(void)
 
 void cpu_smm_update(CPUState *env)
 {
-}
-
-uint64_t cpu_get_tsc(CPUX86State *env)
-{
-    return cpu_get_real_ticks();
 }
 
 static void write_dt(void *ptr, unsigned long addr, unsigned long limit,

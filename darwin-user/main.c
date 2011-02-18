@@ -494,16 +494,16 @@ void cpu_loop(CPUPPCState *env)
 }
 #endif
 
+int64_t cpu_get_ticks(void)
+{
+    return cpu_get_real_ticks();
+}
+
 
 #ifdef TARGET_I386
 
 /***********************************************************/
 /* CPUX86 core interface */
-
-uint64_t cpu_get_tsc(CPUX86State *env)
-{
-    return cpu_get_real_ticks();
-}
 
 void
 write_dt(void *ptr, unsigned long addr, unsigned long limit,

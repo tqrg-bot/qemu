@@ -66,7 +66,6 @@ int qemu_calculate_timeout(void);
 void init_clocks(void);
 int init_timer_alarm(void);
 
-int64_t cpu_get_ticks(void);
 void cpu_enable_ticks(void);
 void cpu_disable_ticks(void);
 

@@ -261,6 +261,7 @@ void tcg_exec_init(unsigned long tb_size);
 bool tcg_enabled(void);
 
 void cpu_exec_init_all(void);
+int64_t cpu_get_ticks(void);
 
 /* CPU save/load.  */
 void cpu_save(QEMUFile *f, void *opaque);

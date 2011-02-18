@@ -123,12 +123,6 @@ static void ioportF0_write(void *opaque, uint32_t addr, uint32_t data)
     qemu_irq_lower(ferr_irq);
 }
 
-/* TSC handling */
-uint64_t cpu_get_tsc(CPUX86State *env)
-{
-    return cpu_get_ticks();
-}
-
 /* SMM support */
 
 static cpu_set_smm_t smm_set;
