@@ -79,7 +79,6 @@ typedef struct TimersState {
     int64_t cpu_ticks_prev;
     int64_t cpu_ticks_offset;
     int64_t cpu_clock_offset;
-    int32_t cpu_ticks_enabled;
     int64_t dummy;
 } TimersState;
 
@@ -107,7 +106,7 @@ int64_t cpu_get_ticks(void)
     if (use_icount) {
         return cpu_get_icount();
     }
-    if (!timers_state.cpu_ticks_enabled) {
+    if (!runstate_is_running()) {
         return timers_state.cpu_ticks_offset;
     } else {
         int64_t ticks;
@@ -126,7 +125,7 @@ int64_t cpu_get_ticks(void)
 int64_t cpu_get_clock(void)
 {
     int64_t ti;
-    if (!timers_state.cpu_ticks_enabled) {
+    if (!runstate_is_running()) {
         return timers_state.cpu_clock_offset;
     } else {
         ti = get_clock();
@@ -137,22 +136,16 @@ int64_t cpu_get_clock(void)
 /* enable cpu_get_ticks() */
 void cpu_enable_ticks(void)
 {
-    if (!timers_state.cpu_ticks_enabled) {
-        timers_state.cpu_ticks_offset -= cpu_get_real_ticks();
-        timers_state.cpu_clock_offset -= get_clock();
-        timers_state.cpu_ticks_enabled = 1;
-    }
+    timers_state.cpu_ticks_offset -= cpu_get_real_ticks();
+    timers_state.cpu_clock_offset -= get_clock();
 }
 
 /* disable cpu_get_ticks() : the clock is stopped. You must not call
    cpu_get_ticks() after that.  */
 void cpu_disable_ticks(void)
 {
-    if (timers_state.cpu_ticks_enabled) {
-        timers_state.cpu_ticks_offset = cpu_get_ticks();
-        timers_state.cpu_clock_offset = cpu_get_clock();
-        timers_state.cpu_ticks_enabled = 0;
-    }
+    timers_state.cpu_ticks_offset = cpu_get_ticks();
+    timers_state.cpu_clock_offset = cpu_get_clock();
 }
 
 /* Correlation between real and virtual time is always going to be
