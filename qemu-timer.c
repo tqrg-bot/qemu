@@ -436,7 +436,7 @@ int64_t qemu_get_clock_ns(QEMUClock *clock)
             return cpu_get_clock();
         }
     case QEMU_CLOCK_HOST:
-        now = get_clock_realtime();
+        now = get_clock_host();
         last = clock->last;
         clock->last = now;
         if (now < last) {

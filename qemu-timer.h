@@ -92,8 +92,7 @@ static inline int64_t get_ticks_per_sec(void)
     return 1000000000LL;
 }
 
-/* real time host monotonic timer */
-static inline int64_t get_clock_realtime(void)
+static inline int64_t get_clock_host(void)
 {
     struct timeval tv;
 
@@ -131,7 +130,7 @@ static inline int64_t get_clock(void)
     {
         /* XXX: using gettimeofday leads to problems if the date
            changes, so it should be avoided. */
-        return get_clock_realtime();
+        return get_clock_host();
     }
 }
 #endif
