@@ -454,14 +454,6 @@ int DMA_write_memory (int nchan, void *buf, int pos, int len)
     return len;
 }
 
-/* request the emulator to transfer a new DMA memory block ASAP */
-void DMA_schedule(int nchan)
-{
-    struct dma_cont *d = &dma_controllers[nchan > 3];
-
-    qemu_irq_pulse(*d->cpu_request_exit);
-}
-
 static void dma_reset(void *opaque)
 {
     struct dma_cont *d = opaque;
