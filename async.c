@@ -36,7 +36,6 @@ struct QEMUBH {
     QEMUBHFunc *cb;
     void *opaque;
     int scheduled;
-    int idle;
     int deleted;
     QEMUBH *next;
 };
@@ -65,9 +64,7 @@ int qemu_bh_poll(void)
         next = bh->next;
         if (!bh->deleted && bh->scheduled) {
             bh->scheduled = 0;
-            if (!bh->idle)
-                ret = 1;
-            bh->idle = 0;
+            ret = 1;
             bh->cb(bh->opaque);
         }
     }
@@ -91,20 +88,11 @@ int qemu_bh_poll(void)
     return ret;
 }
 
-void qemu_bh_schedule_idle(QEMUBH *bh)
-{
-    if (bh->scheduled)
-        return;
-    bh->scheduled = 1;
-    bh->idle = 1;
-}
-
 void qemu_bh_schedule(QEMUBH *bh)
 {
     if (bh->scheduled)
         return;
     bh->scheduled = 1;
-    bh->idle = 0;
     /* stop the currently executing CPU to execute the BH ASAP */
     qemu_notify_event();
 }
@@ -120,23 +108,15 @@ void qemu_bh_delete(QEMUBH *bh)
     bh->deleted = 1;
 }
 
-void qemu_bh_update_timeout(int *timeout)
+int qemu_any_bh_scheduled(void)
 {
     QEMUBH *bh;
 
     for (bh = first_bh; bh; bh = bh->next) {
         if (!bh->deleted && bh->scheduled) {
-            if (bh->idle) {
-                /* idle bottom halves will be polled at least
-                 * every 10ms */
-                *timeout = MIN(10, *timeout);
-            } else {
-                /* non-idle bottom halves will be executed
-                 * immediately */
-                *timeout = 0;
-                break;
-            }
+            return 1;
         }
     }
+    return 0;
 }
 

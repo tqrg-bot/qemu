@@ -424,11 +424,10 @@ int main_loop_wait(int nonblocking)
     struct timeval tv;
     int timeout;
 
-    if (nonblocking) {
+    if (nonblocking || qemu_any_bh_scheduled()) {
         timeout = 0;
     } else {
         timeout = qemu_calculate_timeout();
-        qemu_bh_update_timeout(&timeout);
     }
 
     os_host_main_loop_wait(&timeout);
