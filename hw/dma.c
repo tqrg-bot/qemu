@@ -58,7 +58,6 @@ static struct dma_cont {
     uint8_t flip_flop;
     int dshift;
     struct dma_regs regs[4];
-    qemu_irq *cpu_request_exit;
 } dma_controllers[2];
 
 enum {
@@ -469,14 +468,12 @@ static int dma_phony_handler (void *opaque, int nchan, int dma_pos, int dma_len)
 
 /* dshift = 0: 8 bit DMA, 1 = 16 bit DMA */
 static void dma_init2(struct dma_cont *d, int base, int dshift,
-                      int page_base, int pageh_base,
-                      qemu_irq *cpu_request_exit)
+                      int page_base, int pageh_base)
 {
     static const int page_port_list[] = { 0x1, 0x2, 0x3, 0x7 };
     int i;
 
     d->dshift = dshift;
-    d->cpu_request_exit = cpu_request_exit;
     for (i = 0; i < 8; i++) {
         register_ioport_write (base + (i << dshift), 1, 1, write_chan, d);
         register_ioport_read (base + (i << dshift), 1, 1, read_chan, d);
@@ -546,12 +543,12 @@ static const VMStateDescription vmstate_dma = {
     }
 };
 
-void DMA_init(int high_page_enable, qemu_irq *cpu_request_exit)
+void DMA_init(int high_page_enable)
 {
     dma_init2(&dma_controllers[0], 0x00, 0, 0x80,
-              high_page_enable ? 0x480 : -1, cpu_request_exit);
+              high_page_enable ? 0x480 : -1);
     dma_init2(&dma_controllers[1], 0xc0, 1, 0x88,
-              high_page_enable ? 0x488 : -1, cpu_request_exit);
+              high_page_enable ? 0x488 : -1);
     vmstate_register (NULL, 0, &vmstate_dma, &dma_controllers[0]);
     vmstate_register (NULL, 1, &vmstate_dma, &dma_controllers[1]);
 
