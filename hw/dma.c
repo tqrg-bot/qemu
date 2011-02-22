@@ -23,6 +23,7 @@
  */
 #include "hw.h"
 #include "isa.h"
+#include "qemu-timer.h"
 
 /* #define DEBUG_DMA */
 
@@ -351,7 +352,7 @@ static void channel_run (int ncont, int ichan)
     ldebug ("dma_pos %d size %d\n", n, (r->base[COUNT] + 1) << ncont);
 }
 
-static QEMUBH *dma_bh;
+static QEMUTimer *dma_timer;
 
 static void DMA_run (void)
 {
@@ -384,11 +385,12 @@ static void DMA_run (void)
 
     running = 0;
 out:
-    if (rearm)
-        qemu_bh_schedule_idle(dma_bh);
+    if (rearm) {
+        qemu_mod_timer(dma_timer, qemu_get_clock_ns(vm_clock) + 10000000);
+    }
 }
 
-static void DMA_run_bh(void *unused)
+static void DMA_run_timer(void *unused)
 {
     DMA_run();
 }
@@ -561,5 +563,5 @@ void DMA_init(int high_page_enable, qemu_irq *cpu_request_exit)
     vmstate_register (NULL, 0, &vmstate_dma, &dma_controllers[0]);
     vmstate_register (NULL, 1, &vmstate_dma, &dma_controllers[1]);
 
-    dma_bh = qemu_bh_new(DMA_run_bh, NULL);
+    dma_timer = qemu_new_timer_ns(vm_clock, DMA_run_timer, NULL);
 }
