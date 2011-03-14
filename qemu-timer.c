@@ -171,13 +171,13 @@ static void dynticks_rearm_timer(struct qemu_alarm_timer *t, int64_t delta);
 static struct qemu_alarm_timer alarm_timers[] = {
 #ifndef _WIN32
 #ifdef __linux__
-    {"dynticks", dynticks_start_timer,
+    {"rt", dynticks_start_timer,
      dynticks_stop_timer, dynticks_rearm_timer},
 #endif
     {"unix", unix_start_timer, unix_stop_timer, unix_rearm_timer},
 #else
     {"mmtimer", mm_start_timer, mm_stop_timer, mm_rearm_timer},
-    {"dynticks", win32_start_timer, win32_stop_timer, win32_rearm_timer},
+    {"win32", win32_start_timer, win32_stop_timer, win32_rearm_timer},
 #endif
     {NULL, }
 };
@@ -187,8 +187,13 @@ static void show_available_alarms(void)
     int i;
 
     printf("Available alarm timers, in order of precedence:\n");
-    for (i = 0; alarm_timers[i].name; i++)
-        printf("%s\n", alarm_timers[i].name);
+    for (i = 0; alarm_timers[i].name; i++) {
+        if (i == 0) {
+            printf("%s (dynticks)\n", alarm_timers[i].name);
+        } else {
+            printf("%s\n", alarm_timers[i].name);
+        }
+    }
 }
 
 void configure_alarms(char const *opt)
@@ -197,7 +202,7 @@ void configure_alarms(char const *opt)
     int cur = 0;
     int count = ARRAY_SIZE(alarm_timers) - 1;
     char *arg;
-    char *name;
+    const char *name;
     struct qemu_alarm_timer tmp;
 
     if (!strcmp(opt, "?")) {
@@ -210,6 +215,9 @@ void configure_alarms(char const *opt)
     /* Reorder the array */
     name = strtok(arg, ",");
     while (name) {
+        if (!strcmp(name, "dynticks")) {
+            name = alarm_timers[0].name;
+        }
         for (i = 0; i < count && alarm_timers[i].name; i++) {
             if (!strcmp(alarm_timers[i].name, name))
                 break;
