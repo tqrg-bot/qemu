@@ -1410,6 +1410,10 @@ SCSIDevice *scsi_device_find(SCSIBus *bus, int channel, int id, int lun)
     DeviceState *qdev;
     SCSIDevice *target_dev = NULL;
 
+    /*
+     * qdev adds new devices at the head; we want to return old devices
+     * in case of ambiguity.
+     */
     QTAILQ_FOREACH_REVERSE(qdev, &bus->qbus.children, ChildrenHead, sibling) {
         SCSIDevice *dev = DO_UPCAST(SCSIDevice, qdev, qdev);
 

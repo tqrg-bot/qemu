@@ -289,6 +289,21 @@ scsi_inquiry(int target, int lun, int tag, int cdb1, int cdb2) "target %d lun %d
 scsi_test_unit_ready(int target, int lun, int tag) "target %d lun %d tag %d"
 scsi_request_sense(int target, int lun, int tag) "target %d lun %d tag %d"
 
+# hw/vmw_pvscsi.c
+disable pvscsi_queue_request(uint64_t context, uint8_t command, uint64_t dataLen) "context %"PRIu64" command %d length %"PRIu64""
+disable pvscsi_sg_elem(uint64_t context, uint64_t addr, uint64_t length) "context %"PRIu64" addr %"PRIu64" length %"PRIu64""
+disable pvscsi_transfer_data(uint64_t context, uint64_t length) "context %"PRIu64" length %"PRIu64""
+disable pvscsi_request_sense(uint64_t context, int lun) "context %"PRIu64" lun %d"
+disable pvscsi_kick_io(void) "kick request ring"
+disable pvscsi_complete_req(uint64_t context, uint64_t length, uint8_t sense) "context %"PRIu64" length %"PRIu64" sense %d"
+disable pvscsi_cmp_ring_put(uint64_t context) "context %"PRIu64""
+disable pvscsi_raise_intr(uint32_t intr, const char *state) "raised intr %d %s"
+disable pvscsi_acknowledge_intr(uint32_t intr) "acknowledged intr %d"
+disable pvscsi_setup_req_ring(uint32_t pages, uint32_t entries) "req ring - %d pages %d entries"
+disable pvscsi_setup_cmp_ring(uint32_t pages, uint32_t entries) "cmp ring - %d pages %d entries"
+disable pvscsi_setup_msg_ring(uint32_t pages, uint32_t entries) "msg ring - %d pages %d entries"
+disable pvscsi_cmd(int cmd) "command %d"
+
 # vl.c
 vm_state_notify(int running, int reason) "running %d reason %d"
 
