@@ -172,6 +172,7 @@ pkgversion=""
 check_utests="no"
 user_pie="no"
 zero_malloc=""
+malloc_stats="no"
 trace_backend="nop"
 trace_file="trace"
 spice=""
@@ -678,6 +679,10 @@ for opt do
   ;;
   --disable-guest-base) guest_base="no"
   ;;
+  --enable-malloc-stats) malloc_stats="yes"
+  ;;
+  --disable-malloc-stats) malloc_stats="no"
+  ;;
   --enable-user-pie) user_pie="yes"
   ;;
   --disable-user-pie) user_pie="no"
@@ -1005,6 +1010,8 @@ echo "  --disable-bsd-user       disable all BSD usermode emulation targets"
 echo "  --enable-guest-base      enable GUEST_BASE support for usermode"
 echo "                           emulation targets"
 echo "  --disable-guest-base     disable GUEST_BASE support"
+echo "  --enable-malloc-stats    enable gathering statistics for malloc"
+echo "  --disable-malloc-stats   disable gathering statistics for malloc"
 echo "  --enable-user-pie        build usermode emulation targets as PIE"
 echo "  --disable-user-pie       do not build usermode emulation targets as PIE"
 echo "  --fmod-lib               path to FMOD library"
@@ -2709,6 +2716,7 @@ echo "Documentation     $docs"
 echo "uname -r          $uname_release"
 echo "NPTL support      $nptl"
 echo "GUEST_BASE        $guest_base"
+echo "Malloc statistics $malloc_stats"
 echo "PIE user targets  $user_pie"
 echo "vde support       $vde"
 echo "IO thread         $io_thread"
@@ -3041,6 +3049,9 @@ fi
 
 echo "CONFIG_UNAME_RELEASE=\"$uname_release\"" >> $config_host_mak
 
+if test "$malloc_stats" = "yes" ; then
+  echo "CONFIG_MALLOC_STATS=y" >> $config_host_mak
+fi
 if test "$zero_malloc" = "yes" ; then
   echo "CONFIG_ZERO_MALLOC=y" >> $config_host_mak
 fi

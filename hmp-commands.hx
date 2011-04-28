@@ -180,6 +180,22 @@ STEXI
 Output logs to @var{filename}.
 ETEXI
 
+#ifdef CONFIG_MALLOC_STATS
+    {
+        .name       = "dump-malloc-stats",
+        .args_type  = "name:F",
+        .params     = "name",
+        .help       = "dump memory allocation statistics to a file",
+        .mhandler.cmd = do_dump_malloc_stats,
+    },
+
+STEXI
+@item dump-malloc-stats @var{filename}
+@findex dump-malloc-stats
+Dump memory allocation statistics to @var{filename}.
+ETEXI
+#endif
+
 #ifdef CONFIG_SIMPLE_TRACE
     {
         .name       = "trace-event",

@@ -178,16 +178,47 @@ const char *path(const char *pathname);
 #define qemu_isascii(c)		isascii((unsigned char)(c))
 #define qemu_toascii(c)		toascii((unsigned char)(c))
 
-void *qemu_malloc(size_t size);
-void *qemu_realloc(void *ptr, size_t size);
-void *qemu_mallocz(size_t size);
-char *qemu_strdup(const char *str);
-char *qemu_strndup(const char *str, size_t size);
-void *qemu_memalign(size_t alignment, size_t size);
-void *qemu_vmalloc(size_t size);
+typedef struct QEMUMallocStatsLocus QEMUMallocStatsLocus;
+
+struct QEMUMallocStatsLocus {
+    const char *file;
+    const char *func;
+    int line;
+    uint64_t live;
+    uint64_t count;
+    uint64_t alloc_tot;
+    size_t alloc;
+    size_t alloc_max;
+    struct QEMUMallocStatsLocus *next;
+};
+
+#ifdef CONFIG_MALLOC_STATS
+#define MALLOC_STATS_ARG ({ \
+    static struct QEMUMallocStatsLocus t = { __FILE__, __func__, __LINE__ }; \
+    &t; })
+#else
+#define MALLOC_STATS_ARG NULL
+#endif
+
+void *qemu_malloc(size_t size, struct QEMUMallocStatsLocus *locus);
+void *qemu_mallocz(size_t size, struct QEMUMallocStatsLocus *locus);
+void *qemu_realloc(void *ptr, size_t size, struct QEMUMallocStatsLocus *locus);
+char *qemu_strdup(const char *str, struct QEMUMallocStatsLocus *locus);
+char *qemu_strndup(const char *str, size_t size, struct QEMUMallocStatsLocus *locus);
+void *qemu_memalign(size_t alignment, size_t size, QEMUMallocStatsLocus *locus);
+void *qemu_vmalloc(size_t size, QEMUMallocStatsLocus *locus);
+int dump_malloc_stats(const char *file_name);
 
 void qemu_free(void *ptr);
 void qemu_vfree(void *ptr);
+
+#define qemu_malloc(size) ((qemu_malloc)(size, MALLOC_STATS_ARG))
+#define qemu_mallocz(size) ((qemu_mallocz)(size, MALLOC_STATS_ARG))
+#define qemu_realloc(ptr, size) ((qemu_realloc)(ptr, size, MALLOC_STATS_ARG))
+#define qemu_memalign(alignment, size) ((qemu_memalign)(alignment, size, MALLOC_STATS_ARG))
+#define qemu_vmalloc(size) ((qemu_vmalloc)(size, MALLOC_STATS_ARG))
+#define qemu_strdup(str) ((qemu_strdup)(str, MALLOC_STATS_ARG))
+#define qemu_strndup(str, size) ((qemu_strndup)(str, size, MALLOC_STATS_ARG))
 
 void qemu_mutex_lock_iothread(void);
 void qemu_mutex_unlock_iothread(void);

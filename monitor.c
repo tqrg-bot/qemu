@@ -592,6 +592,18 @@ static void do_help_cmd(Monitor *mon, const QDict *qdict)
     help_cmd(mon, qdict_get_try_str(qdict, "name"));
 }
 
+#ifdef CONFIG_MALLOC_STATS
+static void do_dump_malloc_stats(Monitor *mon, const QDict *qdict)
+{
+    const char *file_name = qdict_get_str(qdict, "name");
+    int ret = dump_malloc_stats(file_name);
+
+    if (ret < 0) {
+        monitor_printf(mon, "error writing file: %s\n", strerror(-ret));
+    }
+}
+#endif
+
 #ifdef CONFIG_SIMPLE_TRACE
 static void do_change_trace_event_state(Monitor *mon, const QDict *qdict)
 {
