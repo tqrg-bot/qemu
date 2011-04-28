@@ -28,48 +28,21 @@
 #include <windows.h>
 #include "config-host.h"
 #include "sysemu.h"
-#include "trace.h"
 #include "qemu_socket.h"
 
-void *qemu_oom_check(void *ptr)
+void *os_memalign(size_t alignment, size_t size)
 {
-    if (ptr == NULL) {
-        fprintf(stderr, "Failed to allocate memory: %lu\n", GetLastError());
-        abort();
-    }
-    return ptr;
-}
-
-void *qemu_memalign(size_t alignment, size_t size)
-{
-    void *ptr;
-
-    if (!size) {
-        abort();
-    }
-    ptr = qemu_oom_check(VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE));
-    trace_qemu_memalign(alignment, size, ptr);
-    return ptr;
-}
-
-void *qemu_vmalloc(size_t size)
-{
-    void *ptr;
-
     /* FIXME: this is not exactly optimal solution since VirtualAlloc
        has 64Kb granularity, but at least it guarantees us that the
        memory is page aligned. */
     if (!size) {
         abort();
     }
-    ptr = qemu_oom_check(VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE));
-    trace_qemu_vmalloc(size, ptr);
-    return ptr;
+    return VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
 }
 
 void qemu_vfree(void *ptr)
 {
-    trace_qemu_vfree(ptr);
     VirtualFree(ptr, 0, MEM_RELEASE);
 }
 

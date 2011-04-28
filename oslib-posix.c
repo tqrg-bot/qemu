@@ -37,57 +37,34 @@ extern int daemon(int, int);
 
 #include "config-host.h"
 #include "sysemu.h"
-#include "trace.h"
 #include "qemu_socket.h"
-
-
 
 int qemu_daemon(int nochdir, int noclose)
 {
     return daemon(nochdir, noclose);
 }
 
-void *qemu_oom_check(void *ptr)
-{
-    if (ptr == NULL) {
-        fprintf(stderr, "Failed to allocate memory: %s\n", strerror(errno));
-        abort();
-    }
-    return ptr;
-}
-
-void *qemu_memalign(size_t alignment, size_t size)
+void *os_memalign(size_t alignment, size_t size)
 {
     void *ptr;
+    assert(alignment > sizeof(void *));
+    assert((alignment & (alignment - 1)) == 0);
 #if defined(_POSIX_C_SOURCE) && !defined(__sun__)
     int ret;
     ret = posix_memalign(&ptr, alignment, size);
     if (ret != 0) {
-        fprintf(stderr, "Failed to allocate %zu B: %s\n",
-                size, strerror(ret));
-        abort();
+        ptr = NULL;
     }
 #elif defined(CONFIG_BSD)
-    ptr = qemu_oom_check(valloc(size));
+    ptr = valloc(size);
 #else
-    ptr = qemu_oom_check(memalign(alignment, size));
+    ptr = memalign(alignment, size);
 #endif
-    trace_qemu_memalign(alignment, size, ptr);
     return ptr;
 }
 
-/* alloc shared memory pages */
-void *qemu_vmalloc(size_t size)
+void os_vfree(void *ptr)
 {
-    void *ptr;
-    ptr = qemu_memalign(getpagesize(), size);
-    trace_qemu_vmalloc(size, ptr);
-    return ptr;
-}
-
-void qemu_vfree(void *ptr)
-{
-    trace_qemu_vfree(ptr);
     free(ptr);
 }
 

@@ -31,6 +31,15 @@ void qemu_free(void *ptr)
     free(ptr);
 }
 
+static void *qemu_oom_check(void *ptr)
+{
+    if (ptr == NULL) {
+        fprintf(stderr, "Failed to allocate memory: %s\n", strerror(errno));
+        abort();
+    }
+    return ptr;
+}
+
 static int allow_zero_malloc(void)
 {
 #if defined(CONFIG_ZERO_MALLOC)
@@ -95,4 +104,28 @@ char *qemu_strndup(const char *str, size_t size)
     new[size] = 0;
 
     return memcpy(new, str, size);
+}
+
+void *qemu_memalign(size_t alignment, size_t size)
+{
+    char *ptr;
+    assert(size <= LONG_MAX);
+    if (!size && !allow_zero_malloc()) {
+        abort();
+    }
+    ptr = qemu_oom_check(os_memalign(alignment, size ? size : 1));
+    trace_qemu_memalign(alignment, size, (char *)ptr);
+    return ptr;
+}
+
+/* alloc shared memory pages */
+void *qemu_vmalloc(size_t size)
+{
+    return qemu_memalign(getpagesize(), size);
+}
+
+void qemu_vfree(void *ptr)
+{
+    trace_qemu_vfree(ptr);
+    os_vfree(ptr);
 }

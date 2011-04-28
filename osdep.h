@@ -89,9 +89,8 @@
 #endif
 
 int qemu_daemon(int nochdir, int noclose);
-void *qemu_memalign(size_t alignment, size_t size);
-void *qemu_vmalloc(size_t size);
-void qemu_vfree(void *ptr);
+void *os_memalign(size_t alignment, size_t size);
+void os_vfree(void *ptr);
 
 #define QEMU_MADV_INVALID -1
 
