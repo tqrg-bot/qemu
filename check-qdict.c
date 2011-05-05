@@ -33,7 +33,7 @@ START_TEST(qdict_new_test)
     fail_unless(qobject_type(QOBJECT(qdict)) == QTYPE_QDICT);
 
     // destroy doesn't exit yet
-    free(qdict);
+    g_free(qdict);
 }
 END_TEST
 
