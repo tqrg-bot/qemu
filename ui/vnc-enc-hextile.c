@@ -80,8 +80,8 @@ int vnc_hextile_send_framebuffer_update(VncState *vs, int x,
                                   last_bg, last_fg, &has_bg, &has_fg);
         }
     }
-    free(last_fg);
-    free(last_bg);
+    qemu_free(last_fg);
+    qemu_free(last_bg);
 
     return 1;
 }

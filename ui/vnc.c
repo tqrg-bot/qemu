@@ -2722,7 +2722,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
     if (strcmp(display, "none") == 0)
         return 0;
 
-    if (!(vs->display = strdup(display)))
+    if (!(vs->display = qemu_strdup(display)))
         return -1;
 
     options = display;
@@ -2880,7 +2880,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
     if ((saslErr = sasl_server_init(NULL, "qemu")) != SASL_OK) {
         fprintf(stderr, "Failed to initialize SASL auth %s",
                 sasl_errstring(saslErr, NULL, NULL));
-        free(vs->display);
+        qemu_free(vs->display);
         vs->display = NULL;
         return -1;
     }
@@ -2894,7 +2894,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
         else
             vs->lsock = inet_connect(display, SOCK_STREAM);
         if (-1 == vs->lsock) {
-            free(vs->display);
+            qemu_free(vs->display);
             vs->display = NULL;
             return -1;
         } else {
@@ -2915,10 +2915,10 @@ int vnc_display_open(DisplayState *ds, const char *display)
             vs->lsock = inet_listen(display, dpy, 256, SOCK_STREAM, 5900);
         }
         if (-1 == vs->lsock) {
-            free(dpy);
+            qemu_free(dpy);
             return -1;
         } else {
-            free(vs->display);
+            qemu_free(vs->display);
             vs->display = dpy;
         }
     }
