@@ -137,7 +137,7 @@ void helper_movcal(uint32_t address, uint32_t value)
 {
     if (cpu_sh4_is_cached (env, address))
     {
-	memory_content *r = malloc (sizeof(memory_content));
+	memory_content *r = qemu_malloc (sizeof(memory_content));
 	r->address = address;
 	r->value = value;
 	r->next = NULL;
@@ -154,7 +154,7 @@ void helper_discard_movcal_backup(void)
     while(current)
     {
 	memory_content *next = current->next;
-	free (current);
+	qemu_free (current);
 	env->movcal_backup = current = next;
 	if (current == NULL)
 	    env->movcal_backup_tail = &(env->movcal_backup);
@@ -177,7 +177,7 @@ void helper_ocbi(uint32_t address)
 		env->movcal_backup_tail = current;
 	    }
 
-	    free (*current);
+	    qemu_free (*current);
 	    *current = next;
 	    break;
 	}

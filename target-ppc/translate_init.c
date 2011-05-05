@@ -9425,7 +9425,7 @@ static int create_new_table (opc_handler_t **table, unsigned char idx)
 {
     opc_handler_t **tmp;
 
-    tmp = malloc(0x20 * sizeof(opc_handler_t));
+    tmp = qemu_malloc(0x20 * sizeof(opc_handler_t));
     fill_new_table(tmp, 0x20);
     table[idx] = (opc_handler_t *)((unsigned long)tmp | PPC_INDIRECT);
 
@@ -9555,7 +9555,7 @@ static int test_opcode_table (opc_handler_t **table, int len)
             if (is_indirect_opcode(table[i])) {
                 tmp = test_opcode_table(ind_table(table[i]), 0x20);
                 if (tmp == 0) {
-                    free(table[i]);
+                    qemu_free(table[i]);
                     table[i] = &invalid_handler;
                 } else {
                     count++;
