@@ -71,11 +71,11 @@ static int glue(sdl_zoom_rgb, BPP)(SDL_Surface *src, SDL_Surface *dst, int smoot
         sy = (int) (65536.0 * (float) src->h / (float) dst->h);
     }
 
-    if ((sax = (int *) malloc((dst->w + 1) * sizeof(Uint32))) == NULL) {
+    if ((sax = (int *) g_malloc((dst->w + 1) * sizeof(Uint32))) == NULL) {
         return (-1);
     }
-    if ((say = (int *) malloc((dst->h + 1) * sizeof(Uint32))) == NULL) {
-        free(sax);
+    if ((say = (int *) g_malloc((dst->h + 1) * sizeof(Uint32))) == NULL) {
+        g_free(sax);
         return (-1);
     }
 
@@ -216,8 +216,8 @@ static int glue(sdl_zoom_rgb, BPP)(SDL_Surface *src, SDL_Surface *dst, int smoot
         }
     }
 
-    free(sax);
-    free(say);
+    g_free(sax);
+    g_free(say);
     return (0);
 }
 
