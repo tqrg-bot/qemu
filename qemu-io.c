@@ -130,7 +130,7 @@ static void print_report(const char *op, struct timeval *t, int64_t offset,
 static void *
 create_iovec(QEMUIOVector *qiov, char **argv, int nr_iov, int pattern)
 {
-    size_t *sizes = calloc(nr_iov, sizeof(size_t));
+    size_t *sizes = qemu_mallocz(nr_iov * sizeof(size_t));
     size_t count = 0;
     void *buf = NULL;
     void *p;
@@ -172,7 +172,7 @@ create_iovec(QEMUIOVector *qiov, char **argv, int nr_iov, int pattern)
     }
 
 fail:
-    free(sizes);
+    qemu_free(sizes);
     return buf;
 }
 
@@ -480,14 +480,14 @@ static int read_f(int argc, char **argv)
     }
 
     if (Pflag) {
-        void *cmp_buf = malloc(pattern_count);
+        void *cmp_buf = qemu_malloc(pattern_count);
         memset(cmp_buf, pattern, pattern_count);
         if (memcmp(buf + pattern_offset, cmp_buf, pattern_count)) {
             printf("Pattern verification failed at offset %"
                    PRId64 ", %d bytes\n",
                    offset + pattern_offset, pattern_count);
         }
-        free(cmp_buf);
+        qemu_free(cmp_buf);
     }
 
     if (qflag) {
@@ -607,13 +607,13 @@ static int readv_f(int argc, char **argv)
     }
 
     if (Pflag) {
-        void *cmp_buf = malloc(qiov.size);
+        void *cmp_buf = qemu_malloc(qiov.size);
         memset(cmp_buf, pattern, qiov.size);
         if (memcmp(buf, cmp_buf, qiov.size)) {
             printf("Pattern verification failed at offset %"
                    PRId64 ", %zd bytes\n", offset, qiov.size);
         }
-        free(cmp_buf);
+        qemu_free(cmp_buf);
     }
 
     if (qflag) {
@@ -1058,7 +1058,7 @@ static void aio_write_done(void *opaque, int ret)
                  ctx->qiov.size, 1, ctx->Cflag);
 out:
     qemu_io_free(ctx->buf);
-    free(ctx);
+    qemu_free(ctx);
 }
 
 static void aio_read_done(void *opaque, int ret)
@@ -1074,14 +1074,14 @@ static void aio_read_done(void *opaque, int ret)
     }
 
     if (ctx->Pflag) {
-        void *cmp_buf = malloc(ctx->qiov.size);
+        void *cmp_buf = qemu_malloc(ctx->qiov.size);
 
         memset(cmp_buf, ctx->pattern, ctx->qiov.size);
         if (memcmp(ctx->buf, cmp_buf, ctx->qiov.size)) {
             printf("Pattern verification failed at offset %"
                    PRId64 ", %zd bytes\n", ctx->offset, ctx->qiov.size);
         }
-        free(cmp_buf);
+        qemu_free(cmp_buf);
     }
 
     if (ctx->qflag) {
@@ -1098,7 +1098,7 @@ static void aio_read_done(void *opaque, int ret)
                  ctx->qiov.size, 1, ctx->Cflag);
 out:
     qemu_io_free(ctx->buf);
-    free(ctx);
+    qemu_free(ctx);
 }
 
 static void aio_read_help(void)
@@ -1136,7 +1136,7 @@ static const cmdinfo_t aio_read_cmd = {
 static int aio_read_f(int argc, char **argv)
 {
     int nr_iov, c;
-    struct aio_ctx *ctx = calloc(1, sizeof(struct aio_ctx));
+    struct aio_ctx *ctx = qemu_mallocz(sizeof(struct aio_ctx));
     BlockDriverAIOCB *acb;
 
     while ((c = getopt(argc, argv, "CP:qv")) != EOF) {
@@ -1148,7 +1148,7 @@ static int aio_read_f(int argc, char **argv)
             ctx->Pflag = 1;
             ctx->pattern = parse_pattern(optarg);
             if (ctx->pattern < 0) {
-                free(ctx);
+                qemu_free(ctx);
                 return 0;
             }
             break;
@@ -1159,20 +1159,20 @@ static int aio_read_f(int argc, char **argv)
             ctx->vflag = 1;
             break;
         default:
-            free(ctx);
+            qemu_free(ctx);
             return command_usage(&aio_read_cmd);
         }
     }
 
     if (optind > argc - 2) {
-        free(ctx);
+        qemu_free(ctx);
         return command_usage(&aio_read_cmd);
     }
 
     ctx->offset = cvtnum(argv[optind]);
     if (ctx->offset < 0) {
         printf("non-numeric length argument -- %s\n", argv[optind]);
-        free(ctx);
+        qemu_free(ctx);
         return 0;
     }
     optind++;
@@ -1180,7 +1180,7 @@ static int aio_read_f(int argc, char **argv)
     if (ctx->offset & 0x1ff) {
         printf("offset %" PRId64 " is not sector aligned\n",
                ctx->offset);
-        free(ctx);
+        qemu_free(ctx);
         return 0;
     }
 
@@ -1191,8 +1191,8 @@ static int aio_read_f(int argc, char **argv)
     acb = bdrv_aio_readv(bs, ctx->offset >> 9, &ctx->qiov,
                          ctx->qiov.size >> 9, aio_read_done, ctx);
     if (!acb) {
-        free(ctx->buf);
-        free(ctx);
+        qemu_free(ctx->buf);
+        qemu_free(ctx);
         return -EIO;
     }
 
@@ -1235,7 +1235,7 @@ static int aio_write_f(int argc, char **argv)
 {
     int nr_iov, c;
     int pattern = 0xcd;
-    struct aio_ctx *ctx = calloc(1, sizeof(struct aio_ctx));
+    struct aio_ctx *ctx = qemu_mallocz(sizeof(struct aio_ctx));
     BlockDriverAIOCB *acb;
 
     while ((c = getopt(argc, argv, "CqP:")) != EOF) {
@@ -1253,20 +1253,20 @@ static int aio_write_f(int argc, char **argv)
             }
             break;
         default:
-            free(ctx);
+            qemu_free(ctx);
             return command_usage(&aio_write_cmd);
         }
     }
 
     if (optind > argc - 2) {
-        free(ctx);
+        qemu_free(ctx);
         return command_usage(&aio_write_cmd);
     }
 
     ctx->offset = cvtnum(argv[optind]);
     if (ctx->offset < 0) {
         printf("non-numeric length argument -- %s\n", argv[optind]);
-        free(ctx);
+        qemu_free(ctx);
         return 0;
     }
     optind++;
@@ -1274,7 +1274,7 @@ static int aio_write_f(int argc, char **argv)
     if (ctx->offset & 0x1ff) {
         printf("offset %" PRId64 " is not sector aligned\n",
                ctx->offset);
-        free(ctx);
+        qemu_free(ctx);
         return 0;
     }
 
@@ -1285,8 +1285,8 @@ static int aio_write_f(int argc, char **argv)
     acb = bdrv_aio_writev(bs, ctx->offset >> 9, &ctx->qiov,
                           ctx->qiov.size >> 9, aio_write_done, ctx);
     if (!acb) {
-        free(ctx->buf);
-        free(ctx);
+        qemu_free(ctx->buf);
+        qemu_free(ctx);
         return -EIO;
     }
 
