@@ -1200,8 +1200,8 @@ static int cpu_sparc_register(CPUSPARCState *env, const char *cpu_model)
 
 static void cpu_sparc_close(CPUSPARCState *env)
 {
-    free(env->def);
-    free(env);
+    g_free(env->def);
+    g_free(env);
 }
 
 CPUSPARCState *cpu_sparc_init(const char *cpu_model)
@@ -1735,7 +1735,7 @@ static int cpu_sparc_find_by_name(sparc_def_t *cpu_def, const char *cpu_model)
 {
     unsigned int i;
     const sparc_def_t *def = NULL;
-    char *s = strdup(cpu_model);
+    char *s = g_strdup(cpu_model);
     char *featurestr, *name = strtok(s, ",");
     uint32_t plus_features = 0;
     uint32_t minus_features = 0;
@@ -1826,11 +1826,11 @@ static int cpu_sparc_find_by_name(sparc_def_t *cpu_def, const char *cpu_model)
 #ifdef DEBUG_FEATURES
     print_features(stderr, fprintf, cpu_def->features, NULL);
 #endif
-    free(s);
+    g_free(s);
     return 0;
 
  error:
-    free(s);
+    g_free(s);
     return -1;
 }
 
