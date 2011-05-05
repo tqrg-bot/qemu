@@ -670,8 +670,8 @@ static int qemu_spice_set_ticket(bool fail_if_conn, bool disconnect_if_conn)
 int qemu_spice_set_passwd(const char *passwd,
                           bool fail_if_conn, bool disconnect_if_conn)
 {
-    free(auth_passwd);
-    auth_passwd = strdup(passwd);
+    qemu_free(auth_passwd);
+    auth_passwd = qemu_strdup(passwd);
     return qemu_spice_set_ticket(fail_if_conn, disconnect_if_conn);
 }
 
