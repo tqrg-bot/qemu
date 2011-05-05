@@ -163,7 +163,7 @@ cac_applet_pki_process_apdu(VCard *card, VCardAPDU *apdu,
         }
         size = apdu->a_Lc;
 
-        sign_buffer = realloc(pki_applet->sign_buffer,
+        sign_buffer = qemu_realloc(pki_applet->sign_buffer,
                       pki_applet->sign_buffer_len+size);
         if (sign_buffer == NULL) {
             qemu_free(pki_applet->sign_buffer);

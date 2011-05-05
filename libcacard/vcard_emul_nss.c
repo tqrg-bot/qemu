@@ -1165,7 +1165,7 @@ vcard_emul_options(const char *args)
 
             if (opts->vreader_count >= reader_count) {
                 reader_count += READER_STEP;
-                vreaderOpt = realloc(opts->vreader,
+                vreaderOpt = qemu_realloc(opts->vreader,
                                 reader_count * sizeof(*vreaderOpt));
                 if (vreaderOpt == NULL) {
                     return opts; /* we're done */
