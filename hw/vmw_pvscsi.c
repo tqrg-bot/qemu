@@ -52,7 +52,6 @@ typedef struct {
 
     MemoryRegion mmio;
     int mmio_io_addr;
-    uint32_t use_iovec;
 
     /* zeroed on reset */
     uint32_t cmd_latch;
@@ -265,17 +264,6 @@ static void pvscsi_write_sense(PVSCSIRequest *p, uint8_t *buf, int len)
     cpu_physical_memory_write(p->req.senseAddr, buf, p->cmp.senseLen);
 }
 
-static void pvscsi_transfer_data_with_buffer(PVSCSIRequest *p, bool to_host,
-                                             uint8_t *buf, int len)
-{
-    if (len) {
-        cpu_physical_memory_rw(p->req.dataAddr, buf, len, to_host);
-        p->cmp.dataLen += len;
-        p->req.dataAddr += len;
-        p->resid -= len;
-    }
-}
-
 static void pvscsi_get_next_sg_elem(PVSCSISGState *sg)
 {
     struct PVSCSISGElement elem;
@@ -296,31 +284,6 @@ static void pvscsi_get_next_sg_elem(PVSCSISGState *sg)
     sg->elemAddr += sizeof(elem);
     sg->dataAddr = elem.addr;
     sg->resid = elem.length;
-}
-
-static void pvscsi_transfer_data_with_sg_list(PVSCSIRequest *p, bool to_host,
-                                              uint8_t *buf, int len)
-{
-    int n;
-    while (len) {
-        while (!p->sg.resid) {
-            pvscsi_get_next_sg_elem(&p->sg);
-            trace_pvscsi_sg_elem(p->req.context, p->sg.dataAddr, p->sg.resid);
-        }
-        assert(len > 0);
-        n = MIN((unsigned) len, p->sg.resid);
-        if (n) {
-            cpu_physical_memory_rw(p->sg.dataAddr, buf, n, to_host);
-        }
-
-        buf += n;
-        p->cmp.dataLen += n;
-        p->sg.dataAddr += n;
-
-        len -= n;
-        p->resid -= n;
-        p->sg.resid -= n;
-    }
 }
 
 static void pvscsi_convert_sglist(PVSCSIRequest *p)
@@ -355,45 +318,7 @@ static void pvscsi_build_sglist(PVSCSIRequest *p)
     }
 }
 
-/* Callback to indicate that the SCSI layer has completed a transfer.  */
-static void pvscsi_transfer_data(SCSIRequest *req, uint32_t len)
-{
-    PVSCSIRequest *p = req->hba_private;
-    uint8_t *buf = scsi_req_get_buf(req);
-    int to_host = (p->req.flags & PVSCSI_FLAG_CMD_DIR_TOHOST) != 0;
-
-    assert(!req->sg);
-    if (!p) {
-        fprintf(stderr, "PVSCSI: Can't find request for tag 0x%x\n", req->tag);
-        return;
-    }
-
-    assert(p->resid);
-    trace_pvscsi_transfer_data(p->req.context, len);
-    if (!len) {
-        /* Short transfer.  */
-        p->cmp.hostStatus = BTSTAT_DATARUN;
-        scsi_req_cancel(req);
-        return;
-    }
-
-    if (len > p->resid) {
-        /* Small buffer.  */
-        p->cmp.hostStatus = BTSTAT_DATARUN;
-        scsi_req_cancel(req);
-        return;
-    }
-
-    if (p->req.flags & PVSCSI_FLAG_CMD_WITH_SG_LIST) {
-        pvscsi_transfer_data_with_sg_list(p, to_host, buf, len);
-    } else {
-        pvscsi_transfer_data_with_buffer(p, to_host, buf, len);
-    }
-
-    scsi_req_continue(req);
-}
-
-/* Callback to indicate that the SCSI layer has completed a transfer.  */
+/* Callback to indicate that the SCSI layer has completed a request.  */
 static void pvscsi_command_complete(SCSIRequest *req, uint32_t status, int32_t resid)
 {
     PVSCSIState *s = DO_UPCAST(PVSCSIState, dev.qdev, req->bus->qbus.parent);
@@ -404,10 +329,7 @@ static void pvscsi_command_complete(SCSIRequest *req, uint32_t status, int32_t r
         return;
     }
 
-    if (req->sg) {
-        p->cmp.dataLen = req->sg->size - resid;
-    }
-
+    p->cmp.dataLen = req->sg->size - resid;
     if (resid) {
         /* Short transfer.  */
         p->cmp.hostStatus = BTSTAT_DATARUN;
@@ -435,15 +357,10 @@ static void pvscsi_request_cancelled(SCSIRequest *req)
 
 static QEMUSGList *pvscsi_get_sg_list(SCSIRequest *req)
 {
-    PVSCSIState *s = DO_UPCAST(PVSCSIState, dev.qdev, req->bus->qbus.parent);
     PVSCSIRequest *p = req->hba_private;
 
-    if (s->use_iovec) {
-        pvscsi_build_sglist(p);
-        return &p->sgl;
-    } else {
-        return NULL;
-    }
+    pvscsi_build_sglist(p);
+    return &p->sgl;
 }
 
 
@@ -780,7 +697,6 @@ static struct SCSIBusInfo pvscsi_scsi_info = {
     .max_target = PVSCSI_MAX_DEVS,
     .max_lun = 255,
 
-    .transfer_data = pvscsi_transfer_data,
     .complete = pvscsi_command_complete,
     .cancel = pvscsi_request_cancelled,
     .get_sg_list = pvscsi_get_sg_list,
@@ -832,10 +748,6 @@ static PCIDeviceInfo pvscsi_info = {
     .qdev.reset = pvscsi_reset,
     .init       = pvscsi_init,
     .exit       = pvscsi_uninit,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_BIT("sg", PVSCSIState, use_iovec,   0, true),
-        DEFINE_PROP_END_OF_LIST(),
-    },
 };
 
 static void vmw_pvscsi_register_devices(void)
