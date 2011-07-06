@@ -358,7 +358,7 @@ static void pvscsi_transfer_data(SCSIRequest *req, uint32_t len)
 }
 
 /* Callback to indicate that the SCSI layer has completed a transfer.  */
-static void pvscsi_command_complete(SCSIRequest *req, uint32_t status)
+static void pvscsi_command_complete(SCSIRequest *req, uint32_t status, int32_t resid)
 {
     PVSCSIState *s = DO_UPCAST(PVSCSIState, dev.qdev, req->bus->qbus.parent);
     PVSCSIRequest *p = req->hba_private;
@@ -368,6 +368,10 @@ static void pvscsi_command_complete(SCSIRequest *req, uint32_t status)
         return;
     }
 
+    if (resid) {
+        /* Short transfer.  */
+        p->cmp.hostStatus = BTSTAT_DATARUN;
+    }
     p->cmp.scsiStatus = status;
     if (p->cmp.scsiStatus == CHECK_CONDITION) {
 	uint8_t sense[96];
