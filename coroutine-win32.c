@@ -24,6 +24,7 @@
 
 #include "qemu-common.h"
 #include "qemu-coroutine-int.h"
+#include "qemu-tls.h"
 
 typedef struct
 {
@@ -33,8 +34,10 @@ typedef struct
     CoroutineAction action;
 } CoroutineWin32;
 
-static __thread CoroutineWin32 leader;
-static __thread Coroutine *current;
+static DEFINE_TLS(CoroutineWin32, leader);
+static DEFINE_TLS(Coroutine *, current);
+#define leader tls_var(leader)
+#define current tls_var(current)
 
 CoroutineAction qemu_coroutine_switch(Coroutine *from_, Coroutine *to_,
                                       CoroutineAction action)

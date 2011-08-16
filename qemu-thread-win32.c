@@ -16,6 +16,22 @@
 #include <assert.h>
 #include <limits.h>
 
+/* TLS support.  */
+
+int __attribute__((section(".tls$000"))) _tls_start = 0;
+int __attribute__((section(".tls$ZZZ"))) _tls_end = 0;
+int _tls_index = 0;
+
+const IMAGE_TLS_DIRECTORY _tls_used __attribute__((used, section(".rdata$T"))) = {
+ (ULONG)(ULONG_PTR) &_tls_start, /* start of tls data */
+ (ULONG)(ULONG_PTR) &_tls_end,   /* end of tls data */
+ (ULONG)(ULONG_PTR) &_tls_index, /* address of tls_index */
+ (ULONG) 0,                      /* pointer to callbacks */
+ (ULONG) 0,                      /* size of tls zero fill */
+ (ULONG) 0                       /* characteristics */
+};
+
+
 static void error_exit(int err, const char *msg)
 {
     char *pstr;
@@ -263,13 +279,11 @@ void *qemu_thread_join(QemuThread *thread)
     return ret;
 }
 
-static inline void qemu_thread_init(void)
+void qemu_tls_init(void)
 {
+    qemu_thread_tls_index = TlsAlloc();
     if (qemu_thread_tls_index == TLS_OUT_OF_INDEXES) {
-        qemu_thread_tls_index = TlsAlloc();
-        if (qemu_thread_tls_index == TLS_OUT_OF_INDEXES) {
-            error_exit(ERROR_NO_SYSTEM_RESOURCES, __func__);
-        }
+        error_exit(ERROR_NO_SYSTEM_RESOURCES, __func__);
     }
 }
 
@@ -281,7 +295,6 @@ void qemu_thread_create(QemuThread *thread,
     HANDLE hThread;
 
     struct QemuThreadData *data;
-    qemu_thread_init();
     data = g_malloc(sizeof *data);
     data->start_routine = start_routine;
     data->arg = arg;
@@ -303,7 +316,6 @@ void qemu_thread_create(QemuThread *thread,
 
 void qemu_thread_get_self(QemuThread *thread)
 {
-    qemu_thread_init();
     thread->data = TlsGetValue(qemu_thread_tls_index);
     thread->tid = GetCurrentThreadId();
 }

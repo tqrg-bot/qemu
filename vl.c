@@ -2286,6 +2286,7 @@ int main(int argc, char **argv, char **envp)
     const char *trace_events = NULL;
     const char *trace_file = NULL;
 
+    qemu_tls_init();
     atexit(qemu_run_exit_notifiers);
     error_set_progname(argv[0]);
 

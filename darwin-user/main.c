@@ -746,6 +746,7 @@ int main(int argc, char **argv)
     const char *r;
     const char *cpu_model;
 
+    qemu_tls_init();
     if (argc <= 1)
         usage();
 

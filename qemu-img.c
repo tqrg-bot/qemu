@@ -1647,6 +1647,7 @@ int main(int argc, char **argv)
     const img_cmd_t *cmd;
     const char *cmdname;
 
+    qemu_tls_init();
     error_set_progname(argv[0]);
 
     bdrv_init();

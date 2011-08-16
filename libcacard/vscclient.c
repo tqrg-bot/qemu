@@ -447,6 +447,7 @@ main(
     int cert_count = 0;
     int c;
 
+    qemu_tls_init();
     while ((c = getopt(argc, argv, "c:e:pd:")) != -1) {
         switch (c) {
         case 'c':

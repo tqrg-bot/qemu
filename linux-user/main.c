@@ -3285,6 +3285,11 @@ int main(int argc, char **argv, char **envp)
     int i;
     int ret;
 
+    qemu_tls_init();
+
+    if (argc <= 1)
+        usage();
+
     qemu_cache_utils_init(envp);
 
     if ((envlist = envlist_create()) == NULL) {

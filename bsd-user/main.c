@@ -745,6 +745,7 @@ int main(int argc, char **argv)
     envlist_t *envlist = NULL;
     bsd_type = target_openbsd;
 
+    qemu_tls_init();
     if (argc <= 1)
         usage();
 

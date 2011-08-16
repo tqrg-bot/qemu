@@ -486,6 +486,7 @@ int main(int argc, char **argv)
     FILE *log_file = stderr;
     GAState *s;
 
+    qemu_tls_init();
     module_call_init(MODULE_INIT_QAPI);
 
     while ((ch = getopt_long(argc, argv, sopt, lopt, &opt_ind)) != -1) {

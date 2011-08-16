@@ -1812,6 +1812,7 @@ int main(int argc, char **argv)
     int opt_index = 0;
     int flags = 0;
 
+    qemu_tls_init();
     progname = basename(argv[0]);
 
     while ((c = getopt_long(argc, argv, sopt, lopt, &opt_index)) != -1) {

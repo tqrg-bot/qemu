@@ -179,6 +179,7 @@ static void perf_lifecycle(void)
 
 int main(int argc, char **argv)
 {
+    qemu_tls_init();
     g_test_init(&argc, &argv, NULL);
     g_test_add_func("/basic/lifecycle", test_lifecycle);
     g_test_add_func("/basic/yield", test_yield);
