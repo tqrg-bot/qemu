@@ -447,10 +447,10 @@ static void cpu_handle_guest_debug(CPUState *env)
     env->stopped = 1;
 }
 
-static void cpu_signal(int sig)
+static inline void do_cpu_kick(CPUState *env)
 {
-    if (cpu_single_env) {
-        cpu_exit(cpu_single_env);
+    if (env) {
+        cpu_exit(env);
     }
     exit_request = 1;
 }
@@ -565,6 +565,11 @@ static void qemu_kvm_init_cpu_signals(CPUState *env)
         fprintf(stderr, "kvm_set_signal_mask: %s\n", strerror(-r));
         exit(1);
     }
+}
+
+static void cpu_signal(int sig)
+{
+    do_cpu_kick(cpu_single_env);
 }
 
 static void qemu_tcg_init_cpu_signals(void)
@@ -792,7 +797,7 @@ static void qemu_cpu_kick_thread(CPUState *env)
 #else /* _WIN32 */
     if (!qemu_cpu_is_self(env)) {
         SuspendThread(env->hThread);
-        cpu_signal(0);
+        do_cpu_kick(env);
         ResumeThread(env->hThread);
     }
 #endif
