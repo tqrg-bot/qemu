@@ -491,7 +491,7 @@ void slirp_select_poll(fd_set *readfds, fd_set *writefds, fd_set *xfds,
 			    /* Connected */
 			    so->so_state &= ~SS_ISFCONNECTING;
 
-			    ret = send(so->s, (const void *) &ret, 0, 0);
+			    ret = write(so->s, (const void *) &ret, 0);
 			    if (ret < 0) {
 			      /* XXXXX Must fix, zero bytes is a NOP */
 			      if (errno == EAGAIN || errno == EWOULDBLOCK ||
@@ -525,7 +525,7 @@ void slirp_select_poll(fd_set *readfds, fd_set *writefds, fd_set *xfds,
 	 	 	 */
 #ifdef PROBE_CONN
 			if (so->so_state & SS_ISFCONNECTING) {
-                          ret = qemu_recv(so->s, &ret, 0,0);
+                          ret = read(so->s, &ret, 0);
 
 			  if (ret < 0) {
 			    /* XXX */
@@ -539,7 +539,7 @@ void slirp_select_poll(fd_set *readfds, fd_set *writefds, fd_set *xfds,
 
 			    /* tcp_input will take care of it */
 			  } else {
-			    ret = send(so->s, &ret, 0,0);
+			    ret = write(so->s, &ret, 0);
 			    if (ret < 0) {
 			      /* XXX */
 			      if (errno == EAGAIN || errno == EWOULDBLOCK ||
@@ -820,7 +820,7 @@ ssize_t slirp_send(struct socket *so, const void *buf, size_t len, int flags)
 		return len;
 	}
 
-	return send(so->s, buf, len, flags);
+	return qemu_send(so->s, buf, len, flags);
 }
 
 static struct socket *

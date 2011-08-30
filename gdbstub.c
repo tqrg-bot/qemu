@@ -329,7 +329,7 @@ static int get_char(GDBState *s)
     int ret;
 
     for(;;) {
-        ret = qemu_recv(s->fd, &ch, 1, 0);
+        ret = read(s->fd, &ch, 1);
         if (ret < 0) {
             if (errno == ECONNRESET)
                 s->fd = -1;
@@ -380,7 +380,7 @@ static void put_buffer(GDBState *s, const uint8_t *buf, int len)
     int ret;
 
     while (len > 0) {
-        ret = send(s->fd, buf, len, 0);
+        ret = write(s->fd, buf, len);
         if (ret < 0) {
             if (errno != EINTR && errno != EAGAIN)
                 return;

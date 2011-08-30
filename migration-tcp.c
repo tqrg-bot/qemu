@@ -37,7 +37,7 @@ static int socket_errno(MigrationState *s)
 
 static int socket_write(MigrationState *s, const void * buf, size_t size)
 {
-    return send(s->fd, buf, size, 0);
+    return write(s->fd, buf, size);
 }
 
 static int tcp_close(MigrationState *s)

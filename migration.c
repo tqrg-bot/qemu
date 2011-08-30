@@ -220,11 +220,11 @@ static ssize_t migrate_fd_put_buffer(void *opaque, const void *data,
     }
 
     do {
-        ret = s->write(s, data, size);
-    } while (ret == -1 && ((s->get_error(s)) == EINTR));
-
-    if (ret == -1)
-        ret = -(s->get_error(s));
+        ret = write(s->fd, data, size);
+    } while (ret == -1 && errno == EINTR);
+    if (ret == -1) {
+        ret = -errno;
+    }
 
     if (ret == -EAGAIN) {
         qemu_set_fd_handler2(s->fd, NULL, NULL, migrate_fd_put_notify, s);

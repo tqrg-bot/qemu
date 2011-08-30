@@ -166,7 +166,7 @@ soread(struct socket *so)
 	nn = readv(so->s, (struct iovec *)iov, n);
 	DEBUG_MISC((dfd, " ... read nn = %d bytes\n", nn));
 #else
-	nn = qemu_recv(so->s, iov[0].iov_base, iov[0].iov_len,0);
+	nn = read(so->s, iov[0].iov_base, iov[0].iov_len);
 #endif
 	if (nn <= 0) {
 		if (nn < 0 && (errno == EINTR || errno == EAGAIN))
@@ -191,7 +191,7 @@ soread(struct socket *so)
 	 */
 	if (n == 2 && nn == iov[0].iov_len) {
             int ret;
-            ret = qemu_recv(so->s, iov[1].iov_base, iov[1].iov_len,0);
+            ret = read(so->s, iov[1].iov_base, iov[1].iov_len);
             if (ret > 0)
                 nn += ret;
         }
@@ -486,7 +486,7 @@ sorecvfrom(struct socket *so)
 	   */
 	  len = M_FREEROOM(m);
 	  /* if (so->so_fport != htons(53)) { */
-	  ioctlsocket(so->s, FIONREAD, &n);
+	  ioctl(so->s, FIONREAD, &n);
 
 	  if (n > len) {
 	    n = (m->m_data - m->m_dat) + m->m_len + n + 1;

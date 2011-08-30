@@ -510,9 +510,9 @@ static int do_sendv_recvv(int sockfd, struct iovec *iov, int len, int offset,
         while (iovlen > 0) {
             int rc;
             if (do_sendv) {
-                rc = send(sockfd, p->iov_base, p->iov_len, 0);
+                rc = write(sockfd, p->iov_base, p->iov_len);
             } else {
-                rc = qemu_recv(sockfd, p->iov_base, p->iov_len, 0);
+                rc = read(sockfd, p->iov_base, p->iov_len);
             }
             if (rc == -1) {
                 if (errno == EINTR) {

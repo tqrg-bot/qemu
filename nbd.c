@@ -97,9 +97,9 @@ size_t nbd_wr_sync(int fd, void *buffer, size_t size, bool do_read)
         ssize_t len;
 
         if (do_read) {
-            len = qemu_recv(fd, buffer + offset, size - offset, 0);
+            len = read(fd, buffer + offset, size - offset);
         } else {
-            len = send(fd, buffer + offset, size - offset, 0);
+            len = write(fd, buffer + offset, size - offset);
         }
 
         if (len == -1)

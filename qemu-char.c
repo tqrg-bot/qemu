@@ -496,7 +496,7 @@ int send_all(int fd, const void *buf, int len1)
 
     len = len1;
     while (len > 0) {
-        ret = send(fd, buf, len, 0);
+        ret = write(fd, buf, len);
         if (ret < 0) {
             errno = WSAGetLastError();
             if (errno != WSAEWOULDBLOCK) {
@@ -2028,7 +2028,7 @@ static int udp_chr_write(CharDriverState *chr, const uint8_t *buf, int len)
 {
     NetCharDriver *s = chr->opaque;
 
-    return send(s->fd, (const void *)buf, len, 0);
+    return write(s->fd, (const void *)buf, len);
 }
 
 static int udp_chr_read_poll(void *opaque)
@@ -2056,7 +2056,7 @@ static void udp_chr_read(void *opaque)
 
     if (s->max_size == 0)
         return;
-    s->bufcnt = qemu_recv(s->fd, s->buf, sizeof(s->buf), 0);
+    s->bufcnt = read(s->fd, s->buf, sizeof(s->buf));
     s->bufptr = s->bufcnt;
     if (s->bufcnt <= 0)
         return;
@@ -2270,7 +2270,7 @@ static ssize_t tcp_chr_recv(CharDriverState *chr, char *buf, size_t len)
 static ssize_t tcp_chr_recv(CharDriverState *chr, char *buf, size_t len)
 {
     TCPCharDriver *s = chr->opaque;
-    return qemu_recv(s->fd, buf, len, 0);
+    return read(s->fd, buf, len);
 }
 #endif
 
@@ -2323,19 +2323,16 @@ static void tcp_chr_connect(void *opaque)
     qemu_chr_generic_open(chr);
 }
 
-#define IACSET(x,a,b,c) x[0] = a; x[1] = b; x[2] = c;
-static void tcp_chr_telnet_init(int fd)
+#define IACSET(x,a,b,c) (x)[0] = a; (x)[1] = b; (x)[2] = c;
+static ssize_t tcp_chr_telnet_init(int fd)
 {
-    char buf[3];
+    char buf[12];
     /* Send the telnet negotion to put telnet in binary, no echo, single char mode */
-    IACSET(buf, 0xff, 0xfb, 0x01);  /* IAC WILL ECHO */
-    send(fd, (char *)buf, 3, 0);
-    IACSET(buf, 0xff, 0xfb, 0x03);  /* IAC WILL Suppress go ahead */
-    send(fd, (char *)buf, 3, 0);
-    IACSET(buf, 0xff, 0xfb, 0x00);  /* IAC WILL Binary */
-    send(fd, (char *)buf, 3, 0);
-    IACSET(buf, 0xff, 0xfd, 0x00);  /* IAC DO Binary */
-    send(fd, (char *)buf, 3, 0);
+    IACSET(&buf[0], 0xff, 0xfb, 0x01);  /* IAC WILL ECHO */
+    IACSET(&buf[3], 0xff, 0xfb, 0x03);  /* IAC WILL Suppress go ahead */
+    IACSET(&buf[6], 0xff, 0xfb, 0x00);  /* IAC WILL Binary */
+    IACSET(&buf[9], 0xff, 0xfd, 0x00);  /* IAC DO Binary */
+    return write(fd, buf, sizeof(buf));
 }
 
 static void socket_set_nodelay(int fd)

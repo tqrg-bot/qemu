@@ -27,8 +27,10 @@ typedef char *caddr_t;
 # define EHOSTUNREACH WSAEHOSTUNREACH
 # define ENETUNREACH WSAENETUNREACH
 # define ECONNREFUSED WSAECONNREFUSED
+# define ioctl(s, buf, n) ioctlsocket(_get_osfhandle(s), buf, n)
+# define qemu_send(s, buf, n, flags) send(_get_osfhandle(s), buf, n, flags)
 #else
-# define ioctlsocket ioctl
+# define qemu_send send
 # if !defined(__HAIKU__)
 #  define O_BINARY 0
 # endif

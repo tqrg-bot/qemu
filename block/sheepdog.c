@@ -501,12 +501,12 @@ static int send_req(int sockfd, SheepdogReq *hdr, void *data,
 {
     int ret;
 
-    ret = qemu_send_full(sockfd, hdr, sizeof(*hdr), 0);
+    ret = qemu_write_full(sockfd, hdr, sizeof(*hdr));
     if (ret < sizeof(*hdr)) {
         error_report("failed to send a req, %s", strerror(errno));
     }
 
-    ret = qemu_send_full(sockfd, data, *wlen, 0);
+    ret = qemu_write_full(sockfd, data, *wlen);
     if (ret < *wlen) {
         error_report("failed to send a req, %s", strerror(errno));
     }
@@ -525,7 +525,7 @@ static int do_req(int sockfd, SheepdogReq *hdr, void *data,
         goto out;
     }
 
-    ret = qemu_recv_full(sockfd, hdr, sizeof(*hdr), 0);
+    ret = qemu_read_full(sockfd, hdr, sizeof(*hdr));
     if (ret < sizeof(*hdr)) {
         error_report("failed to get a rsp, %s", strerror(errno));
         goto out;
@@ -536,7 +536,7 @@ static int do_req(int sockfd, SheepdogReq *hdr, void *data,
     }
 
     if (*rlen) {
-        ret = qemu_recv_full(sockfd, data, *rlen, 0);
+        ret = qemu_read_full(sockfd, data, *rlen);
         if (ret < *rlen) {
             error_report("failed to get the data, %s", strerror(errno));
             goto out;
