@@ -16,6 +16,7 @@
 #include "qemu-common.h"
 #include "qemu-error.h"
 #include "block_int.h"
+#include "qemu_socket.h"
 
 #include <rbd/librbd.h>
 
@@ -572,8 +573,8 @@ static int qemu_rbd_send_pipe(BDRVRBDState *s, RADOSCB *rcb)
         FD_ZERO(&wfd);
         FD_SET(fd, &wfd);
         do {
-            ret = select(fd + 1, NULL, &wfd, NULL, NULL);
-        } while (ret < 0 && errno == EINTR);
+            ret = qemu_select(fd + 1, NULL, &wfd, NULL, NULL);
+        } while (ret == -EINTR);
     }
 
     return ret;

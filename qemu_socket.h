@@ -44,6 +44,8 @@ void socket_set_block(int fd);
 void socket_set_nonblock(int fd);
 int send_all(int fd, const void *buf, int len1);
 int qemu_close_socket(int fd);
+int qemu_select(int nfds, fd_set *readfds, fd_set *writefds,
+                fd_set *exceptfds, struct timeval *timeout);
 
 /* New, ipv6-ready socket helper functions, see qemu-sockets.c */
 int inet_listen_opts(QemuOpts *opts, int port_offset);

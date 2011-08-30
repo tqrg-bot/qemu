@@ -298,6 +298,16 @@ int qemu_getsockopt(int fd, int level, int opt, void *val, socklen_t *len)
     return rc;
 }
 
+int qemu_select(int nfds, fd_set *readfds, fd_set *writefds,
+                fd_set *exceptfds, struct timeval *timeout)
+{
+    int rc = select(nfds, readfds, writefds, exceptfds, timeout);
+    if (rc < 0) {
+        rc = -errno;
+    }
+    return rc;
+}
+
 /*
  * Accept a connection and set FD_CLOEXEC
  */

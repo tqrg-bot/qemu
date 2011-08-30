@@ -295,8 +295,8 @@ static void migrate_fd_wait_for_unfreeze(void *opaque)
         FD_ZERO(&wfds);
         FD_SET(s->fd, &wfds);
 
-        ret = select(s->fd + 1, NULL, &wfds, NULL, NULL);
-    } while (ret == -1 && (s->get_error(s)) == EINTR);
+        ret = qemu_select(s->fd + 1, NULL, &wfds, NULL, NULL);
+    } while (ret == -EINTR);
 
     if (ret == -1) {
         qemu_file_set_error(s->file, -s->get_error(s));

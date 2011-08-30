@@ -192,9 +192,10 @@ void qemu_aio_wait(void)
             break;
 
         /* wait until next event */
-        ret = select(max_fd, &rdfds, &wrfds, NULL, NULL);
-        if (ret == -1 && errno == EINTR)
+        ret = qemu_select(max_fd, &rdfds, &wrfds, NULL, NULL);
+        if (ret == -EINTR) {
             continue;
+        }
 
         /* if we have any readable fds, dispatch event */
         if (ret > 0) {

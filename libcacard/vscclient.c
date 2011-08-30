@@ -536,7 +536,7 @@ main(
         FD_SET(sock, &fds);
 
         /* waiting on input from the socket */
-        rv = select(sock+1, &fds, NULL, NULL, NULL);
+        rv = qemu_select(sock+1, &fds, NULL, NULL, NULL);
         if (rv < 0) {
             /* handle error */
             perror("select");
