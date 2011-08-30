@@ -176,10 +176,10 @@ int unix_start_incoming_migration(const char *path)
         fprintf(stderr, "bind(unix:%s): %s\n", addr.sun_path, strerror(errno));
         goto err;
     }
-    if (listen(s, 1) == -1) {
+    ret = qemu_listen(s, 1);
+    if (ret < 0) {
         fprintf(stderr, "listen(unix:%s): %s\n", addr.sun_path,
                 strerror(errno));
-        ret = -errno;
         goto err;
     }
 

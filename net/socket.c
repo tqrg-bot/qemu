@@ -430,7 +430,7 @@ static int net_socket_listen_init(VLANState *vlan,
         qemu_close_socket(fd);
         return -1;
     }
-    ret = listen(fd, 0);
+    ret = qemu_listen(fd, 0);
     if (ret < 0) {
         perror("listen");
         g_free(s);

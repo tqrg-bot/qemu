@@ -156,7 +156,7 @@ out2:
 int tcp_start_incoming_migration(const char *host_port)
 {
     struct sockaddr_in addr;
-    int val;
+    int val, ret;
     int s;
 
     DPRINTF("Attempting to start an incoming migration\n");
@@ -175,9 +175,11 @@ int tcp_start_incoming_migration(const char *host_port)
     setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&val, sizeof(val));
 
     if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+        ret = -socket_error();
         goto err;
     }
-    if (listen(s, 1) == -1) {
+    ret = qemu_listen(s, 1);
+    if (ret < 0) {
         goto err;
     }
 
@@ -188,5 +190,5 @@ int tcp_start_incoming_migration(const char *host_port)
 
 err:
     close(s);
-    return -socket_error();
+    return ret;
 }

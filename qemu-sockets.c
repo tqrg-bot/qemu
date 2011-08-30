@@ -179,11 +179,12 @@ int inet_listen_opts(QemuOpts *opts, int port_offset)
     return -1;
 
 listen:
-    if (listen(slisten,1) != 0) {
+    rc = qemu_listen(slisten, 1);
+    if (rc < 0) {
         perror("listen");
         qemu_close_socket(slisten);
         freeaddrinfo(res);
-        return -1;
+        return rc;
     }
     snprintf(uport, sizeof(uport), "%d", inet_getport(e) - port_offset);
     qemu_opt_set(opts, "host", uaddr);
@@ -467,7 +468,7 @@ int unix_listen_opts(QemuOpts *opts)
 {
     struct sockaddr_un un;
     const char *path = qemu_opt_get(opts, "path");
-    int sock, fd;
+    int sock, fd, rc;
 
     sock = qemu_socket(PF_UNIX, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -499,7 +500,8 @@ int unix_listen_opts(QemuOpts *opts)
         fprintf(stderr, "bind(unix:%s): %s\n", un.sun_path, strerror(errno));
         goto err;
     }
-    if (listen(sock, 1) < 0) {
+    rc = qemu_listen(sock, 1);
+    if (rc < 0) {
         fprintf(stderr, "listen(unix:%s): %s\n", un.sun_path, strerror(errno));
         goto err;
     }

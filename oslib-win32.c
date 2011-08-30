@@ -136,3 +136,12 @@ int qemu_close_socket(int fd)
     }
     return rc;
 }
+
+int qemu_listen(int fd, int backlog)
+{
+    int rc = listen(fd, backlog);
+    if (rc < 0) {
+        rc = -socket_error();
+    }
+    return rc;
+}

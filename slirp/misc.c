@@ -134,7 +134,7 @@ fork_exec(struct socket *so, const char *ex, int do_pty)
 
 		if ((s = qemu_socket(AF_INET, SOCK_STREAM, 0)) < 0 ||
 		    bind(s, (struct sockaddr *)&addr, addrlen) < 0 ||
-		    listen(s, 1) < 0) {
+		    qemu_listen(s, 1) < 0) {
 			lprint("Error: inet socket: %s\n", strerror(errno));
 			qemu_close_socket(s);
 
