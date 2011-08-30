@@ -212,9 +212,9 @@ fork_exec(struct socket *so, const char *ex, int do_pty)
                 } while (so->s < 0 && errno == EINTR);
                 qemu_close_socket(s);
                 opt = 1;
-                setsockopt(so->s, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(int));
+                qemu_setsockopt(so->s, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(int));
                 opt = 1;
-                setsockopt(so->s, SOL_SOCKET, SO_OOBINLINE, (char *)&opt, sizeof(int));
+                qemu_setsockopt(so->s, SOL_SOCKET, SO_OOBINLINE, (char *)&opt, sizeof(int));
 		socket_set_nonblock(so->s);
 
 		/* Append the telnet options now */

@@ -2341,7 +2341,7 @@ static void tcp_chr_telnet_init(int fd)
 static void socket_set_nodelay(int fd)
 {
     int val = 1;
-    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&val, sizeof(val));
+    qemu_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&val, sizeof(val));
 }
 
 static int tcp_chr_add_client(CharDriverState *chr, int fd)

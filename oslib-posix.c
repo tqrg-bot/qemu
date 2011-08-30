@@ -288,3 +288,21 @@ int qemu_connect(int fd, const struct sockaddr *addr, socklen_t addrlen)
     }
     return rc;
 }
+
+int qemu_getsockopt(int fd, int level, int opt, void *val, socklen_t *len)
+{
+    int rc = getsockopt(fd, level, opt, val, len);
+    if (rc < 0) {
+        rc = -errno;
+    }
+    return rc;
+}
+
+int qemu_setsockopt(int fd, int level, int opt, const void *val, socklen_t len)
+{
+    int rc = setsockopt(fd, level, opt, val, len);
+    if (rc < 0) {
+        rc = -errno;
+    }
+    return rc;
+}

@@ -626,7 +626,7 @@ tcp_listen(Slirp *slirp, uint32_t haddr, u_int hport, uint32_t laddr,
 	addr.sin_port = hport;
 
 	if (((s = qemu_socket(AF_INET,SOCK_STREAM,0)) < 0) ||
-	    (setsockopt(s,SOL_SOCKET,SO_REUSEADDR,(char *)&opt,sizeof(int)) < 0) ||
+	    (qemu_setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(int)) < 0) ||
 	    (qemu_bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) ||
 	    (qemu_listen(s,1) < 0)) {
 		int tmperrno = errno; /* Don't clobber the real reason we failed */
@@ -641,7 +641,7 @@ tcp_listen(Slirp *slirp, uint32_t haddr, u_int hport, uint32_t laddr,
 #endif
 		return NULL;
 	}
-	setsockopt(s,SOL_SOCKET,SO_OOBINLINE,(char *)&opt,sizeof(int));
+	qemu_setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (char *)&opt, sizeof(int));
 
 	getsockname(s,(struct sockaddr *)&addr,&addrlen);
 	so->so_fport = addr.sin_port;

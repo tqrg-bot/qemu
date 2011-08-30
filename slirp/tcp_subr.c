@@ -338,9 +338,9 @@ int tcp_fconnect(struct socket *so)
 
     socket_set_nonblock(s);
     opt = 1;
-    setsockopt(s,SOL_SOCKET,SO_REUSEADDR,(char *)&opt,sizeof(opt ));
+    qemu_setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt ));
     opt = 1;
-    setsockopt(s,SOL_SOCKET,SO_OOBINLINE,(char *)&opt,sizeof(opt ));
+    qemu_setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (char *)&opt, sizeof(opt ));
 
     addr.sin_family = AF_INET;
     if ((so->so_faddr.s_addr & slirp->vnetwork_mask.s_addr) ==
@@ -426,11 +426,11 @@ tcp_connect(struct socket *inso)
 	}
 	socket_set_nonblock(s);
 	opt = 1;
-	setsockopt(s,SOL_SOCKET,SO_REUSEADDR,(char *)&opt,sizeof(int));
+	qemu_setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(int));
 	opt = 1;
-	setsockopt(s,SOL_SOCKET,SO_OOBINLINE,(char *)&opt,sizeof(int));
+	qemu_setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (char *)&opt, sizeof(int));
 	opt = 1;
-	setsockopt(s,IPPROTO_TCP,TCP_NODELAY,(char *)&opt,sizeof(int));
+	qemu_setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (char *)&opt, sizeof(int));
 
 	so->so_fport = addr.sin_port;
 	so->so_faddr = addr.sin_addr;

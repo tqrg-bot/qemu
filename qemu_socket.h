@@ -37,6 +37,8 @@ int qemu_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
 int qemu_listen(int s, int backlog);
 int qemu_bind(int s, const struct sockaddr *addr, socklen_t addrlen);
 int qemu_connect(int s, const struct sockaddr *addr, socklen_t addrlen);
+int qemu_getsockopt(int fd, int level, int opt, void *val, socklen_t *len);
+int qemu_setsockopt(int fd, int level, int opt, const void *val, socklen_t len);
 int socket_set_cork(int fd, int v);
 void socket_set_block(int fd);
 void socket_set_nonblock(int fd);

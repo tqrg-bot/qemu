@@ -175,7 +175,7 @@ static int net_socket_mcast_create(struct sockaddr_in *mcastaddr, struct in_addr
     }
 
     val = 1;
-    ret=setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+    ret = qemu_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
                    (const char *)&val, sizeof(val));
     if (ret < 0) {
         perror("setsockopt(SOL_SOCKET, SO_REUSEADDR)");
@@ -196,7 +196,7 @@ static int net_socket_mcast_create(struct sockaddr_in *mcastaddr, struct in_addr
         imr.imr_interface.s_addr = htonl(INADDR_ANY);
     }
 
-    ret = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+    ret = qemu_setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                      (const char *)&imr, sizeof(struct ip_mreq));
     if (ret < 0) {
         perror("setsockopt(IP_ADD_MEMBERSHIP)");
@@ -205,7 +205,7 @@ static int net_socket_mcast_create(struct sockaddr_in *mcastaddr, struct in_addr
 
     /* Force mcast msgs to loopback (eg. several QEMUs in same host */
     loop = 1;
-    ret=setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP,
+    ret = qemu_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP,
                    (const char *)&loop, sizeof(loop));
     if (ret < 0) {
         perror("setsockopt(SOL_IP, IP_MULTICAST_LOOP)");
@@ -214,7 +214,7 @@ static int net_socket_mcast_create(struct sockaddr_in *mcastaddr, struct in_addr
 
     /* If a bind address is given, only send packets from that address */
     if (localaddr != NULL) {
-        ret = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
+        ret = qemu_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
                          (const char *)localaddr, sizeof(*localaddr));
         if (ret < 0) {
             perror("setsockopt(IP_MULTICAST_IF)");
@@ -352,7 +352,7 @@ static NetSocketState *net_socket_fd_init(VLANState *vlan,
 {
     int so_type = -1, optlen=sizeof(so_type);
 
-    if(getsockopt(fd, SOL_SOCKET, SO_TYPE, (char *)&so_type,
+    if (qemu_getsockopt(fd, SOL_SOCKET, SO_TYPE, (char *)&so_type,
         (socklen_t *)&optlen)< 0) {
         fprintf(stderr, "qemu: error: getsockopt(SO_TYPE) for fd=%d failed\n",
                 fd);
@@ -421,7 +421,7 @@ static int net_socket_listen_init(VLANState *vlan,
 
     /* allow fast reuse */
     val = 1;
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&val, sizeof(val));
+    qemu_setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&val, sizeof(val));
 
     ret = qemu_bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
     if (ret < 0) {

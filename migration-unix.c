@@ -61,8 +61,8 @@ static void unix_wait_for_connect(void *opaque)
 
     DPRINTF("connect completed\n");
     do {
-        ret = getsockopt(s->fd, SOL_SOCKET, SO_ERROR, (void *) &val, &valsize);
-    } while (ret == -1 && errno == EINTR);
+        ret = qemu_getsockopt(s->fd, SOL_SOCKET, SO_ERROR, (void *) &val, &valsize);
+    } while (ret == -EINTR);
 
     if (ret < 0) {
         migrate_fd_error(s);

@@ -59,8 +59,8 @@ static void tcp_wait_for_connect(void *opaque)
 
     DPRINTF("connect completed\n");
     do {
-        ret = getsockopt(s->fd, SOL_SOCKET, SO_ERROR, (void *) &val, &valsize);
-    } while (ret == -1 && (socket_error()) == EINTR);
+        ret = qemu_getsockopt(s->fd, SOL_SOCKET, SO_ERROR, (void *) &val, &valsize);
+    } while (ret == -EINTR);
 
     if (ret < 0) {
         migrate_fd_error(s);
@@ -169,7 +169,7 @@ int tcp_start_incoming_migration(const char *host_port)
     }
 
     val = 1;
-    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&val, sizeof(val));
+    qemu_setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&val, sizeof(val));
 
     ret = qemu_bind(s, (struct sockaddr *)&addr, sizeof(addr));
     if (ret < 0) {

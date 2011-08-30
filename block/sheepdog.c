@@ -711,7 +711,7 @@ static int set_nodelay(int fd)
     int ret, opt;
 
     opt = 1;
-    ret = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&opt, sizeof(opt));
+    ret = qemu_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&opt, sizeof(opt));
     return ret;
 }
 
