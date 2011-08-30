@@ -298,6 +298,30 @@ int qemu_getsockopt(int fd, int level, int opt, void *val, socklen_t *len)
     return rc;
 }
 
+/*
+ * Accept a connection and set FD_CLOEXEC
+ */
+int qemu_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
+{
+    int ret;
+
+#ifdef CONFIG_ACCEPT4
+    ret = accept4(s, addr, addrlen, SOCK_CLOEXEC);
+    if (ret >= 0) {
+        return ret;
+    }
+    if (errno != ENOSYS) {
+        return -errno;
+    }
+#endif
+    ret = accept(s, addr, addrlen);
+    if (ret < 0) {
+        return -errno;
+    }
+    qemu_set_cloexec(ret);
+    return ret;
+}
+
 int qemu_setsockopt(int fd, int level, int opt, const void *val, socklen_t len)
 {
     int rc = setsockopt(fd, level, opt, val, len);

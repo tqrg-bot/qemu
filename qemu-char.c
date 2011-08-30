@@ -2372,25 +2372,24 @@ static void tcp_chr_accept(void *opaque)
     socklen_t len;
     int fd;
 
-    for(;;) {
 #ifndef _WIN32
-	if (s->is_unix) {
-	    len = sizeof(uaddr);
-	    addr = (struct sockaddr *)&uaddr;
-	} else
+    if (s->is_unix) {
+        len = sizeof(uaddr);
+        addr = (struct sockaddr *)&uaddr;
+    } else
 #endif
-	{
-	    len = sizeof(saddr);
-	    addr = (struct sockaddr *)&saddr;
-	}
+    {
+        len = sizeof(saddr);
+        addr = (struct sockaddr *)&saddr;
+    }
+    do {
         fd = qemu_accept(s->listen_fd, addr, &len);
-        if (fd < 0 && errno != EINTR) {
-            return;
-        } else if (fd >= 0) {
-            if (s->do_telnetopt)
-                tcp_chr_telnet_init(fd);
-            break;
-        }
+    } while (fd == -EINTR);
+    if (fd < 0) {
+        return;
+    }
+    if (s->do_telnetopt) {
+        tcp_chr_telnet_init(fd);
     }
     if (tcp_chr_add_client(chr, fd) < 0) {
         qemu_close_socket(fd);

@@ -380,15 +380,14 @@ static void net_socket_accept(void *opaque)
     socklen_t len;
     int fd;
 
-    for(;;) {
-        len = sizeof(saddr);
+    len = sizeof(saddr);
+    do {
         fd = qemu_accept(s->fd, (struct sockaddr *)&saddr, &len);
-        if (fd < 0 && errno != EINTR) {
-            return;
-        } else if (fd >= 0) {
-            break;
-        }
+    } while (fd == -EINTR);
+    if (fd < 0) {
+        return;
     }
+
     s1 = net_socket_fd_init(s->vlan, s->model, s->name, fd, 1);
     if (s1) {
         snprintf(s1->nc.info_str, sizeof(s1->nc.info_str),

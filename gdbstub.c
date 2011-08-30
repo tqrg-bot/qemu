@@ -2722,15 +2722,13 @@ static void gdb_accept(void)
     socklen_t len;
     int val, fd;
 
-    for(;;) {
+    do {
         len = sizeof(sockaddr);
         fd = qemu_accept(gdbserver_fd, (struct sockaddr *)&sockaddr, &len);
-        if (fd < 0 && errno != EINTR) {
-            perror("accept");
-            return;
-        } else if (fd >= 0) {
-            break;
-        }
+    } while (fd == -EINTR);
+    if (fd < 0) {
+        perror("accept");
+        return;
     }
 
     /* set short latency */

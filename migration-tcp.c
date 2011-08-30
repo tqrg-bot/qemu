@@ -126,7 +126,7 @@ static void tcp_accept_incoming_migration(void *opaque)
 
     do {
         c = qemu_accept(s, (struct sockaddr *)&addr, &addrlen);
-    } while (c == -1 && socket_error() == EINTR);
+    } while (c == -EINTR);
 
     DPRINTF("accepted migration\n");
 

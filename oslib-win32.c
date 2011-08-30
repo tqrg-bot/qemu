@@ -173,6 +173,17 @@ int qemu_getsockopt(int fd, int level, int opt, void *val, socklen_t *len)
     return rc;
 }
 
+int qemu_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
+{
+    int fd;
+
+    fd = accept(s, addr, addrlen);
+    if (fd < 0) {
+        return -socket_error();
+    }
+    return fd;
+}
+
 int qemu_setsockopt(int fd, int level, int opt, const void *val, socklen_t len)
 {
     int rc = setsockopt(fd, level, opt, val, len);
