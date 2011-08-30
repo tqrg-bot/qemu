@@ -29,24 +29,39 @@ static void error_exit(int err, const char *msg)
 
 void qemu_mutex_init(QemuMutex *mutex)
 {
-    mutex->owner = 0;
-    InitializeCriticalSection(&mutex->lock);
+    mutex->count = 0;
+    mutex->sema = NULL;
 }
 
 void qemu_mutex_destroy(QemuMutex *mutex)
 {
+    assert(mutex->count == 0);
     assert(mutex->owner == 0);
-    DeleteCriticalSection(&mutex->lock);
+    if (mutex->sema) {
+        CloseHandle(mutex->sema);
+    }
+}
+
+HANDLE qemu_mutex_semaphore(QemuMutex *mutex)
+{
+    if (mutex->sema == NULL) {
+        HANDLE sema = CreateSemaphore(NULL, 0, LONG_MAX, NULL);
+        if (!InterlockedCompareExchangePointer(&mutex->sema, sema, NULL)) {
+            return sema;
+        }
+
+        /* Somebody beat us to it.  */
+        CloseHandle(sema);
+    }
+    return mutex->sema;
 }
 
 void qemu_mutex_lock(QemuMutex *mutex)
 {
-    EnterCriticalSection(&mutex->lock);
-
-    /* Win32 CRITICAL_SECTIONs are recursive.  Assert that we're not
-     * using them as such.
-     */
-    assert(mutex->owner == 0);
+    assert(mutex->owner != GetCurrentThreadId());
+    if (InterlockedIncrement(&mutex->count) != 1) {
+        WaitForSingleObject(qemu_mutex_semaphore(mutex), INFINITE);
+    }
     mutex->owner = GetCurrentThreadId();
 }
 
@@ -66,21 +81,22 @@ int qemu_mutex_lock_recursive(QemuMutex *mutex)
 
 int qemu_mutex_trylock(QemuMutex *mutex)
 {
-    int owned;
-
-    owned = TryEnterCriticalSection(&mutex->lock);
-    if (owned) {
-        assert(mutex->owner == 0);
+    assert(mutex->owner != GetCurrentThreadId());
+    if (InterlockedCompareExchange(&mutex->count, 1, 0) == 0) {
         mutex->owner = GetCurrentThreadId();
+	return false;
+    } else {
+	return true;
     }
-    return !owned;
 }
 
 void qemu_mutex_unlock(QemuMutex *mutex)
 {
     assert(mutex->owner == GetCurrentThreadId());
     mutex->owner = 0;
-    LeaveCriticalSection(&mutex->lock);
+    if (InterlockedDecrement(&mutex->count) != 0) {
+        ReleaseSemaphore(qemu_mutex_semaphore(mutex), 1, NULL);
+    }
 }
 
 void qemu_rwmutex_init(QemuRWMutex *mutex)
