@@ -39,11 +39,6 @@ static int file_errno(MigrationState *s)
     return errno;
 }
 
-static int file_write(MigrationState *s, const void * buf, size_t size)
-{
-    return write(s->fd, buf, size);
-}
-
 static int exec_close(MigrationState *s)
 {
     int ret = 0;
@@ -82,7 +77,6 @@ int exec_start_outgoing_migration(MigrationState *s, const char *command)
 
     s->close = exec_close;
     s->get_error = file_errno;
-    s->write = file_write;
 
     migrate_fd_connect(s);
     return 0;

@@ -37,11 +37,6 @@ static int fd_errno(MigrationState *s)
     return errno;
 }
 
-static int fd_write(MigrationState *s, const void * buf, size_t size)
-{
-    return write(s->fd, buf, size);
-}
-
 static int fd_close(MigrationState *s)
 {
     struct stat st;
@@ -87,7 +82,6 @@ int fd_start_outgoing_migration(MigrationState *s, const char *fdname)
     }
 
     s->get_error = fd_errno;
-    s->write = fd_write;
     s->close = fd_close;
 
     migrate_fd_connect(s);

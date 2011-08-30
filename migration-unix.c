@@ -35,11 +35,6 @@ static int unix_errno(MigrationState *s)
     return errno;
 }
 
-static int unix_write(MigrationState *s, const void * buf, size_t size)
-{
-    return write(s->fd, buf, size);
-}
-
 static int unix_close(MigrationState *s)
 {
     int r = 0;
@@ -87,7 +82,6 @@ int unix_start_outgoing_migration(MigrationState *s, const char *path)
     addr.sun_family = AF_UNIX;
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
     s->get_error = unix_errno;
-    s->write = unix_write;
     s->close = unix_close;
 
     s->fd = qemu_socket(PF_UNIX, SOCK_STREAM, 0);
