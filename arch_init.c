@@ -1334,11 +1334,6 @@ void cpudef_init(void)
 #endif
 }
 
-int tcg_available(void)
-{
-    return 1;
-}
-
 int kvm_available(void)
 {
 #ifdef CONFIG_KVM

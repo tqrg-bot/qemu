@@ -34,6 +34,7 @@
 #include "qemu/timer.h"
 #include "qemu/envlist.h"
 
+bool tcg_allowed = true;
 int singlestep;
 #if defined(CONFIG_USE_GUEST_BASE)
 unsigned long mmap_min_addr;

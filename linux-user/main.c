@@ -37,6 +37,7 @@
 
 char *exec_path;
 
+bool tcg_allowed = true;
 int singlestep;
 const char *filename;
 const char *argv0;
