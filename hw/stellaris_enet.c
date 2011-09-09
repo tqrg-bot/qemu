@@ -100,19 +100,11 @@ static ssize_t stellaris_enet_receive(VLANClientState *nc, const uint8_t *buf, s
 
     s->rx[n].len = size + 6;
     p = s->rx[n].data;
-    *(p++) = (size + 6);
-    *(p++) = (size + 6) >> 8;
-    memcpy (p, buf, size);
-    p += size;
-    crc = crc32(~0, buf, size);
-    *(p++) = crc;
-    *(p++) = crc >> 8;
-    *(p++) = crc >> 16;
-    *(p++) = crc >> 24;
+    stw_le_p(p, size + 6);
+    memcpy(p + 2, buf, size);
+    stl_le_p(p + size + 2, crc32(~0, buf, size));
     /* Clear the remaining bytes in the last word.  */
-    if ((size & 3) != 2) {
-        memset(p, 0, (6 - size) & 3);
-    }
+    memset(p + size + 6, 0, (6 - size) & 3);
 
     s->ris |= SE_INT_RX;
     stellaris_enet_update(s);
@@ -156,8 +148,7 @@ static uint64_t stellaris_enet_read(void *opaque, target_phys_addr_t offset,
             s->rx_fifo = s->rx[s->next_packet].data;
             DPRINTF("RX FIFO start packet len=%d\n", s->rx_fifo_len);
         }
-        val = s->rx_fifo[0] | (s->rx_fifo[1] << 8) | (s->rx_fifo[2] << 16)
-              | (s->rx_fifo[3] << 24);
+	val = ldl_le_p(s->rx_fifo);
         s->rx_fifo += 4;
         s->rx_fifo_len -= 4;
         if (s->rx_fifo_len <= 0) {
@@ -170,10 +161,9 @@ static uint64_t stellaris_enet_read(void *opaque, target_phys_addr_t offset,
         }
         return val;
     case 0x14: /* IA0 */
-        return s->conf.macaddr.a[0] | (s->conf.macaddr.a[1] << 8)
-               | (s->conf.macaddr.a[2] << 16) | (s->conf.macaddr.a[3] << 24);
+	return ldl_le_p(&s->conf.macaddr.a[0]);
     case 0x18: /* IA1 */
-        return s->conf.macaddr.a[4] | (s->conf.macaddr.a[5] << 8);
+	return lduw_le_p(&s->conf.macaddr.a[4]);
     case 0x1c: /* THR */
         return s->thr;
     case 0x20: /* MCTL */
@@ -242,15 +232,12 @@ static void stellaris_enet_write(void *opaque, target_phys_addr_t offset,
                 s->tx_frame_len += 14;
                 if ((s->tctl & SE_TCTL_CRC) == 0)
                     s->tx_frame_len += 4;
-                s->tx_fifo_len = 0;
-                s->tx_fifo[s->tx_fifo_len++] = value >> 16;
-                s->tx_fifo[s->tx_fifo_len++] = value >> 24;
+		stw_le_p(s->tx_fifo, value >> 16);
+                s->tx_fifo_len = 2;
             }
         } else {
-            s->tx_fifo[s->tx_fifo_len++] = value;
-            s->tx_fifo[s->tx_fifo_len++] = value >> 8;
-            s->tx_fifo[s->tx_fifo_len++] = value >> 16;
-            s->tx_fifo[s->tx_fifo_len++] = value >> 24;
+	    stl_le_p(s->tx_fifo, value);
+	    s->tx_fifo_len += 4;
             if (s->tx_fifo_len >= s->tx_frame_len) {
                 /* We don't implement explicit CRC, so just chop it off.  */
                 if ((s->tctl & SE_TCTL_CRC) == 0)
@@ -268,14 +255,10 @@ static void stellaris_enet_write(void *opaque, target_phys_addr_t offset,
         }
         break;
     case 0x14: /* IA0 */
-        s->conf.macaddr.a[0] = value;
-        s->conf.macaddr.a[1] = value >> 8;
-        s->conf.macaddr.a[2] = value >> 16;
-        s->conf.macaddr.a[3] = value >> 24;
+	stl_le_p(&s->conf.macaddr.a[0], value);
         break;
     case 0x18: /* IA1 */
-        s->conf.macaddr.a[4] = value;
-        s->conf.macaddr.a[5] = value >> 8;
+	stw_le_p(&s->conf.macaddr.a[4], value);
         break;
     case 0x1c: /* THR */
         s->thr = value;

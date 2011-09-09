@@ -70,11 +70,6 @@ static void padstr(char *str, const char *src, int len)
     }
 }
 
-static void put_le16(uint16_t *p, unsigned int v)
-{
-    *p = cpu_to_le16(v);
-}
-
 static void ide_identify(IDEState *s)
 {
     uint16_t *p;
@@ -88,81 +83,81 @@ static void ide_identify(IDEState *s)
 
     memset(s->io_buffer, 0, 512);
     p = (uint16_t *)s->io_buffer;
-    put_le16(p + 0, 0x0040);
-    put_le16(p + 1, s->cylinders);
-    put_le16(p + 3, s->heads);
-    put_le16(p + 4, 512 * s->sectors); /* XXX: retired, remove ? */
-    put_le16(p + 5, 512); /* XXX: retired, remove ? */
-    put_le16(p + 6, s->sectors);
+    stw_le_p(p + 0, 0x0040);
+    stw_le_p(p + 1, s->cylinders);
+    stw_le_p(p + 3, s->heads);
+    stw_le_p(p + 4, 512 * s->sectors); /* XXX: retired, remove ? */
+    stw_le_p(p + 5, 512); /* XXX: retired, remove ? */
+    stw_le_p(p + 6, s->sectors);
     padstr((char *)(p + 10), s->drive_serial_str, 20); /* serial number */
-    put_le16(p + 20, 3); /* XXX: retired, remove ? */
-    put_le16(p + 21, 512); /* cache size in sectors */
-    put_le16(p + 22, 4); /* ecc bytes */
+    stw_le_p(p + 20, 3); /* XXX: retired, remove ? */
+    stw_le_p(p + 21, 512); /* cache size in sectors */
+    stw_le_p(p + 22, 4); /* ecc bytes */
     padstr((char *)(p + 23), s->version, 8); /* firmware version */
     padstr((char *)(p + 27), "QEMU HARDDISK", 40); /* model */
 #if MAX_MULT_SECTORS > 1
-    put_le16(p + 47, 0x8000 | MAX_MULT_SECTORS);
+    stw_le_p(p + 47, 0x8000 | MAX_MULT_SECTORS);
 #endif
-    put_le16(p + 48, 1); /* dword I/O */
-    put_le16(p + 49, (1 << 11) | (1 << 9) | (1 << 8)); /* DMA and LBA supported */
-    put_le16(p + 51, 0x200); /* PIO transfer cycle */
-    put_le16(p + 52, 0x200); /* DMA transfer cycle */
-    put_le16(p + 53, 1 | (1 << 1) | (1 << 2)); /* words 54-58,64-70,88 are valid */
-    put_le16(p + 54, s->cylinders);
-    put_le16(p + 55, s->heads);
-    put_le16(p + 56, s->sectors);
+    stw_le_p(p + 48, 1); /* dword I/O */
+    stw_le_p(p + 49, (1 << 11) | (1 << 9) | (1 << 8)); /* DMA and LBA supported */
+    stw_le_p(p + 51, 0x200); /* PIO transfer cycle */
+    stw_le_p(p + 52, 0x200); /* DMA transfer cycle */
+    stw_le_p(p + 53, 1 | (1 << 1) | (1 << 2)); /* words 54-58,64-70,88 are valid */
+    stw_le_p(p + 54, s->cylinders);
+    stw_le_p(p + 55, s->heads);
+    stw_le_p(p + 56, s->sectors);
     oldsize = s->cylinders * s->heads * s->sectors;
-    put_le16(p + 57, oldsize);
-    put_le16(p + 58, oldsize >> 16);
+    stw_le_p(p + 57, oldsize);
+    stw_le_p(p + 58, oldsize >> 16);
     if (s->mult_sectors)
-        put_le16(p + 59, 0x100 | s->mult_sectors);
-    put_le16(p + 60, s->nb_sectors);
-    put_le16(p + 61, s->nb_sectors >> 16);
-    put_le16(p + 62, 0x07); /* single word dma0-2 supported */
-    put_le16(p + 63, 0x07); /* mdma0-2 supported */
-    put_le16(p + 64, 0x03); /* pio3-4 supported */
-    put_le16(p + 65, 120);
-    put_le16(p + 66, 120);
-    put_le16(p + 67, 120);
-    put_le16(p + 68, 120);
+        stw_le_p(p + 59, 0x100 | s->mult_sectors);
+    stw_le_p(p + 60, s->nb_sectors);
+    stw_le_p(p + 61, s->nb_sectors >> 16);
+    stw_le_p(p + 62, 0x07); /* single word dma0-2 supported */
+    stw_le_p(p + 63, 0x07); /* mdma0-2 supported */
+    stw_le_p(p + 64, 0x03); /* pio3-4 supported */
+    stw_le_p(p + 65, 120);
+    stw_le_p(p + 66, 120);
+    stw_le_p(p + 67, 120);
+    stw_le_p(p + 68, 120);
     if (dev && dev->conf.discard_granularity) {
-        put_le16(p + 69, (1 << 14)); /* determinate TRIM behavior */
+        stw_le_p(p + 69, (1 << 14)); /* determinate TRIM behavior */
     }
 
     if (s->ncq_queues) {
-        put_le16(p + 75, s->ncq_queues - 1);
+        stw_le_p(p + 75, s->ncq_queues - 1);
         /* NCQ supported */
-        put_le16(p + 76, (1 << 8));
+        stw_le_p(p + 76, (1 << 8));
     }
 
-    put_le16(p + 80, 0xf0); /* ata3 -> ata6 supported */
-    put_le16(p + 81, 0x16); /* conforms to ata5 */
+    stw_le_p(p + 80, 0xf0); /* ata3 -> ata6 supported */
+    stw_le_p(p + 81, 0x16); /* conforms to ata5 */
     /* 14=NOP supported, 5=WCACHE supported, 0=SMART supported */
-    put_le16(p + 82, (1 << 14) | (1 << 5) | 1);
+    stw_le_p(p + 82, (1 << 14) | (1 << 5) | 1);
     /* 13=flush_cache_ext,12=flush_cache,10=lba48 */
-    put_le16(p + 83, (1 << 14) | (1 << 13) | (1 <<12) | (1 << 10));
+    stw_le_p(p + 83, (1 << 14) | (1 << 13) | (1 <<12) | (1 << 10));
     /* 14=set to 1, 1=SMART self test, 0=SMART error logging */
-    put_le16(p + 84, (1 << 14) | 0);
+    stw_le_p(p + 84, (1 << 14) | 0);
     /* 14 = NOP supported, 5=WCACHE enabled, 0=SMART feature set enabled */
     if (bdrv_enable_write_cache(s->bs))
-         put_le16(p + 85, (1 << 14) | (1 << 5) | 1);
+         stw_le_p(p + 85, (1 << 14) | (1 << 5) | 1);
     else
-         put_le16(p + 85, (1 << 14) | 1);
+         stw_le_p(p + 85, (1 << 14) | 1);
     /* 13=flush_cache_ext,12=flush_cache,10=lba48 */
-    put_le16(p + 86, (1 << 14) | (1 << 13) | (1 <<12) | (1 << 10));
+    stw_le_p(p + 86, (1 << 14) | (1 << 13) | (1 <<12) | (1 << 10));
     /* 14=set to 1, 1=smart self test, 0=smart error logging */
-    put_le16(p + 87, (1 << 14) | 0);
-    put_le16(p + 88, 0x3f | (1 << 13)); /* udma5 set and supported */
-    put_le16(p + 93, 1 | (1 << 14) | 0x2000);
-    put_le16(p + 100, s->nb_sectors);
-    put_le16(p + 101, s->nb_sectors >> 16);
-    put_le16(p + 102, s->nb_sectors >> 32);
-    put_le16(p + 103, s->nb_sectors >> 48);
+    stw_le_p(p + 87, (1 << 14) | 0);
+    stw_le_p(p + 88, 0x3f | (1 << 13)); /* udma5 set and supported */
+    stw_le_p(p + 93, 1 | (1 << 14) | 0x2000);
+    stw_le_p(p + 100, s->nb_sectors);
+    stw_le_p(p + 101, s->nb_sectors >> 16);
+    stw_le_p(p + 102, s->nb_sectors >> 32);
+    stw_le_p(p + 103, s->nb_sectors >> 48);
 
     if (dev && dev->conf.physical_block_size)
-        put_le16(p + 106, 0x6000 | get_physical_block_exp(&dev->conf));
+        stw_le_p(p + 106, 0x6000 | get_physical_block_exp(&dev->conf));
     if (dev && dev->conf.discard_granularity) {
-        put_le16(p + 169, 1); /* TRIM support */
+        stw_le_p(p + 169, 1); /* TRIM support */
     }
 
     memcpy(s->identify_data, p, sizeof(s->identify_data));
@@ -181,42 +176,42 @@ static void ide_atapi_identify(IDEState *s)
     memset(s->io_buffer, 0, 512);
     p = (uint16_t *)s->io_buffer;
     /* Removable CDROM, 50us response, 12 byte packets */
-    put_le16(p + 0, (2 << 14) | (5 << 8) | (1 << 7) | (2 << 5) | (0 << 0));
+    stw_le_p(p + 0, (2 << 14) | (5 << 8) | (1 << 7) | (2 << 5) | (0 << 0));
     padstr((char *)(p + 10), s->drive_serial_str, 20); /* serial number */
-    put_le16(p + 20, 3); /* buffer type */
-    put_le16(p + 21, 512); /* cache size in sectors */
-    put_le16(p + 22, 4); /* ecc bytes */
+    stw_le_p(p + 20, 3); /* buffer type */
+    stw_le_p(p + 21, 512); /* cache size in sectors */
+    stw_le_p(p + 22, 4); /* ecc bytes */
     padstr((char *)(p + 23), s->version, 8); /* firmware version */
     padstr((char *)(p + 27), "QEMU DVD-ROM", 40); /* model */
-    put_le16(p + 48, 1); /* dword I/O (XXX: should not be set on CDROM) */
+    stw_le_p(p + 48, 1); /* dword I/O (XXX: should not be set on CDROM) */
 #ifdef USE_DMA_CDROM
-    put_le16(p + 49, 1 << 9 | 1 << 8); /* DMA and LBA supported */
-    put_le16(p + 53, 7); /* words 64-70, 54-58, 88 valid */
-    put_le16(p + 62, 7);  /* single word dma0-2 supported */
-    put_le16(p + 63, 7);  /* mdma0-2 supported */
+    stw_le_p(p + 49, 1 << 9 | 1 << 8); /* DMA and LBA supported */
+    stw_le_p(p + 53, 7); /* words 64-70, 54-58, 88 valid */
+    stw_le_p(p + 62, 7);  /* single word dma0-2 supported */
+    stw_le_p(p + 63, 7);  /* mdma0-2 supported */
 #else
-    put_le16(p + 49, 1 << 9); /* LBA supported, no DMA */
-    put_le16(p + 53, 3); /* words 64-70, 54-58 valid */
-    put_le16(p + 63, 0x103); /* DMA modes XXX: may be incorrect */
+    stw_le_p(p + 49, 1 << 9); /* LBA supported, no DMA */
+    stw_le_p(p + 53, 3); /* words 64-70, 54-58 valid */
+    stw_le_p(p + 63, 0x103); /* DMA modes XXX: may be incorrect */
 #endif
-    put_le16(p + 64, 3); /* pio3-4 supported */
-    put_le16(p + 65, 0xb4); /* minimum DMA multiword tx cycle time */
-    put_le16(p + 66, 0xb4); /* recommended DMA multiword tx cycle time */
-    put_le16(p + 67, 0x12c); /* minimum PIO cycle time without flow control */
-    put_le16(p + 68, 0xb4); /* minimum PIO cycle time with IORDY flow control */
+    stw_le_p(p + 64, 3); /* pio3-4 supported */
+    stw_le_p(p + 65, 0xb4); /* minimum DMA multiword tx cycle time */
+    stw_le_p(p + 66, 0xb4); /* recommended DMA multiword tx cycle time */
+    stw_le_p(p + 67, 0x12c); /* minimum PIO cycle time without flow control */
+    stw_le_p(p + 68, 0xb4); /* minimum PIO cycle time with IORDY flow control */
 
-    put_le16(p + 71, 30); /* in ns */
-    put_le16(p + 72, 30); /* in ns */
+    stw_le_p(p + 71, 30); /* in ns */
+    stw_le_p(p + 72, 30); /* in ns */
 
     if (s->ncq_queues) {
-        put_le16(p + 75, s->ncq_queues - 1);
+        stw_le_p(p + 75, s->ncq_queues - 1);
         /* NCQ supported */
-        put_le16(p + 76, (1 << 8));
+        stw_le_p(p + 76, (1 << 8));
     }
 
-    put_le16(p + 80, 0x1e); /* support up to ATA/ATAPI-4 */
+    stw_le_p(p + 80, 0x1e); /* support up to ATA/ATAPI-4 */
 #ifdef USE_DMA_CDROM
-    put_le16(p + 88, 0x3f | (1 << 13)); /* udma5 set and supported */
+    stw_le_p(p + 88, 0x3f | (1 << 13)); /* udma5 set and supported */
 #endif
     memcpy(s->identify_data, p, sizeof(s->identify_data));
     s->identify_set = 1;
@@ -235,52 +230,52 @@ static void ide_cfata_identify(IDEState *s)
 
     cur_sec = s->cylinders * s->heads * s->sectors;
 
-    put_le16(p + 0, 0x848a);			/* CF Storage Card signature */
-    put_le16(p + 1, s->cylinders);		/* Default cylinders */
-    put_le16(p + 3, s->heads);			/* Default heads */
-    put_le16(p + 6, s->sectors);		/* Default sectors per track */
-    put_le16(p + 7, s->nb_sectors >> 16);	/* Sectors per card */
-    put_le16(p + 8, s->nb_sectors);		/* Sectors per card */
+    stw_le_p(p + 0, 0x848a);			/* CF Storage Card signature */
+    stw_le_p(p + 1, s->cylinders);		/* Default cylinders */
+    stw_le_p(p + 3, s->heads);			/* Default heads */
+    stw_le_p(p + 6, s->sectors);		/* Default sectors per track */
+    stw_le_p(p + 7, s->nb_sectors >> 16);	/* Sectors per card */
+    stw_le_p(p + 8, s->nb_sectors);		/* Sectors per card */
     padstr((char *)(p + 10), s->drive_serial_str, 20); /* serial number */
-    put_le16(p + 22, 0x0004);			/* ECC bytes */
+    stw_le_p(p + 22, 0x0004);			/* ECC bytes */
     padstr((char *) (p + 23), s->version, 8);	/* Firmware Revision */
     padstr((char *) (p + 27), "QEMU MICRODRIVE", 40);/* Model number */
 #if MAX_MULT_SECTORS > 1
-    put_le16(p + 47, 0x8000 | MAX_MULT_SECTORS);
+    stw_le_p(p + 47, 0x8000 | MAX_MULT_SECTORS);
 #else
-    put_le16(p + 47, 0x0000);
+    stw_le_p(p + 47, 0x0000);
 #endif
-    put_le16(p + 49, 0x0f00);			/* Capabilities */
-    put_le16(p + 51, 0x0002);			/* PIO cycle timing mode */
-    put_le16(p + 52, 0x0001);			/* DMA cycle timing mode */
-    put_le16(p + 53, 0x0003);			/* Translation params valid */
-    put_le16(p + 54, s->cylinders);		/* Current cylinders */
-    put_le16(p + 55, s->heads);			/* Current heads */
-    put_le16(p + 56, s->sectors);		/* Current sectors */
-    put_le16(p + 57, cur_sec);			/* Current capacity */
-    put_le16(p + 58, cur_sec >> 16);		/* Current capacity */
+    stw_le_p(p + 49, 0x0f00);			/* Capabilities */
+    stw_le_p(p + 51, 0x0002);			/* PIO cycle timing mode */
+    stw_le_p(p + 52, 0x0001);			/* DMA cycle timing mode */
+    stw_le_p(p + 53, 0x0003);			/* Translation params valid */
+    stw_le_p(p + 54, s->cylinders);		/* Current cylinders */
+    stw_le_p(p + 55, s->heads);			/* Current heads */
+    stw_le_p(p + 56, s->sectors);		/* Current sectors */
+    stw_le_p(p + 57, cur_sec);			/* Current capacity */
+    stw_le_p(p + 58, cur_sec >> 16);		/* Current capacity */
     if (s->mult_sectors)			/* Multiple sector setting */
-        put_le16(p + 59, 0x100 | s->mult_sectors);
-    put_le16(p + 60, s->nb_sectors);		/* Total LBA sectors */
-    put_le16(p + 61, s->nb_sectors >> 16);	/* Total LBA sectors */
-    put_le16(p + 63, 0x0203);			/* Multiword DMA capability */
-    put_le16(p + 64, 0x0001);			/* Flow Control PIO support */
-    put_le16(p + 65, 0x0096);			/* Min. Multiword DMA cycle */
-    put_le16(p + 66, 0x0096);			/* Rec. Multiword DMA cycle */
-    put_le16(p + 68, 0x00b4);			/* Min. PIO cycle time */
-    put_le16(p + 82, 0x400c);			/* Command Set supported */
-    put_le16(p + 83, 0x7068);			/* Command Set supported */
-    put_le16(p + 84, 0x4000);			/* Features supported */
-    put_le16(p + 85, 0x000c);			/* Command Set enabled */
-    put_le16(p + 86, 0x7044);			/* Command Set enabled */
-    put_le16(p + 87, 0x4000);			/* Features enabled */
-    put_le16(p + 91, 0x4060);			/* Current APM level */
-    put_le16(p + 129, 0x0002);			/* Current features option */
-    put_le16(p + 130, 0x0005);			/* Reassigned sectors */
-    put_le16(p + 131, 0x0001);			/* Initial power mode */
-    put_le16(p + 132, 0x0000);			/* User signature */
-    put_le16(p + 160, 0x8100);			/* Power requirement */
-    put_le16(p + 161, 0x8001);			/* CF command set */
+        stw_le_p(p + 59, 0x100 | s->mult_sectors);
+    stw_le_p(p + 60, s->nb_sectors);		/* Total LBA sectors */
+    stw_le_p(p + 61, s->nb_sectors >> 16);	/* Total LBA sectors */
+    stw_le_p(p + 63, 0x0203);			/* Multiword DMA capability */
+    stw_le_p(p + 64, 0x0001);			/* Flow Control PIO support */
+    stw_le_p(p + 65, 0x0096);			/* Min. Multiword DMA cycle */
+    stw_le_p(p + 66, 0x0096);			/* Rec. Multiword DMA cycle */
+    stw_le_p(p + 68, 0x00b4);			/* Min. PIO cycle time */
+    stw_le_p(p + 82, 0x400c);			/* Command Set supported */
+    stw_le_p(p + 83, 0x7068);			/* Command Set supported */
+    stw_le_p(p + 84, 0x4000);			/* Features supported */
+    stw_le_p(p + 85, 0x000c);			/* Command Set enabled */
+    stw_le_p(p + 86, 0x7044);			/* Command Set enabled */
+    stw_le_p(p + 87, 0x4000);			/* Features enabled */
+    stw_le_p(p + 91, 0x4060);			/* Current APM level */
+    stw_le_p(p + 129, 0x0002);			/* Current features option */
+    stw_le_p(p + 130, 0x0005);			/* Reassigned sectors */
+    stw_le_p(p + 131, 0x0001);			/* Initial power mode */
+    stw_le_p(p + 132, 0x0000);			/* User signature */
+    stw_le_p(p + 160, 0x8100);			/* Power requirement */
+    stw_le_p(p + 161, 0x8001);			/* CF command set */
 
     s->identify_set = 1;
 
@@ -738,13 +733,13 @@ static void ide_cfata_metadata_inquiry(IDEState *s)
     memset(p, 0, 0x200);
     spd = ((s->mdata_size - 1) >> 9) + 1;
 
-    put_le16(p + 0, 0x0001);			/* Data format revision */
-    put_le16(p + 1, 0x0000);			/* Media property: silicon */
-    put_le16(p + 2, s->media_changed);		/* Media status */
-    put_le16(p + 3, s->mdata_size & 0xffff);	/* Capacity in bytes (low) */
-    put_le16(p + 4, s->mdata_size >> 16);	/* Capacity in bytes (high) */
-    put_le16(p + 5, spd & 0xffff);		/* Sectors per device (low) */
-    put_le16(p + 6, spd >> 16);			/* Sectors per device (high) */
+    stw_le_p(p + 0, 0x0001);			/* Data format revision */
+    stw_le_p(p + 1, 0x0000);			/* Media property: silicon */
+    stw_le_p(p + 2, s->media_changed);		/* Media status */
+    stw_le_p(p + 3, s->mdata_size & 0xffff);	/* Capacity in bytes (low) */
+    stw_le_p(p + 4, s->mdata_size >> 16);	/* Capacity in bytes (high) */
+    stw_le_p(p + 5, spd & 0xffff);		/* Sectors per device (low) */
+    stw_le_p(p + 6, spd >> 16);			/* Sectors per device (high) */
 }
 
 static void ide_cfata_metadata_read(IDEState *s)
@@ -760,7 +755,7 @@ static void ide_cfata_metadata_read(IDEState *s)
     p = (uint16_t *) s->io_buffer;
     memset(p, 0, 0x200);
 
-    put_le16(p + 0, s->media_changed);		/* Media status */
+    stw_le_p(p + 0, s->media_changed);		/* Media status */
     memcpy(p + 1, s->mdata_storage + (((s->hcyl << 16) | s->lcyl) << 9),
                     MIN(MIN(s->mdata_size - (((s->hcyl << 16) | s->lcyl) << 9),
                                     s->nsector << 9), 0x200 - 2));
@@ -1090,24 +1085,24 @@ void ide_exec_cmd(IDEBus *bus, uint32_t val)
 		switch (s->nsector >> 3) {
 		case 0x00: /* pio default */
 		case 0x01: /* pio mode */
-			put_le16(identify_data + 62,0x07);
-			put_le16(identify_data + 63,0x07);
-			put_le16(identify_data + 88,0x3f);
+			stw_le_p(identify_data + 62,0x07);
+			stw_le_p(identify_data + 63,0x07);
+			stw_le_p(identify_data + 88,0x3f);
 			break;
                 case 0x02: /* sigle word dma mode*/
-			put_le16(identify_data + 62,0x07 | (1 << (val + 8)));
-			put_le16(identify_data + 63,0x07);
-			put_le16(identify_data + 88,0x3f);
+			stw_le_p(identify_data + 62,0x07 | (1 << (val + 8)));
+			stw_le_p(identify_data + 63,0x07);
+			stw_le_p(identify_data + 88,0x3f);
 			break;
 		case 0x04: /* mdma mode */
-			put_le16(identify_data + 62,0x07);
-			put_le16(identify_data + 63,0x07 | (1 << (val + 8)));
-			put_le16(identify_data + 88,0x3f);
+			stw_le_p(identify_data + 62,0x07);
+			stw_le_p(identify_data + 63,0x07 | (1 << (val + 8)));
+			stw_le_p(identify_data + 88,0x3f);
 			break;
 		case 0x08: /* udma mode */
-			put_le16(identify_data + 62,0x07);
-			put_le16(identify_data + 63,0x07);
-			put_le16(identify_data + 88,0x3f | (1 << (val + 8)));
+			stw_le_p(identify_data + 62,0x07);
+			stw_le_p(identify_data + 63,0x07);
+			stw_le_p(identify_data + 88,0x3f | (1 << (val + 8)));
 			break;
 		default:
 			goto abort_cmd;
@@ -1586,7 +1581,7 @@ void ide_data_writew(void *opaque, uint32_t addr, uint32_t val)
     }
 
     p = s->data_ptr;
-    *(uint16_t *)p = le16_to_cpu(val);
+    stw_le_p(p, val);
     p += 2;
     s->data_ptr = p;
     if (p >= s->data_end)
@@ -1607,7 +1602,7 @@ uint32_t ide_data_readw(void *opaque, uint32_t addr)
     }
 
     p = s->data_ptr;
-    ret = cpu_to_le16(*(uint16_t *)p);
+    ret = lduw_le_p(p);
     p += 2;
     s->data_ptr = p;
     if (p >= s->data_end)
@@ -1628,7 +1623,7 @@ void ide_data_writel(void *opaque, uint32_t addr, uint32_t val)
     }
 
     p = s->data_ptr;
-    *(uint32_t *)p = le32_to_cpu(val);
+    stl_le_p(p, val);
     p += 4;
     s->data_ptr = p;
     if (p >= s->data_end)
@@ -1649,7 +1644,7 @@ uint32_t ide_data_readl(void *opaque, uint32_t addr)
     }
 
     p = s->data_ptr;
-    ret = cpu_to_le32(*(uint32_t *)p);
+    ret = ldl_le_p(p);
     p += 4;
     s->data_ptr = p;
     if (p >= s->data_end)

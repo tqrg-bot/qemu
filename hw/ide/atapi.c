@@ -39,30 +39,6 @@ static void padstr8(uint8_t *buf, int buf_size, const char *src)
     }
 }
 
-static inline void cpu_to_ube16(uint8_t *buf, int val)
-{
-    buf[0] = val >> 8;
-    buf[1] = val & 0xff;
-}
-
-static inline void cpu_to_ube32(uint8_t *buf, unsigned int val)
-{
-    buf[0] = val >> 24;
-    buf[1] = val >> 16;
-    buf[2] = val >> 8;
-    buf[3] = val & 0xff;
-}
-
-static inline int ube16_to_cpu(const uint8_t *buf)
-{
-    return (buf[0] << 8) | buf[1];
-}
-
-static inline int ube32_to_cpu(const uint8_t *buf)
-{
-    return (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
-}
-
 static void lba_to_msf(uint8_t *buf, int lba)
 {
     lba += 150;
@@ -405,7 +381,7 @@ static inline uint8_t ide_atapi_set_profile(uint8_t *buf, uint8_t *index,
     uint8_t *buf_profile = buf + 12; /* start of profiles */
 
     buf_profile += ((*index) * 4); /* start of indexed profile */
-    cpu_to_ube16 (buf_profile, profile);
+    stw_be_p (buf_profile, profile);
     buf_profile[2] = ((buf_profile[0] == buf[6]) && (buf_profile[1] == buf[7]));
 
     /* each profile adds 4 bytes to the response */
@@ -438,12 +414,12 @@ static int ide_dvd_read_structure(IDEState *s, int format,
                 buf[7] = 0;   /* default densities */
 
                 /* FIXME: 0x30000 per spec? */
-                cpu_to_ube32(buf + 8, 0); /* start sector */
-                cpu_to_ube32(buf + 12, total_sectors - 1); /* end sector */
-                cpu_to_ube32(buf + 16, total_sectors - 1); /* l0 end sector */
+                stl_be_p(buf + 8, 0); /* start sector */
+                stl_be_p(buf + 12, total_sectors - 1); /* end sector */
+                stl_be_p(buf + 16, total_sectors - 1); /* l0 end sector */
 
                 /* Size of buffer, not including 2 byte size field */
-                cpu_to_be16wu((uint16_t *)buf, 2048 + 2);
+                stw_be_p(buf, 2048 + 2);
 
                 /* 2k data + 4 byte header */
                 return (2048 + 4);
@@ -454,7 +430,7 @@ static int ide_dvd_read_structure(IDEState *s, int format,
             buf[5] = 0; /* no region restrictions */
 
             /* Size of buffer, not including 2 byte size field */
-            cpu_to_be16wu((uint16_t *)buf, 4 + 2);
+            stw_be_p(buf, 4 + 2);
 
             /* 4 byte header + 4 byte data */
             return (4 + 4);
@@ -464,7 +440,7 @@ static int ide_dvd_read_structure(IDEState *s, int format,
 
         case 0x04: /* DVD disc manufacturing information */
             /* Size of buffer, not including 2 byte size field */
-            cpu_to_be16wu((uint16_t *)buf, 2048 + 2);
+            stw_be_p(buf, 2048 + 2);
 
             /* 2k data + 4 byte header */
             return (2048 + 4);
@@ -477,22 +453,22 @@ static int ide_dvd_read_structure(IDEState *s, int format,
 
             buf[4] = 0x00; /* Physical format */
             buf[5] = 0x40; /* Not writable, is readable */
-            cpu_to_be16wu((uint16_t *)(buf + 6), 2048 + 4);
+            stw_be_p(buf + 6, 2048 + 4);
 
             buf[8] = 0x01; /* Copyright info */
             buf[9] = 0x40; /* Not writable, is readable */
-            cpu_to_be16wu((uint16_t *)(buf + 10), 4 + 4);
+            stw_be_p(buf + 10, 4 + 4);
 
             buf[12] = 0x03; /* BCA info */
             buf[13] = 0x40; /* Not writable, is readable */
-            cpu_to_be16wu((uint16_t *)(buf + 14), 188 + 4);
+            stw_be_p(buf + 14, 188 + 4);
 
             buf[16] = 0x04; /* Manufacturing info */
             buf[17] = 0x40; /* Not writable, is readable */
-            cpu_to_be16wu((uint16_t *)(buf + 18), 2048 + 4);
+            stw_be_p(buf + 18, 2048 + 4);
 
             /* Size of buffer, not including 2 byte size field */
-            cpu_to_be16wu((uint16_t *)buf, 16 + 2);
+            stw_be_p(buf, 16 + 2);
 
             /* data written + 4 byte header */
             return (16 + 4);
@@ -590,7 +566,7 @@ static void cmd_get_event_status_notification(IDEState *s,
     gesn_cdb = (void *)packet;
     gesn_event_header = (void *)buf;
 
-    max_len = be16_to_cpu(gesn_cdb->len);
+    max_len = lduw_be_p(gesn_cdb->len);
 
     /* It is fine by the MMC spec to not support async mode operations */
     if (!(gesn_cdb->polled & 0x01)) { /* asynchronous mode */
@@ -628,8 +604,7 @@ static void cmd_get_event_status_notification(IDEState *s,
         gesn_event_header->notification_class = 0x80; /* No event available */
         used_len = sizeof(*gesn_event_header);
     }
-    gesn_event_header->len = cpu_to_be16(used_len
-                                         - sizeof(*gesn_event_header));
+    stw_be_p(&gesn_event_header->len, used_len - sizeof(*gesn_event_header));
     ide_atapi_cmd_reply(s, used_len, max_len);
 }
 
@@ -681,8 +656,7 @@ static void cmd_get_configuration(IDEState *s, uint8_t *buf)
         return;
     }
 
-    /* XXX: could result in alignment problems in some architectures */
-    max_len = ube16_to_cpu(buf + 7);
+    max_len = lduw_be_p(buf + 7);
 
     /*
      * XXX: avoid overflow for io_buffer if max_len is bigger than
@@ -702,16 +676,16 @@ static void cmd_get_configuration(IDEState *s, uint8_t *buf)
      * to use as current.  0 means there is no media
      */
     if (media_is_dvd(s)) {
-        cpu_to_ube16(buf + 6, MMC_PROFILE_DVD_ROM);
+        stw_be_p(buf + 6, MMC_PROFILE_DVD_ROM);
     } else if (media_is_cd(s)) {
-        cpu_to_ube16(buf + 6, MMC_PROFILE_CD_ROM);
+        stw_be_p(buf + 6, MMC_PROFILE_CD_ROM);
     }
 
     buf[10] = 0x02 | 0x01; /* persistent and current */
     len = 12; /* headers: 8 + 4 */
     len += ide_atapi_set_profile(buf, &index, MMC_PROFILE_DVD_ROM);
     len += ide_atapi_set_profile(buf, &index, MMC_PROFILE_CD_ROM);
-    cpu_to_ube32(buf, len - 4); /* data length */
+    stl_be_p(buf, len - 4); /* data length */
 
     ide_atapi_cmd_reply(s, len, max_len);
 }
@@ -722,7 +696,7 @@ static void cmd_mode_sense(IDEState *s, uint8_t *buf)
     int max_len;
 
     if (buf[0] == GPCMD_MODE_SENSE_10) {
-        max_len = ube16_to_cpu(buf + 7);
+        max_len = lduw_be_p(buf + 7);
     } else {
         max_len = buf[4];
     }
@@ -734,7 +708,7 @@ static void cmd_mode_sense(IDEState *s, uint8_t *buf)
     case 0: /* current values */
         switch(code) {
         case GPMODE_R_W_ERROR_PAGE: /* error recovery */
-            cpu_to_ube16(&buf[0], 16 + 6);
+            stw_be_p(&buf[0], 16 + 6);
             buf[2] = 0x70;
             buf[3] = 0;
             buf[4] = 0;
@@ -753,7 +727,7 @@ static void cmd_mode_sense(IDEState *s, uint8_t *buf)
             ide_atapi_cmd_reply(s, 16, max_len);
             break;
         case GPMODE_AUDIO_CTL_PAGE:
-            cpu_to_ube16(&buf[0], 24 + 6);
+            stw_be_p(&buf[0], 24 + 6);
             buf[2] = 0x70;
             buf[3] = 0;
             buf[4] = 0;
@@ -770,7 +744,7 @@ static void cmd_mode_sense(IDEState *s, uint8_t *buf)
             ide_atapi_cmd_reply(s, 24, max_len);
             break;
         case GPMODE_CAPABILITIES_PAGE:
-            cpu_to_ube16(&buf[0], 28 + 6);
+            stw_be_p(&buf[0], 28 + 6);
             buf[2] = 0x70;
             buf[3] = 0;
             buf[4] = 0;
@@ -791,11 +765,11 @@ static void cmd_mode_sense(IDEState *s, uint8_t *buf)
             if (bdrv_is_locked(s->bs))
                 buf[6] |= 1 << 1;
             buf[15] = 0x00;
-            cpu_to_ube16(&buf[16], 706);
+            stw_be_p(&buf[16], 706);
             buf[18] = 0;
             buf[19] = 2;
-            cpu_to_ube16(&buf[20], 512);
-            cpu_to_ube16(&buf[22], 706);
+            stw_be_p(&buf[20], 512);
+            stw_be_p(&buf[22], 706);
             buf[24] = 0;
             buf[25] = 0;
             buf[26] = 0;
@@ -840,12 +814,12 @@ static void cmd_read(IDEState *s, uint8_t* buf)
     int nb_sectors, lba;
 
     if (buf[0] == GPCMD_READ_10) {
-        nb_sectors = ube16_to_cpu(buf + 7);
+        nb_sectors = lduw_be_p(buf + 7);
     } else {
-        nb_sectors = ube32_to_cpu(buf + 6);
+        nb_sectors = ldl_be_p(buf + 6);
     }
 
-    lba = ube32_to_cpu(buf + 2);
+    lba = ldl_be_p(buf + 2);
     if (nb_sectors == 0) {
         ide_atapi_cmd_ok(s);
         return;
@@ -859,7 +833,7 @@ static void cmd_read_cd(IDEState *s, uint8_t* buf)
     int nb_sectors, lba, transfer_request;
 
     nb_sectors = (buf[6] << 16) | (buf[7] << 8) | buf[8];
-    lba = ube32_to_cpu(buf + 2);
+    lba = ldl_be_p(buf + 2);
 
     if (nb_sectors == 0) {
         ide_atapi_cmd_ok(s);
@@ -892,7 +866,7 @@ static void cmd_seek(IDEState *s, uint8_t* buf)
     unsigned int lba;
     uint64_t total_sectors = s->nb_sectors >> 2;
 
-    lba = ube32_to_cpu(buf + 2);
+    lba = ldl_be_p(buf + 2);
     if (lba >= total_sectors) {
         ide_atapi_cmd_error(s, SENSE_ILLEGAL_REQUEST, ASC_LOGICAL_BLOCK_OOR);
         return;
@@ -930,15 +904,15 @@ static void cmd_start_stop_unit(IDEState *s, uint8_t* buf)
 
 static void cmd_mechanism_status(IDEState *s, uint8_t* buf)
 {
-    int max_len = ube16_to_cpu(buf + 8);
+    int max_len = lduw_be_p(buf + 8);
 
-    cpu_to_ube16(buf, 0);
+    stw_be_p(buf, 0);
     /* no current LBA */
     buf[2] = 0;
     buf[3] = 0;
     buf[4] = 0;
     buf[5] = 1;
-    cpu_to_ube16(buf + 6, 0);
+    stw_be_p(buf + 6, 0);
     ide_atapi_cmd_reply(s, 8, max_len);
 }
 
@@ -948,7 +922,7 @@ static void cmd_read_toc_pma_atip(IDEState *s, uint8_t* buf)
     int max_len;
     uint64_t total_sectors = s->nb_sectors >> 2;
 
-    max_len = ube16_to_cpu(buf + 7);
+    max_len = lduw_be_p(buf + 7);
     format = buf[9] >> 6;
     msf = (buf[1] >> 1) & 1;
     start_track = buf[6];
@@ -986,8 +960,8 @@ static void cmd_read_cdvd_capacity(IDEState *s, uint8_t* buf)
     uint64_t total_sectors = s->nb_sectors >> 2;
 
     /* NOTE: it is really the number of sectors minus 1 */
-    cpu_to_ube32(buf, total_sectors - 1);
-    cpu_to_ube32(buf + 4, 2048);
+    stl_be_p(buf, total_sectors - 1);
+    stl_be_p(buf + 4, 2048);
     ide_atapi_cmd_reply(s, 8, 8);
 }
 
@@ -998,7 +972,7 @@ static void cmd_read_dvd_structure(IDEState *s, uint8_t* buf)
     int format = buf[7];
     int ret;
 
-    max_len = ube16_to_cpu(buf + 8);
+    max_len = lduw_be_p(buf + 8);
 
     if (format < 0xff) {
         if (media_is_cd(s)) {

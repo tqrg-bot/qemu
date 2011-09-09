@@ -88,8 +88,7 @@ static uint32_t ssi_sd_transfer(SSISlave *dev, uint32_t val)
             uint8_t longresp[16];
             /* FIXME: Check CRC.  */
             request.cmd = s->cmd;
-            request.arg = (s->cmdarg[0] << 24) | (s->cmdarg[1] << 16)
-                           | (s->cmdarg[2] << 8) | s->cmdarg[3];
+	    request.arg = ldl_be_p(s->cmdarg);
             DPRINTF("CMD%d arg 0x%08x\n", s->cmd, request.arg);
             s->arglen = sd_do_command(s->sd, &request, longresp);
             if (s->arglen <= 0) {
@@ -114,8 +113,7 @@ static uint32_t ssi_sd_transfer(SSISlave *dev, uint32_t val)
                 /* CMD13 returns a 2-byte statuse work. Other commands
                    only return the first byte.  */
                 s->arglen = (s->cmd == 13) ? 2 : 1;
-                cardstatus = (longresp[0] << 24) | (longresp[1] << 16)
-                             | (longresp[2] << 8) | longresp[3];
+		cardstatus = ldl_be_p(longresp);
                 status = 0;
                 if (((cardstatus >> 9) & 0xf) < 4)
                     status |= SSI_SDR_IDLE;
@@ -149,8 +147,7 @@ static uint32_t ssi_sd_transfer(SSISlave *dev, uint32_t val)
                    assume it's set if the second byte is nonzero.  */
                 if (status & 0xff)
                     status |= SSI_SDR_PARAMETER_ERROR;
-                s->response[0] = status >> 8;
-                s->response[1] = status;
+		stw_be_p(s->response, status);
                 DPRINTF("Card status 0x%02x\n", status);
             }
             s->mode = SSI_SD_RESPONSE;

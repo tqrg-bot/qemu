@@ -900,7 +900,7 @@ static uint32_t ehci_mem_readw(void *ptr, target_phys_addr_t addr)
     EHCIState *s = ptr;
     uint32_t val;
 
-    val = s->mmio[addr] | (s->mmio[addr+1] << 8);
+    val = lduw_le_p(&s->mmio[addr]);
 
     return val;
 }
@@ -910,8 +910,7 @@ static uint32_t ehci_mem_readl(void *ptr, target_phys_addr_t addr)
     EHCIState *s = ptr;
     uint32_t val;
 
-    val = s->mmio[addr] | (s->mmio[addr+1] << 8) |
-          (s->mmio[addr+2] << 16) | (s->mmio[addr+3] << 24);
+    val = ldl_le_p(&s->mmio[addr]);
 
     trace_usb_ehci_mmio_readl(addr, addr2str(addr), val);
     return val;
@@ -1000,7 +999,7 @@ static void ehci_mem_writel(void *ptr, target_phys_addr_t addr, uint32_t val)
 {
     EHCIState *s = ptr;
     uint32_t *mmio = (uint32_t *)(&s->mmio[addr]);
-    uint32_t old = *mmio;
+    uint32_t old = ldl_le_p(mmio);
     int i;
 
     trace_usb_ehci_mmio_writel(addr, addr2str(addr), val);
@@ -1093,8 +1092,8 @@ static void ehci_mem_writel(void *ptr, target_phys_addr_t addr, uint32_t val)
         break;
     }
 
-    *mmio = val;
-    trace_usb_ehci_mmio_change(addr, addr2str(addr), *mmio, old);
+    stl_le_p(mmio, val);
+    trace_usb_ehci_mmio_change(addr, addr2str(addr), val, old);
 }
 
 

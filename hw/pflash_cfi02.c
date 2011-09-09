@@ -159,25 +159,17 @@ static uint32_t pflash_read (pflash_t *pfl, target_phys_addr_t offset,
             break;
         case 2:
             if (be) {
-                ret = p[offset] << 8;
-                ret |= p[offset + 1];
+                ret = lduw_be_p(&p[offset]);
             } else {
-                ret = p[offset];
-                ret |= p[offset + 1] << 8;
+                ret = lduw_le_p(&p[offset]);
             }
 //            DPRINTF("%s: data offset %08x %04x\n", __func__, offset, ret);
             break;
         case 4:
             if (be) {
-                ret = p[offset] << 24;
-                ret |= p[offset + 1] << 16;
-                ret |= p[offset + 2] << 8;
-                ret |= p[offset + 3];
+                ret = ldl_be_p(&p[offset]);
             } else {
-                ret = p[offset];
-                ret |= p[offset + 1] << 8;
-                ret |= p[offset + 2] << 16;
-                ret |= p[offset + 3] << 24;
+                ret = ldl_le_p(&p[offset]);
             }
 //            DPRINTF("%s: data offset %08x %08x\n", __func__, offset, ret);
             break;
@@ -336,25 +328,17 @@ static void pflash_write (pflash_t *pfl, target_phys_addr_t offset,
                 break;
             case 2:
                 if (be) {
-                    p[offset] &= value >> 8;
-                    p[offset + 1] &= value;
+                    stw_be_p(&p[offset], value);
                 } else {
-                    p[offset] &= value;
-                    p[offset + 1] &= value >> 8;
+                    stw_le_p(&p[offset], value)
                 }
                 pflash_update(pfl, offset, 2);
                 break;
             case 4:
                 if (be) {
-                    p[offset] &= value >> 24;
-                    p[offset + 1] &= value >> 16;
-                    p[offset + 2] &= value >> 8;
-                    p[offset + 3] &= value;
+                    stl_be_p(&p[offset], value);
                 } else {
-                    p[offset] &= value;
-                    p[offset + 1] &= value >> 8;
-                    p[offset + 2] &= value >> 16;
-                    p[offset + 3] &= value >> 24;
+                    stl_le_p(&p[offset], value);
                 }
                 pflash_update(pfl, offset, 4);
                 break;

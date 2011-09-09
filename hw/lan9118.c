@@ -755,15 +755,11 @@ static void do_mac_write(lan9118_state *s, int reg, uint32_t val)
         DPRINTF("MAC_CR: %08x\n", val);
         break;
     case MAC_ADDRH:
-        s->conf.macaddr.a[4] = val & 0xff;
-        s->conf.macaddr.a[5] = (val >> 8) & 0xff;
+	stw_le_p(&s->conf.macaddr.a[4], val);
         lan9118_mac_changed(s);
         break;
     case MAC_ADDRL:
-        s->conf.macaddr.a[0] = val & 0xff;
-        s->conf.macaddr.a[1] = (val >> 8) & 0xff;
-        s->conf.macaddr.a[2] = (val >> 16) & 0xff;
-        s->conf.macaddr.a[3] = (val >> 24) & 0xff;
+	stl_le_p(&s->conf.macaddr.a[0], val);
         lan9118_mac_changed(s);
         break;
     case MAC_HASHH:
@@ -808,10 +804,9 @@ static uint32_t do_mac_read(lan9118_state *s, int reg)
     case MAC_CR:
         return s->mac_cr;
     case MAC_ADDRH:
-        return s->conf.macaddr.a[4] | (s->conf.macaddr.a[5] << 8);
+	return lduw_le_p(&s->conf.macaddr.a[4]);
     case MAC_ADDRL:
-        return s->conf.macaddr.a[0] | (s->conf.macaddr.a[1] << 8)
-               | (s->conf.macaddr.a[2] << 16) | (s->conf.macaddr.a[3] << 24);
+	return ldl_le_p(&s->conf.macaddr.a[0]);
     case MAC_HASHH:
         return s->mac_hashh;
         break;

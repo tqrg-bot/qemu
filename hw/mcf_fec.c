@@ -229,11 +229,9 @@ static uint32_t mcf_fec_read(void *opaque, target_phys_addr_t addr)
     case 0x084: return s->rcr;
     case 0x0c4: return s->tcr;
     case 0x0e4: /* PALR */
-        return (s->conf.macaddr.a[0] << 24) | (s->conf.macaddr.a[1] << 16)
-              | (s->conf.macaddr.a[2] << 8) | s->conf.macaddr.a[3];
-        break;
+        return ldl_be_p(s->conf.macaddr.a[0]);
     case 0x0e8: /* PAUR */
-        return (s->conf.macaddr.a[4] << 24) | (s->conf.macaddr.a[5] << 16) | 0x8808;
+        return lduw_be_p(s->conf.macaddr.a[4]) << 16 | 0x8808;
     case 0x0ec: return 0x10000; /* OPD */
     case 0x118: return 0;
     case 0x11c: return 0;
@@ -303,14 +301,10 @@ static void mcf_fec_write(void *opaque, target_phys_addr_t addr, uint32_t value)
             s->eir |= FEC_INT_GRA;
         break;
     case 0x0e4: /* PALR */
-        s->conf.macaddr.a[0] = value >> 24;
-        s->conf.macaddr.a[1] = value >> 16;
-        s->conf.macaddr.a[2] = value >> 8;
-        s->conf.macaddr.a[3] = value;
+        stl_be_p(s->conf.macaddr.a[0], value);
         break;
     case 0x0e8: /* PAUR */
-        s->conf.macaddr.a[4] = value >> 24;
-        s->conf.macaddr.a[5] = value >> 16;
+        stw_be_p(s->conf.macaddr.a[4], value >> 16);
         break;
     case 0x0ec:
         /* OPD */
