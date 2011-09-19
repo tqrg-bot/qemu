@@ -55,6 +55,7 @@ struct qemu_paiocb {
 
 typedef struct PosixAioState {
     int rfd, wfd;
+    QEMUBH *process_queue_bh;
     struct qemu_paiocb *first_aio;
 } PosixAioState;
 
@@ -468,26 +469,24 @@ static int qemu_paio_error(struct qemu_paiocb *aiocb)
     return ret;
 }
 
-static int posix_aio_process_queue(void *opaque)
+static void posix_aio_process_queue(void *opaque)
 {
     PosixAioState *s = opaque;
     struct qemu_paiocb *acb, **pacb;
     int ret;
-    int result = 0;
 
     for(;;) {
         pacb = &s->first_aio;
         for(;;) {
             acb = *pacb;
             if (!acb)
-                return result;
+                return;
 
             ret = qemu_paio_error(acb);
             if (ret == ECANCELED) {
                 /* remove the request */
                 *pacb = acb->next;
                 qemu_aio_release(acb);
-                result = 1;
             } else if (ret != EINPROGRESS) {
                 /* end of aio */
                 if (ret == 0) {
@@ -507,15 +506,12 @@ static int posix_aio_process_queue(void *opaque)
                 /* call the callback */
                 acb->common.cb(acb->common.opaque, ret);
                 qemu_aio_release(acb);
-                result = 1;
                 break;
             } else {
                 pacb = &acb->next;
             }
         }
     }
-
-    return result;
 }
 
 static void posix_aio_read(void *opaque)
@@ -535,7 +531,7 @@ static void posix_aio_read(void *opaque)
         break;
     }
 
-    posix_aio_process_queue(s);
+    qemu_bh_schedule(s->process_queue_bh);
 }
 
 static int posix_aio_flush(void *opaque)
@@ -676,7 +672,8 @@ int paio_init(void)
     fcntl(s->wfd, F_SETFL, O_NONBLOCK);
 
     qemu_aio_set_fd_handler(s->rfd, posix_aio_read, NULL, posix_aio_flush,
-        posix_aio_process_queue, s);
+        NULL, s);
+    s->process_queue_bh = qemu_bh_new(posix_aio_process_queue, s);
 
     ret = pthread_attr_init(&attr);
     if (ret)
