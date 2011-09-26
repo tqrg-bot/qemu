@@ -15,6 +15,7 @@
 #include <libgen.h>
 
 #include "qemu-common.h"
+#include "main-loop.h"
 #include "block_int.h"
 #include "cmd.h"
 
@@ -294,7 +295,7 @@ static int do_aio_readv(QEMUIOVector *qiov, int64_t offset, int *total)
     bdrv_aio_readv(bs, offset >> 9, qiov, qiov->size >> 9,
                    aio_rw_done, &async_ret);
     while (async_ret == NOT_DONE) {
-        qemu_aio_wait();
+        main_loop_wait(false);
     }
 
     *total = qiov->size;
@@ -308,7 +309,7 @@ static int do_aio_writev(QEMUIOVector *qiov, int64_t offset, int *total)
     bdrv_aio_writev(bs, offset >> 9, qiov, qiov->size >> 9,
                     aio_rw_done, &async_ret);
     while (async_ret == NOT_DONE) {
-        qemu_aio_wait();
+        main_loop_wait(false);
     }
 
     *total = qiov->size;
@@ -351,7 +352,7 @@ static int do_aio_multiwrite(BlockRequest* reqs, int num_reqs, int *total)
     }
 
     while (async_ret.num_done < num_reqs) {
-        qemu_aio_wait();
+        main_loop_wait(false);
     }
 
     return async_ret.error < 0 ? async_ret.error : 1;
@@ -1854,6 +1855,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    qemu_init_main_loop();
     bdrv_init();
 
     /* initialize commands */
