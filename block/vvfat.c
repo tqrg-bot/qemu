@@ -872,6 +872,9 @@ static int init_directories(BDRVVVFATState* s,
 
     s->faked_sectors=s->first_sectors_number+s->sectors_per_fat*2;
     s->cluster_count=sector2cluster(s, s->sector_count);
+    if (s->qcow) {
+        s->used_clusters = calloc(s->cluster_count, 1);
+    }
 
     mapping = array_get_next(&(s->mapping));
     mapping->begin = 0;
@@ -1878,7 +1881,7 @@ DLOG(checkpoint());
 	return 0;
     }
     assert (s->used_clusters);
-    for (i = 0; i < sector2cluster(s, s->sector_count); i++)
+    for (i = 0; i < s->cluster_count; i++)
 	s->used_clusters[i] &= ~USED_ANY;
 
     clear_commits(s);
@@ -1899,7 +1902,7 @@ DLOG(checkpoint());
     }
 
     check = s->last_cluster_of_root_directory;
-    for (i = check; i < sector2cluster(s, s->sector_count); i++) {
+    for (i = check; i < s->cluster_count; i++) {
 	if (modified_fat_get(s, i)) {
 	    if(!s->used_clusters[i]) {
 		DLOG(fprintf(stderr, "FAT was modified (%d), but cluster is not used?\n", i));
@@ -2808,8 +2811,6 @@ static int enable_write_target(BDRVVVFATState *s)
     BlockDriver *bdrv_qcow;
     QEMUOptionParameter *options;
     int ret;
-    int size = sector2cluster(s, s->sector_count);
-    s->used_clusters = calloc(size, 1);
 
     array_init(&(s->commits), sizeof(commit_t));
 
