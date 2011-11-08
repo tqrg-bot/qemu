@@ -107,7 +107,7 @@ static void coroutine_trampoline(void)
 
     /* Initialize longjmp environment and switch back the caller */
     if (!setjmp(self->env)) {
-        longjmp(*(jmp_buf *)co->entry_arg, 1);
+        siglongjmp(*(jmp_buf *)co->entry_arg, 1);
     }
 
     while (true) {
@@ -123,7 +123,7 @@ static Coroutine *coroutine_new(void)
     Coroutine *current;
     CoroutineUContext *co;
     ucontext_t old_uc, uc;
-    jmp_buf old_env;
+    sigjmp_buf old_env;
 
     /* The ucontext functions preserve signal masks which incurs a system call
      * overhead.  setjmp()/longjmp() does not preserve signal masks but only
@@ -146,10 +146,10 @@ static Coroutine *coroutine_new(void)
     uc.uc_stack.ss_flags = 0;
     makecontext(&uc, coroutine_trampoline, 0);
 
-    /* swapcontext() in, longjmp() back out */
+    /* swapcontext() in, siglongjmp() back out */
     current = s->current;
     s->current = &co->base;
-    if (!setjmp(old_env)) {
+    if (!sigsetjmp(old_env, 1)) {
         swapcontext(&old_uc, &uc);
     }
     s->current = current;
