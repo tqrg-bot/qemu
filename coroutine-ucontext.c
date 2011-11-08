@@ -30,6 +30,17 @@
 #include "qemu-common.h"
 #include "qemu-coroutine-int.h"
 
+#ifndef SS_ONSTACK
+#define SS_ONSTACK SA_ONSTACK
+#endif
+
+/* Pick the most obscure signal available. :)  */
+#ifdef SIGSYS
+#define SIGCOROUTINE SIGSYS
+#elif defined SIGEMT
+#define SIGCOROUTINE SIGEMT
+#endif
+
 enum {
     /* Maximum free pool size prevents holding too many freed coroutines */
     POOL_MAX_SIZE = 64,
@@ -88,17 +99,6 @@ static void __attribute__((destructor)) coroutine_cleanup(void)
     }
 }
 
-static void __attribute__((constructor)) coroutine_init(void)
-{
-    int ret;
-
-    ret = pthread_key_create(&thread_state_key, qemu_coroutine_thread_cleanup);
-    if (ret != 0) {
-        fprintf(stderr, "unable to create leader key: %s\n", strerror(errno));
-        abort();
-    }
-}
-
 static void coroutine_trampoline(void)
 {
     CoroutineThreadState *s = coroutine_get_thread_state();
@@ -116,43 +116,78 @@ static void coroutine_trampoline(void)
     }
 }
 
+static void __attribute__((constructor)) coroutine_init(void)
+{
+    int ret;
+    struct sigaction sa;
+    sigset_t set;
+
+    ret = pthread_key_create(&thread_state_key, qemu_coroutine_thread_cleanup);
+    if (ret != 0) {
+        fprintf(stderr, "unable to create leader key: %s\n", strerror(errno));
+        abort();
+    }
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = (void (*)(int)) coroutine_trampoline;
+    sa.sa_flags = SA_ONSTACK;
+    sigaction(SIGCOROUTINE, &sa, NULL);
+
+    sigemptyset(&set);
+    sigaddset(&set, SIGCOROUTINE);
+    pthread_sigmask(SIG_BLOCK, &set, NULL);
+}
+
 static Coroutine *coroutine_new(void)
 {
     const size_t stack_size = 1 << 20;
     CoroutineThreadState *s = coroutine_get_thread_state();
     Coroutine *current;
     CoroutineUContext *co;
-    ucontext_t old_uc, uc;
     sigjmp_buf old_env;
 
-    /* The ucontext functions preserve signal masks which incurs a system call
-     * overhead.  setjmp()/longjmp() does not preserve signal masks but only
-     * works on the current stack.  Since we need a way to create and switch to
-     * a new stack, use the ucontext functions for that but setjmp()/longjmp()
-     * for everything else.
-     */
+    stack_t ss, oss;
+    sigset_t set;
 
-    if (getcontext(&uc) == -1) {
-        abort();
-    }
+    /* The ucontext functions preserve signal masks which incurs a system call
+     * overhead, and makecontext() is not portable anyway.  setjmp()/longjmp()
+     * does not preserve signal masks and are fast, but only works on the
+     * current stack.  So we use sigaltstack to create and switch to a new
+     * stack, and setjmp()/longjmp() for everything else.
+     *
+     * Note: we use sigsetjmp()/siglongjmp() to get out of the just-created
+     * alternate stack, because some IRIX and Solaris apparently believe
+     * that you are still on the alternate stack if you longjmp out of it.
+     * (getcontext/setcontext is an alternative that would also also work
+     * for them, but this way we just avoid the ucontext functions).
+     */
 
     co = g_malloc0(sizeof(*co));
     co->stack = g_malloc(stack_size);
     co->base.entry_arg = &old_env; /* stash away our jmp_buf */
 
-    uc.uc_link = &old_uc;
-    uc.uc_stack.ss_sp = co->stack;
-    uc.uc_stack.ss_size = stack_size;
-    uc.uc_stack.ss_flags = 0;
-    makecontext(&uc, coroutine_trampoline, 0);
+    ss.ss_sp = co->stack;
+    ss.ss_size = stack_size;
+    ss.ss_flags = 0;
+    sigaltstack(&ss, &oss);
 
-    /* swapcontext() in, siglongjmp() back out */
+    /* enter by signal, siglongjmp() back out. siglongjmp() will also
+     * block SIGCOROUTINE again.  */
     current = s->current;
     s->current = &co->base;
     if (!sigsetjmp(old_env, 1)) {
-        swapcontext(&old_uc, &uc);
+        /* Queue the signal so that coroutine_trampoline is only entered
+         * once.
+         */
+        pthread_kill(pthread_self(), SIGCOROUTINE);
+
+        sigemptyset(&set);
+        sigaddset(&set, SIGCOROUTINE);
+        pthread_sigmask(SIG_UNBLOCK, &set, NULL);
     }
     s->current = current;
+
+    sigaltstack(&oss, NULL);
     return &co->base;
 }
 
