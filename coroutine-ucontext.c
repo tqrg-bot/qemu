@@ -58,16 +58,6 @@ typedef struct {
 
 static pthread_key_t thread_state_key;
 
-/*
- * va_args to makecontext() must be type 'int', so passing
- * the pointer we need may require several int args. This
- * union is a quick hack to let us do that
- */
-union cc_arg {
-    void *p;
-    int i[2];
-};
-
 static CoroutineThreadState *coroutine_get_thread_state(void)
 {
     CoroutineThreadState *s = pthread_getspecific(thread_state_key);
@@ -109,16 +99,11 @@ static void __attribute__((constructor)) coroutine_init(void)
     }
 }
 
-static void coroutine_trampoline(int i0, int i1)
+static void coroutine_trampoline(void)
 {
-    union cc_arg arg;
-    CoroutineUContext *self;
-    Coroutine *co;
-
-    arg.i[0] = i0;
-    arg.i[1] = i1;
-    self = arg.p;
-    co = &self->base;
+    CoroutineThreadState *s = coroutine_get_thread_state();
+    Coroutine *co = s->current;
+    CoroutineUContext *self = DO_UPCAST(CoroutineUContext, base, co);
 
     /* Initialize longjmp environment and switch back the caller */
     if (!setjmp(self->env)) {
@@ -134,10 +119,11 @@ static void coroutine_trampoline(int i0, int i1)
 static Coroutine *coroutine_new(void)
 {
     const size_t stack_size = 1 << 20;
+    CoroutineThreadState *s = coroutine_get_thread_state();
+    Coroutine *current;
     CoroutineUContext *co;
     ucontext_t old_uc, uc;
     jmp_buf old_env;
-    union cc_arg arg = {0};
 
     /* The ucontext functions preserve signal masks which incurs a system call
      * overhead.  setjmp()/longjmp() does not preserve signal masks but only
@@ -158,16 +144,15 @@ static Coroutine *coroutine_new(void)
     uc.uc_stack.ss_sp = co->stack;
     uc.uc_stack.ss_size = stack_size;
     uc.uc_stack.ss_flags = 0;
-
-    arg.p = co;
-
-    makecontext(&uc, (void (*)(void))coroutine_trampoline,
-                2, arg.i[0], arg.i[1]);
+    makecontext(&uc, coroutine_trampoline, 0);
 
     /* swapcontext() in, longjmp() back out */
+    current = s->current;
+    s->current = &co->base;
     if (!setjmp(old_env)) {
         swapcontext(&old_uc, &uc);
     }
+    s->current = current;
     return &co->base;
 }
 
