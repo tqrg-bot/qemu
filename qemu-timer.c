@@ -99,11 +99,6 @@ int qemu_alarm_pending(void)
     return alarm_timer->pending;
 }
 
-static inline int alarm_has_dynticks(struct qemu_alarm_timer *t)
-{
-    return !!t->rearm;
-}
-
 static int64_t qemu_next_alarm_deadline(void)
 {
     int64_t delta;
@@ -136,7 +131,6 @@ static int64_t qemu_next_alarm_deadline(void)
 static void qemu_rearm_alarm_timer(struct qemu_alarm_timer *t)
 {
     int64_t nearest_delta_ns;
-    assert(alarm_has_dynticks(t));
     if (!rt_clock->active_timers &&
         !vm_clock->active_timers &&
         !host_clock->active_timers) {
@@ -494,41 +488,9 @@ static void host_alarm_handler(int host_signum)
     if (!t)
 	return;
 
-#if 0
-#define DISP_FREQ 1000
-    {
-        static int64_t delta_min = INT64_MAX;
-        static int64_t delta_max, delta_cum, last_clock, delta, ti;
-        static int count;
-        ti = qemu_get_clock_ns(vm_clock);
-        if (last_clock != 0) {
-            delta = ti - last_clock;
-            if (delta < delta_min)
-                delta_min = delta;
-            if (delta > delta_max)
-                delta_max = delta;
-            delta_cum += delta;
-            if (++count == DISP_FREQ) {
-                printf("timer: min=%" PRId64 " us max=%" PRId64 " us avg=%" PRId64 " us avg_freq=%0.3f Hz\n",
-                       muldiv64(delta_min, 1000000, get_ticks_per_sec()),
-                       muldiv64(delta_max, 1000000, get_ticks_per_sec()),
-                       muldiv64(delta_cum, 1000000 / DISP_FREQ, get_ticks_per_sec()),
-                       (double)get_ticks_per_sec() / ((double)delta_cum / DISP_FREQ));
-                count = 0;
-                delta_min = INT64_MAX;
-                delta_max = 0;
-                delta_cum = 0;
-            }
-        }
-        last_clock = ti;
-    }
-#endif
-    if (alarm_has_dynticks(t) ||
-        qemu_next_alarm_deadline () <= 0) {
-        t->expired = alarm_has_dynticks(t);
-        t->pending = 1;
-        qemu_notify_event();
-    }
+    t->expired = 1;
+    t->pending = 1;
+    qemu_notify_event();
 }
 
 #if defined(__linux__)
@@ -676,11 +638,9 @@ static void CALLBACK mm_alarm_handler(UINT uTimerID, UINT uMsg,
     if (!t) {
         return;
     }
-    if (alarm_has_dynticks(t) || qemu_next_alarm_deadline() <= 0) {
-        t->expired = alarm_has_dynticks(t);
-        t->pending = 1;
-        qemu_notify_event();
-    }
+    t->expired = 1;
+    t->pending = 1;
+    qemu_notify_event();
 }
 
 static int mm_start_timer(struct qemu_alarm_timer *t)
@@ -694,18 +654,11 @@ static int mm_start_timer(struct qemu_alarm_timer *t)
     mm_period = tc.wPeriodMin;
     timeBeginPeriod(mm_period);
 
-    flags = TIME_CALLBACK_FUNCTION;
-    if (alarm_has_dynticks(t)) {
-        flags |= TIME_ONESHOT;
-    } else {
-        flags |= TIME_PERIODIC;
-    }
-
     mm_timer = timeSetEvent(1,                  /* interval (ms) */
                             mm_period,          /* resolution */
                             mm_alarm_handler,   /* function */
                             (DWORD_PTR)t,       /* parameter */
-                            flags);
+                            TIME_ONESHOT | TIME_CALLBACK_FUNCTION);
 
     if (!mm_timer) {
         fprintf(stderr, "Failed to initialize win32 alarm timer: %ld\n",
@@ -754,13 +707,13 @@ static int win32_start_timer(struct qemu_alarm_timer *t)
     /* If you call ChangeTimerQueueTimer on a one-shot timer (its period
        is zero) that has already expired, the timer is not updated.  Since
        creating a new timer is relatively expensive, set a bogus one-hour
-       interval in the dynticks case.  */
+       interval.  */
     success = CreateTimerQueueTimer(&hTimer,
                           NULL,
                           host_alarm_handler,
                           t,
                           1,
-                          alarm_has_dynticks(t) ? 3600000 : 1,
+                          3600000,
                           WT_EXECUTEINTIMERTHREAD);
 
     if (!success) {
