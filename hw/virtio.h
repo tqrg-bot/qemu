@@ -19,9 +19,6 @@
 #include "qdev.h"
 #include "sysemu.h"
 #include "event_notifier.h"
-#ifdef CONFIG_VIRTFS
-#include "9pfs/virtio-9p-device.h"
-#endif
 
 /* from Linux's linux/virtio_config.h */
 
@@ -197,9 +194,6 @@ typedef struct VirtIOBlkConf VirtIOBlkConf;
 VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk);
 typedef struct VirtIOSCSIConf VirtIOSCSIConf;
 VirtIODevice *virtio_scsi_init(DeviceState *dev, VirtIOSCSIConf *conf);
-#ifdef CONFIG_VIRTFS
-VirtIODevice *virtio_9p_init(DeviceState *dev, V9fsConf *conf);
-#endif
 
 
 void virtio_blk_exit(VirtIODevice *vdev);
