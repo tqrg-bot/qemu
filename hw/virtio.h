@@ -190,13 +190,9 @@ void virtio_bind_device(VirtIODevice *vdev, const VirtIOBindings *binding,
                         void *opaque);
 
 /* Base devices.  */
-typedef struct VirtIOBlkConf VirtIOBlkConf;
-VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk);
 typedef struct VirtIOSCSIConf VirtIOSCSIConf;
 VirtIODevice *virtio_scsi_init(DeviceState *dev, VirtIOSCSIConf *conf);
 
-
-void virtio_blk_exit(VirtIODevice *vdev);
 void virtio_scsi_exit(VirtIODevice *vdev);
 
 #define DEFINE_VIRTIO_COMMON_FEATURES(_state, _field) \
