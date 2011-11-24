@@ -19,6 +19,7 @@
 #include "virtio-net.h"
 #include "virtio-serial.h"
 #include "virtio-scsi.h"
+#include "virtio-balloon.h"
 #include "9pfs/virtio-9p-device.h"
 
 /* Performance improves when virtqueue kick processing is decoupled from the
