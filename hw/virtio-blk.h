@@ -107,8 +107,20 @@ struct VirtIOBlkConf
     uint32_t config_wce;
 };
 
-#define DEFINE_VIRTIO_BLK_FEATURES(_state, _field) \
-        DEFINE_VIRTIO_COMMON_FEATURES(_state, _field), \
-        DEFINE_PROP_BIT("config-wce", _state, _field, VIRTIO_BLK_F_CONFIG_WCE, true)
+#define DEFINE_VIRTIO_BLK_COMMON_PROPERTIES(_state, _features_field, _conf_field) \
+        DEFINE_VIRTIO_COMMON_FEATURES(_state, _features_field), \
+        DEFINE_BLOCK_PROPERTIES(_state, _conf_field.conf), \
+        DEFINE_BLOCK_CHS_PROPERTIES(_state, _conf_field.conf), \
+        DEFINE_PROP_STRING("serial", _state, _conf_field.serial), \
+        DEFINE_PROP_BIT("config-wce", _state, _features_field, VIRTIO_BLK_F_CONFIG_WCE, true)
+
+#ifdef __linux__
+#define DEFINE_VIRTIO_BLK_PROPERTIES(_state, _features_field, _conf_field) \
+        DEFINE_VIRTIO_BLK_COMMON_PROPERTIES(_state, _features_field, _conf_field), \
+        DEFINE_PROP_BIT("scsi", _state, _conf_field.scsi, 0, true)
+#else
+#define DEFINE_VIRTIO_BLK_PROPERTIES(_state, _features_field, _conf_field) \
+        DEFINE_VIRTIO_BLK_COMMON_PROPERTIES(_state, _features_field, _conf_field),
+#endif
 
 #endif
