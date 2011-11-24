@@ -806,7 +806,7 @@ static int virtio_net_init_pci(PCIDevice *pci_dev)
     VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
     VirtIODevice *vdev;
 
-    vdev = virtio_net_init(&pci_dev->qdev, &proxy->nic, &proxy->net);
+    vdev = virtio_net_init(&pci_dev->qdev, &proxy->net);
 
     vdev->nvectors = proxy->nvectors;
     virtio_init_pci(proxy, vdev);
@@ -886,7 +886,6 @@ static Property virtio_net_properties[] = {
     DEFINE_PROP_BIT("ioeventfd", VirtIOPCIProxy, flags, VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, false),
     DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 3),
     DEFINE_VIRTIO_NET_PROPERTIES(VirtIOPCIProxy, host_features, net),
-    DEFINE_NIC_PROPERTIES(VirtIOPCIProxy, nic),
     DEFINE_PROP_END_OF_LIST(),
 };
 

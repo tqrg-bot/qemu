@@ -153,7 +153,7 @@ static int s390_virtio_net_init(VirtIOS390Device *dev)
 {
     VirtIODevice *vdev;
 
-    vdev = virtio_net_init((DeviceState *)dev, &dev->nic, &dev->net);
+    vdev = virtio_net_init((DeviceState *)dev, &dev->net);
     if (!vdev) {
         return -1;
     }
@@ -375,7 +375,6 @@ static const VirtIOBindings virtio_s390_bindings = {
 };
 
 static Property s390_virtio_net_properties[] = {
-    DEFINE_NIC_PROPERTIES(VirtIOS390Device, nic),
     DEFINE_VIRTIO_NET_PROPERTIES(VirtIOS390Device, host_features, net),
     DEFINE_PROP_END_OF_LIST(),
 };
