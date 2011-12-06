@@ -176,6 +176,7 @@ static void termsig_handler(int signum)
     qemu_notify_event();
 }
 
+#ifdef __linux__
 static void *show_parts(void *arg)
 {
     char *device = arg;
@@ -249,6 +250,7 @@ out:
     kill(getpid(), SIGTERM);
     return (void *) EXIT_FAILURE;
 }
+#endif
 
 static int nbd_can_accept(void *opaque)
 {
@@ -274,6 +276,12 @@ static void nbd_accept(void *opaque)
     }
 }
 
+#ifdef __linux__
+#define NBD_GETOPT_OPTIONS "hVb:o:p:rsnP:vk:e:tdc:"
+#else
+#define NBD_GETOPT_OPTIONS "hVb:o:p:rsnP:vk:e:t"
+#endif
+
 int main(int argc, char **argv)
 {
     BlockDriverState *bs;
@@ -284,7 +292,7 @@ int main(int argc, char **argv)
     char *device = NULL;
     int port = NBD_DEFAULT_PORT;
     off_t fd_size;
-    const char *sopt = "hVb:o:p:rsnP:c:dvk:e:t";
+    const char *sopt = NBD_GETOPT_OPTIONS;
     struct option lopt[] = {
         { "help", 0, NULL, 'h' },
         { "version", 0, NULL, 'V' },
@@ -294,8 +302,10 @@ int main(int argc, char **argv)
         { "offset", 1, NULL, 'o' },
         { "read-only", 0, NULL, 'r' },
         { "partition", 1, NULL, 'P' },
+#ifdef __linux__
         { "connect", 1, NULL, 'c' },
         { "disconnect", 0, NULL, 'd' },
+#endif
         { "snapshot", 0, NULL, 's' },
         { "nocache", 0, NULL, 'n' },
         { "shared", 1, NULL, 'e' },
@@ -509,6 +519,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* Shut up GCC warnings.  */
+    memset(&client_thread, 0, sizeof(client_thread));
+#ifdef __linux__
     if (device) {
         int ret;
 
@@ -517,10 +530,8 @@ int main(int argc, char **argv)
             errx(EXIT_FAILURE, "Failed to create client thread: %s",
                  strerror(ret));
         }
-    } else {
-        /* Shut up GCC warnings.  */
-        memset(&client_thread, 0, sizeof(client_thread));
     }
+#endif
 
     qemu_init_main_loop();
     qemu_set_fd_handler2(fd, nbd_can_accept, nbd_accept, NULL,
@@ -541,11 +552,12 @@ int main(int argc, char **argv)
         unlink(sockpath);
     }
 
+#ifdef __linux__
     if (device) {
         void *ret;
         pthread_join(client_thread, &ret);
         exit(ret != NULL);
-    } else {
-        exit(EXIT_SUCCESS);
     }
+#endif
+    exit(EXIT_SUCCESS);
 }
