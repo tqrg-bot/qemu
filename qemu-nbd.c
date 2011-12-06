@@ -33,7 +33,8 @@
 #include <libgen.h>
 #include <pthread.h>
 
-#define SOCKET_PATH    "/var/lock/qemu-nbd-%s"
+#define SOCKET_PATH        "/var/lock/qemu-nbd-%d"
+#define SOCKET_PATH_HELP   "/var/lock/qemu-nbd-PID"
 
 static NBDExport *exp;
 static int verbose;
@@ -54,7 +55,7 @@ static void usage(const char *name)
 "  -o, --offset=OFFSET  offset into the image\n"
 "  -b, --bind=IFACE     interface to bind to (default `0.0.0.0')\n"
 "  -k, --socket=PATH    path to the unix socket\n"
-"                       (default '"SOCKET_PATH"')\n"
+"                       (default '%s')\n"
 "  -r, --read-only      export read-only\n"
 "  -P, --partition=NUM  only expose partition NUM\n"
 "  -s, --snapshot       use snapshot file\n"
@@ -68,7 +69,7 @@ static void usage(const char *name)
 "  -V, --version        output version information and exit\n"
 "\n"
 "Report bugs to <anthony@codemonkey.ws>\n"
-    , name, NBD_DEFAULT_PORT, "DEVICE");
+    , name, NBD_DEFAULT_PORT, SOCKET_PATH_HELP);
 }
 
 static void version(const char *name)
@@ -476,7 +477,7 @@ int main(int argc, char **argv)
 
     if (device != NULL && sockpath == NULL) {
         sockpath = g_malloc(128);
-        snprintf(sockpath, 128, SOCKET_PATH, basename(device));
+        snprintf(sockpath, 128, SOCKET_PATH, getpid());
     }
 
     bdrv_init();
