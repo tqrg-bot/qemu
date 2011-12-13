@@ -136,7 +136,7 @@ fork_exec(struct socket *so, const char *ex, int do_pty)
 		    bind(s, (struct sockaddr *)&addr, addrlen) < 0 ||
 		    listen(s, 1) < 0) {
 			lprint("Error: inet socket: %s\n", strerror(errno));
-			closesocket(s);
+			qemu_close_socket(s);
 
 			return 0;
 		}
@@ -210,7 +210,7 @@ fork_exec(struct socket *so, const char *ex, int do_pty)
                 do {
                     so->s = qemu_accept(s, (struct sockaddr *)&addr, &addrlen);
                 } while (so->s < 0 && errno == EINTR);
-                closesocket(s);
+                qemu_close_socket(s);
                 opt = 1;
                 setsockopt(so->s, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(int));
                 opt = 1;

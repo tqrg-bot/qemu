@@ -323,7 +323,7 @@ udp_attach(struct socket *so)
 void
 udp_detach(struct socket *so)
 {
-	closesocket(so->s);
+	qemu_close_socket(so->s);
 	sofree(so);
 }
 

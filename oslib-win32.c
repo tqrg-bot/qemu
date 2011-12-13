@@ -126,3 +126,13 @@ int qemu_get_thread_id(void)
 {
     return GetCurrentThreadId();
 }
+
+int qemu_close_socket(int fd)
+{
+    int rc = 0;
+    rc = closesocket(fd);
+    if (rc < 0) {
+        rc = -socket_error();
+    }
+    return rc;
+}

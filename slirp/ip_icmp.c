@@ -109,7 +109,7 @@ static int icmp_send(struct socket *so, struct mbuf *m, int hlen)
 
 void icmp_detach(struct socket *so)
 {
-    closesocket(so->s);
+    qemu_close_socket(so->s);
     sofree(so);
 }
 

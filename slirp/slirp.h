@@ -29,7 +29,6 @@ typedef char *caddr_t;
 # define ECONNREFUSED WSAECONNREFUSED
 #else
 # define ioctlsocket ioctl
-# define closesocket(s) close(s)
 # if !defined(__HAIKU__)
 #  define O_BINARY 0
 # endif

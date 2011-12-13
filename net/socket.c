@@ -85,7 +85,7 @@ static void net_socket_send(void *opaque)
         /* end of connection */
     eoc:
         qemu_set_fd_handler(s->fd, NULL, NULL, NULL);
-        closesocket(s->fd);
+        qemu_close_socket(s->fd);
         return;
     }
     buf = buf1;
@@ -226,7 +226,7 @@ static int net_socket_mcast_create(struct sockaddr_in *mcastaddr, struct in_addr
     return fd;
 fail:
     if (fd >= 0)
-        closesocket(fd);
+        qemu_close_socket(fd);
     return -1;
 }
 
@@ -305,7 +305,7 @@ static NetSocketState *net_socket_fd_init_dgram(VLANState *vlan,
     return s;
 
 err:
-    closesocket(fd);
+    qemu_close_socket(fd);
     return NULL;
 }
 
@@ -356,7 +356,7 @@ static NetSocketState *net_socket_fd_init(VLANState *vlan,
         (socklen_t *)&optlen)< 0) {
         fprintf(stderr, "qemu: error: getsockopt(SO_TYPE) for fd=%d failed\n",
                 fd);
-        closesocket(fd);
+        qemu_close_socket(fd);
         return NULL;
     }
     switch(so_type) {
@@ -427,14 +427,14 @@ static int net_socket_listen_init(VLANState *vlan,
     if (ret < 0) {
         perror("bind");
         g_free(s);
-        closesocket(fd);
+        qemu_close_socket(fd);
         return -1;
     }
     ret = listen(fd, 0);
     if (ret < 0) {
         perror("listen");
         g_free(s);
-        closesocket(fd);
+        qemu_close_socket(fd);
         return -1;
     }
     s->vlan = vlan;
@@ -478,7 +478,7 @@ static int net_socket_connect_init(VLANState *vlan,
 #endif
             } else {
                 perror("connect");
-                closesocket(fd);
+                qemu_close_socket(fd);
                 return -1;
             }
         } else {
@@ -562,13 +562,13 @@ static int net_socket_udp_init(VLANState *vlan,
                    (const char *)&val, sizeof(val));
     if (ret < 0) {
         perror("setsockopt(SOL_SOCKET, SO_REUSEADDR)");
-        closesocket(fd);
+        qemu_close_socket(fd);
         return -1;
     }
     ret = bind(fd, (struct sockaddr *)&laddr, sizeof(laddr));
     if (ret < 0) {
         perror("bind");
-        closesocket(fd);
+        qemu_close_socket(fd);
         return -1;
     }
 

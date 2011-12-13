@@ -266,7 +266,7 @@ static int nbd_establish_connection(BlockDriverState *bs)
                                 &blocksize);
     if (ret == -1) {
         logout("Failed to negotiate with the NBD server\n");
-        closesocket(sock);
+        qemu_close_socket(sock);
         return -errno;
     }
 
@@ -295,7 +295,7 @@ static void nbd_teardown_connection(BlockDriverState *bs)
     nbd_send_request(s->sock, &request);
 
     qemu_aio_set_fd_handler(s->sock, NULL, NULL, NULL, NULL, NULL);
-    closesocket(s->sock);
+    qemu_close_socket(s->sock);
 }
 
 static int nbd_open(BlockDriverState *bs, const char* filename, int flags)

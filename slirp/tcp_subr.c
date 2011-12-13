@@ -264,7 +264,7 @@ tcp_close(struct tcpcb *tp)
 	/* clobber input socket cache if we're closing the cached connection */
 	if (so == slirp->tcp_last_so)
 		slirp->tcp_last_so = &slirp->tcb;
-	closesocket(so->s);
+	qemu_close_socket(so->s);
 	sbfree(&so->so_rcv);
 	sbfree(&so->so_snd);
 	sofree(so);
@@ -407,7 +407,7 @@ tcp_connect(struct socket *inso)
 	} else {
 		if ((so = socreate(slirp)) == NULL) {
 			/* If it failed, get rid of the pending connection */
-			closesocket(qemu_accept(inso->s,(struct sockaddr *)&addr,&addrlen));
+			qemu_close_socket(qemu_accept(inso->s,(struct sockaddr *)&addr,&addrlen));
 			return;
 		}
 		if (tcp_attach(so) < 0) {
@@ -440,7 +440,7 @@ tcp_connect(struct socket *inso)
 
 	/* Close the accept() socket, set right state */
 	if (inso->so_state & SS_FACCEPTONCE) {
-		closesocket(so->s); /* If we only accept once, close the accept() socket */
+		qemu_close_socket(so->s); /* If we only accept once, close the accept() socket */
 		so->so_state = SS_NOFDREF; /* Don't select it yet, even though we have an FD */
 					   /* if it's not FACCEPTONCE, it's already NOFDREF */
 	}

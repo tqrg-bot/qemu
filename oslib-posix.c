@@ -251,3 +251,13 @@ int qemu_utimens(const char *path, const struct timespec *times)
 
     return utimes(path, &tv[0]);
 }
+
+int qemu_close_socket(int fd)
+{
+    int rc = 0;
+    rc = close(fd);
+    if (rc < 0) {
+        rc = -errno;
+    }
+    return rc;
+}

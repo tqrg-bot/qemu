@@ -1023,7 +1023,7 @@ static void vnc_disconnect_start(VncState *vs)
         return;
     vnc_set_share_mode(vs, VNC_SHARE_MODE_DISCONNECTED);
     qemu_set_fd_handler2(vs->csock, NULL, NULL, NULL, NULL);
-    closesocket(vs->csock);
+    qemu_close_socket(vs->csock);
     vs->csock = -1;
 }
 

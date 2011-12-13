@@ -172,7 +172,7 @@ int inet_listen_opts(QemuOpts *opts, int port_offset)
                         strerror(errno));
             }
         }
-        closesocket(slisten);
+        qemu_close_socket(slisten);
     }
     fprintf(stderr, "%s: FAILED\n", __FUNCTION__);
     freeaddrinfo(res);
@@ -181,7 +181,7 @@ int inet_listen_opts(QemuOpts *opts, int port_offset)
 listen:
     if (listen(slisten,1) != 0) {
         perror("listen");
-        closesocket(slisten);
+        qemu_close_socket(slisten);
         freeaddrinfo(res);
         return -1;
     }
@@ -248,7 +248,7 @@ int inet_connect_opts(QemuOpts *opts)
                 fprintf(stderr, "%s: connect(%s,%s,%s,%s): %s\n", __FUNCTION__,
                         inet_strfamily(e->ai_family),
                         e->ai_canonname, uaddr, uport, strerror(errno));
-            closesocket(sock);
+            qemu_close_socket(sock);
             continue;
         }
         freeaddrinfo(res);
@@ -356,7 +356,7 @@ int inet_dgram_opts(QemuOpts *opts)
 
 err:
     if (sock >= 0)
-        closesocket(sock);
+        qemu_close_socket(sock);
     if (local)
         freeaddrinfo(local);
     if (peer)
@@ -507,7 +507,7 @@ int unix_listen_opts(QemuOpts *opts)
     return sock;
 
 err:
-    closesocket(sock);
+    qemu_close_socket(sock);
     return -1;
 }
 

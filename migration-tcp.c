@@ -45,9 +45,7 @@ static int tcp_close(MigrationState *s)
     int r = 0;
     DPRINTF("tcp_close\n");
     if (s->fd >= 0) {
-        if (close(s->fd) < 0) {
-            r = -errno;
-        }
+        r = qemu_close_socket(s->fd);
         s->fd = -1;
     }
     return r;
