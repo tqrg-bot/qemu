@@ -44,7 +44,7 @@ static int unix_close(MigrationState *s)
 {
     int r = 0;
     DPRINTF("unix_close\n");
-    if (s->fd != -1) {
+    if (s->fd >= 0) {
         if (close(s->fd) < 0) {
             r = -errno;
         }
@@ -91,7 +91,7 @@ int unix_start_outgoing_migration(MigrationState *s, const char *path)
     s->close = unix_close;
 
     s->fd = qemu_socket(PF_UNIX, SOCK_STREAM, 0);
-    if (s->fd == -1) {
+    if (s->fd < 0) {
         DPRINTF("Unable to open socket");
         return -errno;
     }
@@ -161,7 +161,7 @@ int unix_start_incoming_migration(const char *path)
     DPRINTF("Attempting to start an incoming migration\n");
 
     s = qemu_socket(PF_UNIX, SOCK_STREAM, 0);
-    if (s == -1) {
+    if (s < 0) {
         fprintf(stderr, "Could not open unix socket: %s\n", strerror(errno));
         return -errno;
     }

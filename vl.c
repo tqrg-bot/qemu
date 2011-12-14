@@ -3325,7 +3325,7 @@ int main(int argc, char **argv, char **envp)
 
     os_daemonize();
 
-    if (pid_file && qemu_create_pidfile(pid_file) != 0) {
+    if (pid_file && qemu_create_pidfile(pid_file) < 0) {
         os_pidfile_error();
         exit(1);
     }

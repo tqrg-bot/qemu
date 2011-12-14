@@ -506,7 +506,7 @@ main(
     qemu_host = strdup(argv[argc - 2]);
     qemu_port = strdup(argv[argc - 1]);
     sock = connect_to_qemu(qemu_host, qemu_port);
-    if (sock == -1) {
+    if (sock < 0) {
         fprintf(stderr, "error opening socket, exiting.\n");
         exit(5);
     }

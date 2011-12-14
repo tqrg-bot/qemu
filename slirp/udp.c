@@ -313,7 +313,7 @@ int udp_output(struct socket *so, struct mbuf *m,
 int
 udp_attach(struct socket *so)
 {
-  if((so->s = qemu_socket(AF_INET,SOCK_DGRAM,0)) != -1) {
+  if((so->s = qemu_socket(AF_INET,SOCK_DGRAM,0)) >= 0) {
     so->so_expire = curtime + SO_EXPIRE;
     insque(so, &so->slirp->udb);
   }

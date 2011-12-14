@@ -622,7 +622,7 @@ int net_init_socket(QemuOpts *opts,
 
         listen = qemu_opt_get(opts, "listen");
 
-        if (net_socket_listen_init(vlan, "socket", name, listen) == -1) {
+        if (net_socket_listen_init(vlan, "socket", name, listen) < 0) {
             return -1;
         }
     } else if (qemu_opt_get(opts, "connect")) {

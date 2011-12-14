@@ -420,7 +420,7 @@ int64_t qmp_guest_fsfreeze_freeze(Error **err)
 
     QTAILQ_FOREACH_SAFE(mount, &guest_fsfreeze_state.mount_list, next, temp) {
         fd = qemu_open(mount->dirname, O_RDONLY);
-        if (fd == -1) {
+        if (fd < 0) {
             sprintf(err_msg, "failed to open %s, %s", mount->dirname, strerror(errno));
             error_set(err, QERR_QGA_COMMAND_FAILED, err_msg);
             goto error;
@@ -470,7 +470,7 @@ int64_t qmp_guest_fsfreeze_thaw(Error **err)
 
     QTAILQ_FOREACH_SAFE(mount, &guest_fsfreeze_state.mount_list, next, temp) {
         fd = qemu_open(mount->dirname, O_RDONLY);
-        if (fd == -1) {
+        if (fd < 0) {
             has_error = true;
             continue;
         }

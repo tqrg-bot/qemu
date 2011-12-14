@@ -663,7 +663,7 @@ int paio_init(void)
     s = g_malloc(sizeof(PosixAioState));
 
     s->first_aio = NULL;
-    if (qemu_pipe(fds) == -1) {
+    if (qemu_pipe(fds) < 0) {
         fprintf(stderr, "failed to create pipe\n");
         g_free(s);
         return -1;

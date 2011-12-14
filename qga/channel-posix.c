@@ -28,7 +28,7 @@ static gboolean ga_channel_listen_accept(GIOChannel *channel,
 
     client_fd = qemu_accept(g_io_channel_unix_get_fd(channel),
                             (struct sockaddr *)&addr, &addrlen);
-    if (client_fd == -1) {
+    if (client_fd < 0) {
         g_warning("error converting fd to gsocket: %s", strerror(errno));
         goto out;
     }
@@ -124,7 +124,7 @@ static gboolean ga_channel_open(GAChannel *c, const gchar *path, GAChannelMethod
     switch (c->method) {
     case GA_CHANNEL_VIRTIO_SERIAL: {
         int fd = qemu_open(path, O_RDWR | O_NONBLOCK | O_ASYNC);
-        if (fd == -1) {
+        if (fd < 0) {
             g_critical("error opening channel: %s", strerror(errno));
             exit(EXIT_FAILURE);
         }
@@ -138,7 +138,7 @@ static gboolean ga_channel_open(GAChannel *c, const gchar *path, GAChannelMethod
     case GA_CHANNEL_ISA_SERIAL: {
         struct termios tio;
         int fd = qemu_open(path, O_RDWR | O_NOCTTY | O_NONBLOCK);
-        if (fd == -1) {
+        if (fd < 0) {
             g_critical("error opening channel: %s", strerror(errno));
             exit(EXIT_FAILURE);
         }
@@ -166,7 +166,7 @@ static gboolean ga_channel_open(GAChannel *c, const gchar *path, GAChannelMethod
     }
     case GA_CHANNEL_UNIX_LISTEN: {
         int fd = unix_listen(path, NULL, strlen(path));
-        if (fd == -1) {
+        if (fd < 0) {
             g_critical("error opening path: %s", strerror(errno));
             return false;
         }

@@ -296,7 +296,7 @@ void os_setup_post(void)
             exit(1);
         }
 	TFR(fd = qemu_open("/dev/null", O_RDWR));
-	if (fd == -1)
+	if (fd < 0)
 	    exit(1);
     }
 
@@ -335,7 +335,7 @@ int qemu_create_pidfile(const char *filename)
     int fd;
 
     fd = qemu_open(filename, O_RDWR | O_CREAT, 0600);
-    if (fd == -1) {
+    if (fd < 0) {
         return -1;
     }
     if (lockf(fd, F_TLOCK, 0) == -1) {

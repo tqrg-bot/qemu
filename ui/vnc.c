@@ -2733,7 +2733,7 @@ static void vnc_listen_read(void *opaque)
     vga_hw_update();
 
     int csock = qemu_accept(vs->lsock, (struct sockaddr *)&addr, &addrlen);
-    if (csock != -1) {
+    if (csock >= 0) {
         vnc_connect(vs, csock, 0);
     }
 }
@@ -3069,7 +3069,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
             vs->lsock = unix_connect(display+5);
         else
             vs->lsock = inet_connect(display, SOCK_STREAM);
-        if (-1 == vs->lsock) {
+        if (vs->lsock < 0) {
             g_free(vs->display);
             vs->display = NULL;
             return -1;
@@ -3090,7 +3090,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
         } else {
             vs->lsock = inet_listen(display, dpy, 256, SOCK_STREAM, 5900);
         }
-        if (-1 == vs->lsock) {
+        if (vs->lsock < 0) {
             g_free(dpy);
             return -1;
         } else {

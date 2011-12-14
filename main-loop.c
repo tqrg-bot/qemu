@@ -72,7 +72,7 @@ static int qemu_event_init(void)
     int fds[2];
 
     err = qemu_eventfd(fds);
-    if (err == -1) {
+    if (err < 0) {
         return -errno;
     }
     err = fcntl_setfl(fds[0], O_NONBLOCK);

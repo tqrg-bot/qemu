@@ -355,7 +355,7 @@ int inet_dgram_opts(QemuOpts *opts)
     return sock;
 
 err:
-    if (-1 != sock)
+    if (sock >= 0)
         closesocket(sock);
     if (local)
         freeaddrinfo(local);
@@ -430,7 +430,7 @@ int inet_listen(const char *str, char *ostr, int olen,
     opts = qemu_opts_create(&dummy_opts, NULL, 0);
     if (inet_parse(opts, str) == 0) {
         sock = inet_listen_opts(opts, port_offset);
-        if (sock != -1 && ostr) {
+        if (sock >= 0 && ostr) {
             optstr = strchr(str, ',');
             if (qemu_opt_get_bool(opts, "ipv6", 0)) {
                 snprintf(ostr, olen, "[%s]:%s%s",
@@ -564,7 +564,7 @@ int unix_listen(const char *str, char *ostr, int olen)
 
     sock = unix_listen_opts(opts);
 
-    if (sock != -1 && ostr)
+    if (sock >= 0 && ostr)
         snprintf(ostr, olen, "%s%s", qemu_opt_get(opts, "path"), optstr ? optstr : "");
     qemu_opts_del(opts);
     return sock;

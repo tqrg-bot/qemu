@@ -427,7 +427,7 @@ static int kvm_physical_sync_dirty_bitmap(MemoryRegionSection *section)
 
         d.slot = mem->slot;
 
-        if (kvm_vm_ioctl(s, KVM_GET_DIRTY_LOG, &d) == -1) {
+        if (kvm_vm_ioctl(s, KVM_GET_DIRTY_LOG, &d) < 0) {
             DPRINTF("ioctl failed %d\n", errno);
             ret = -1;
             break;
@@ -994,7 +994,7 @@ int kvm_init(void)
     }
     s->vmfd = -1;
     s->fd = qemu_open("/dev/kvm", O_RDWR);
-    if (s->fd == -1) {
+    if (s->fd < 0) {
         fprintf(stderr, "Could not access KVM kernel module: %m\n");
         ret = -errno;
         goto err;
