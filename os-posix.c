@@ -336,16 +336,16 @@ int qemu_create_pidfile(const char *filename)
 
     fd = qemu_open(filename, O_RDWR | O_CREAT, 0600);
     if (fd < 0) {
-        return -1;
+        return fd;
     }
     if (lockf(fd, F_TLOCK, 0) == -1) {
         close(fd);
-        return -1;
+        return -errno;
     }
     len = snprintf(buffer, sizeof(buffer), FMT_pid "\n", getpid());
     if (write(fd, buffer, len) != len) {
         close(fd);
-        return -1;
+        return -errno;
     }
 
     /* keep pidfile open & locked forever */
