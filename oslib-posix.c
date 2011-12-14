@@ -164,16 +164,19 @@ int qemu_pipe(int pipefd[2])
 
 #ifdef CONFIG_PIPE2
     ret = pipe2(pipefd, O_CLOEXEC);
-    if (ret != -1 || errno != ENOSYS) {
+    if (ret != -1) {
         return ret;
+    }
+    if (errno != ENOSYS) {
+        return -errno;
     }
 #endif
     ret = pipe(pipefd);
-    if (ret == 0) {
-        qemu_set_cloexec(pipefd[0]);
-        qemu_set_cloexec(pipefd[1]);
+    if (ret == -1) {
+        return -errno;
     }
-
+    qemu_set_cloexec(pipefd[0]);
+    qemu_set_cloexec(pipefd[1]);
     return ret;
 }
 
@@ -188,17 +191,17 @@ int qemu_eventfd(int fds[2])
     ret = eventfd(0, 0);
     if (ret >= 0) {
         fds[0] = ret;
-        fds[1] = dup(ret);
-        if (fds[1] == -1) {
-            close(ret);
-            return -1;
-        }
         qemu_set_cloexec(ret);
+        if ((fds[1] = dup(ret)) == -1) {
+            close(ret);
+            return -errno;
+        }
         qemu_set_cloexec(fds[1]);
         return 0;
     }
+
     if (errno != ENOSYS) {
-        return -1;
+        return -errno;
     }
 #endif
 
