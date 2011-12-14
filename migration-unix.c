@@ -93,7 +93,7 @@ int unix_start_outgoing_migration(MigrationState *s, const char *path)
     s->fd = qemu_socket(PF_UNIX, SOCK_STREAM, 0);
     if (s->fd < 0) {
         DPRINTF("Unable to open socket");
-        return -errno;
+        return s->fd;
     }
 
     socket_set_nonblock(s->fd);
@@ -160,7 +160,7 @@ int unix_start_incoming_migration(const char *path)
     s = qemu_socket(PF_UNIX, SOCK_STREAM, 0);
     if (s < 0) {
         fprintf(stderr, "Could not open unix socket: %s\n", strerror(errno));
-        return -errno;
+        return s;
     }
 
     memset(&addr, 0, sizeof(addr));

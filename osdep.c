@@ -135,27 +135,6 @@ ssize_t qemu_write_full(int fd, const void *buf, size_t count)
 }
 
 /*
- * Opens a socket with FD_CLOEXEC set
- */
-int qemu_socket(int domain, int type, int protocol)
-{
-    int ret;
-
-#ifdef SOCK_CLOEXEC
-    ret = socket(domain, type | SOCK_CLOEXEC, protocol);
-    if (ret != -1 || errno != EINVAL) {
-        return ret;
-    }
-#endif
-    ret = socket(domain, type, protocol);
-    if (ret >= 0) {
-        qemu_set_cloexec(ret);
-    }
-
-    return ret;
-}
-
-/*
  * A variant of send(2) which handles partial write.
  *
  * Return the number of bytes transferred, which is only

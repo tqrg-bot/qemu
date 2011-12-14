@@ -192,3 +192,17 @@ int qemu_setsockopt(int fd, int level, int opt, const void *val, socklen_t len)
     }
     return rc;
 }
+
+/*
+ * Opens a socket with FD_CLOEXEC set.  Allow using ReadFile/WriteFile on it.
+ */
+int qemu_socket(int domain, int type, int protocol)
+{
+    /* WSASocket() creates a non-overlapped IO socket, which can be
+     * used with ReadFile/WriteFile.  */
+    int fd = WSASocket(domain, type, protocol, NULL, 0, 0);
+    if (fd < 0) {
+        return -socket_error();
+    }
+    return fd;
+}

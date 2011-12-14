@@ -330,3 +330,27 @@ int qemu_setsockopt(int fd, int level, int opt, const void *val, socklen_t len)
     }
     return rc;
 }
+
+/*
+ * Opens a socket with FD_CLOEXEC set
+ */
+int qemu_socket(int domain, int type, int protocol)
+{
+    int ret;
+
+#ifdef SOCK_CLOEXEC
+    ret = socket(domain, type | SOCK_CLOEXEC, protocol);
+    if (ret >= 0) {
+        return ret;
+    }
+    if (errno != EINVAL) {
+        return -errno;
+    }
+#endif
+    ret = socket(domain, type, protocol);
+    if (ret < 0) {
+        return -errno;
+    }
+    qemu_set_cloexec(ret);
+    return ret;
+}

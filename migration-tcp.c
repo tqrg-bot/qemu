@@ -94,7 +94,7 @@ int tcp_start_outgoing_migration(MigrationState *s, const char *host_port)
     s->fd = qemu_socket(PF_INET, SOCK_STREAM, 0);
     if (s->fd < 0) {
         DPRINTF("Unable to open socket");
-        return -socket_error();
+        return s->fd;
     }
 
     socket_set_nonblock(s->fd);
@@ -165,7 +165,7 @@ int tcp_start_incoming_migration(const char *host_port)
 
     s = qemu_socket(PF_INET, SOCK_STREAM, 0);
     if (s < 0) {
-        return -socket_error();
+        return s;
     }
 
     val = 1;
