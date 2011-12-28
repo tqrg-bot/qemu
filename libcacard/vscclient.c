@@ -374,7 +374,7 @@ connect_to_qemu(
         return -1;
     }
 
-    if (connect(sock, server->ai_addr, server->ai_addrlen) < 0) {
+    if (qemu_connect(sock, server->ai_addr, server->ai_addrlen) < 0) {
         /* Error */
         fprintf(stderr, "Could not connect\n");
         return -1;

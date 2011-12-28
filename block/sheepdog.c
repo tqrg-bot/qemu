@@ -479,12 +479,10 @@ static int connect_to_sdog(const char *addr, const char *port)
             continue;
         }
 
-    reconnect:
-        ret = connect(fd, res->ai_addr, res->ai_addrlen);
+        do {
+            ret = qemu_connect(fd, res->ai_addr, res->ai_addrlen);
+        } while (ret == -EINTR);
         if (ret < 0) {
-            if (errno == EINTR) {
-                goto reconnect;
-            }
             break;
         }
 

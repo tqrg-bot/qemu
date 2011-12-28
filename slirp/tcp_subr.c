@@ -360,7 +360,7 @@ int tcp_fconnect(struct socket *so)
 		"addr.sin_addr.s_addr=%.16s\n",
 		ntohs(addr.sin_port), inet_ntoa(addr.sin_addr)));
     /* We don't care what port we get */
-    ret = connect(s,(struct sockaddr *)&addr,sizeof (addr));
+    ret = qemu_connect(s, (struct sockaddr *)&addr, sizeof(addr));
 
     /*
      * If it's not in progress, it failed, so we just return 0,

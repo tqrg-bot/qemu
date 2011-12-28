@@ -270,3 +270,21 @@ int qemu_listen(int fd, int backlog)
     }
     return rc;
 }
+
+int qemu_bind(int fd, const struct sockaddr *addr, socklen_t addrlen)
+{
+    int rc = bind(fd, addr, addrlen);
+    if (rc < 0) {
+        rc = -errno;
+    }
+    return rc;
+}
+
+int qemu_connect(int fd, const struct sockaddr *addr, socklen_t addrlen)
+{
+    int rc = connect(fd, addr, addrlen);
+    if (rc < 0) {
+        rc = -errno;
+    }
+    return rc;
+}

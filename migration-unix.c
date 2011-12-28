@@ -99,10 +99,7 @@ int unix_start_outgoing_migration(MigrationState *s, const char *path)
     socket_set_nonblock(s->fd);
 
     do {
-        ret = connect(s->fd, (struct sockaddr *)&addr, sizeof(addr));
-        if (ret == -1) {
-            ret = -errno;
-        }
+        ret = qemu_connect(s->fd, (struct sockaddr *)&addr, sizeof(addr));
         if (ret == -EINPROGRESS || ret == -EWOULDBLOCK) {
 	    qemu_set_fd_handler2(s->fd, NULL, NULL, unix_wait_for_connect, s);
             return 0;
@@ -171,8 +168,8 @@ int unix_start_incoming_migration(const char *path)
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
 
     unlink(addr.sun_path);
-    if (bind(s, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-        ret = -errno;
+    ret = qemu_bind(s, (struct sockaddr *) &addr, sizeof(addr));
+    if (ret < 0) {
         fprintf(stderr, "bind(unix:%s): %s\n", addr.sun_path, strerror(errno));
         goto err;
     }

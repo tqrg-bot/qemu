@@ -182,7 +182,7 @@ static int net_socket_mcast_create(struct sockaddr_in *mcastaddr, struct in_addr
         goto fail;
     }
 
-    ret = bind(fd, (struct sockaddr *)mcastaddr, sizeof(*mcastaddr));
+    ret = qemu_bind(fd, (struct sockaddr *)mcastaddr, sizeof(*mcastaddr));
     if (ret < 0) {
         perror("bind");
         goto fail;
@@ -423,7 +423,7 @@ static int net_socket_listen_init(VLANState *vlan,
     val = 1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&val, sizeof(val));
 
-    ret = bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
+    ret = qemu_bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
     if (ret < 0) {
         perror("bind");
         g_free(s);
@@ -451,7 +451,7 @@ static int net_socket_connect_init(VLANState *vlan,
                                    const char *host_str)
 {
     NetSocketState *s;
-    int fd, connected, ret, err;
+    int fd, connected, ret;
     struct sockaddr_in saddr;
 
     if (parse_host_port(&saddr, host_str) < 0)
@@ -465,26 +465,19 @@ static int net_socket_connect_init(VLANState *vlan,
     socket_set_nonblock(fd);
 
     connected = 0;
-    for(;;) {
-        ret = connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
-        if (ret < 0) {
-            err = socket_error();
-            if (err == EINTR || err == EWOULDBLOCK) {
-            } else if (err == EINPROGRESS) {
-                break;
+    do {
+        ret = qemu_connect(fd, (struct sockaddr *)&saddr, sizeof(saddr));
+    } while (ret == -EINTR);
+    if (ret >= 0) {
+        connected = 1;
+    } else if (
 #ifdef _WIN32
-            } else if (err == WSAEALREADY || err == WSAEINVAL) {
-                break;
+               ret != -WSAEALREADY && ret != -WSAEINVAL &&
 #endif
-            } else {
-                perror("connect");
-                qemu_close_socket(fd);
-                return -1;
-            }
-        } else {
-            connected = 1;
-            break;
-        }
+               ret != -EINPROGRESS && ret != -EWOULDBLOCK) {
+        perror("connect");
+        qemu_close_socket(fd);
+        return -1;
     }
     s = net_socket_fd_init(vlan, model, name, fd, connected);
     if (!s)

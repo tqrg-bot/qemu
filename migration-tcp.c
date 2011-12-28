@@ -100,10 +100,7 @@ int tcp_start_outgoing_migration(MigrationState *s, const char *host_port)
     socket_set_nonblock(s->fd);
 
     do {
-        ret = connect(s->fd, (struct sockaddr *)&addr, sizeof(addr));
-        if (ret == -1) {
-            ret = -socket_error();
-        }
+        ret = qemu_connect(s->fd, (struct sockaddr *)&addr, sizeof(addr));
         if (ret == -EINPROGRESS || ret == -EWOULDBLOCK) {
             qemu_set_fd_handler2(s->fd, NULL, NULL, tcp_wait_for_connect, s);
             return 0;
@@ -174,8 +171,8 @@ int tcp_start_incoming_migration(const char *host_port)
     val = 1;
     setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&val, sizeof(val));
 
-    if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-        ret = -socket_error();
+    ret = qemu_bind(s, (struct sockaddr *)&addr, sizeof(addr));
+    if (ret < 0) {
         goto err;
     }
     ret = qemu_listen(s, 1);

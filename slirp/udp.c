@@ -369,7 +369,7 @@ udp_listen(Slirp *slirp, uint32_t haddr, u_int hport, uint32_t laddr,
 	addr.sin_addr.s_addr = haddr;
 	addr.sin_port = hport;
 
-	if (bind(so->s,(struct sockaddr *)&addr, addrlen) < 0) {
+	if (qemu_bind(so->s, (struct sockaddr *)&addr, addrlen) < 0) {
 		udp_detach(so);
 		return NULL;
 	}

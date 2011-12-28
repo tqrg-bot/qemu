@@ -163,7 +163,8 @@ int inet_listen_opts(QemuOpts *opts, int port_offset)
         port_max = to ? to + port_offset : port_min;
         for (p = port_min; p <= port_max; p++) {
             inet_setport(e, p);
-            if (bind(slisten, e->ai_addr, e->ai_addrlen) == 0) {
+            rc = qemu_bind(slisten, e->ai_addr, e->ai_addrlen);
+            if (rc >= 0) {
                 goto listen;
             }
             if (p == port_max) {
@@ -244,7 +245,8 @@ int inet_connect_opts(QemuOpts *opts)
         setsockopt(sock,SOL_SOCKET,SO_REUSEADDR,(void*)&on,sizeof(on));
 
         /* connect to peer */
-        if (connect(sock,e->ai_addr,e->ai_addrlen) < 0) {
+        rc = qemu_connect(sock, e->ai_addr, e->ai_addrlen);
+        if (rc < 0) {
             if (NULL == e->ai_next)
                 fprintf(stderr, "%s: connect(%s,%s,%s,%s): %s\n", __FUNCTION__,
                         inet_strfamily(e->ai_family),
@@ -331,9 +333,11 @@ int inet_dgram_opts(QemuOpts *opts)
         fprintf(stderr, "%s: getnameinfo: oops\n", __FUNCTION__);
         goto err;
     }
-    if (bind(sock, local->ai_addr, local->ai_addrlen) < 0) {
-        fprintf(stderr,"%s: bind(%s,%s,%d): OK\n", __FUNCTION__,
-                inet_strfamily(local->ai_family), uaddr, inet_getport(local));
+    rc = qemu_bind(sock, local->ai_addr, local->ai_addrlen);
+    if (rc < 0) {
+        fprintf(stderr, "%s: bind(%s,%s,%d): %s\n", __FUNCTION__,
+                inet_strfamily(local->ai_family), uaddr, inet_getport(local),
+                strerror(errno));
         goto err;
     }
 
@@ -344,7 +348,8 @@ int inet_dgram_opts(QemuOpts *opts)
         fprintf(stderr, "%s: getnameinfo: oops\n", __FUNCTION__);
         goto err;
     }
-    if (connect(sock,peer->ai_addr,peer->ai_addrlen) < 0) {
+    rc = qemu_connect(sock, peer->ai_addr, peer->ai_addrlen);
+    if (rc < 0) {
         fprintf(stderr, "%s: connect(%s,%s,%s,%s): %s\n", __FUNCTION__,
                 inet_strfamily(peer->ai_family),
                 peer->ai_canonname, uaddr, uport, strerror(errno));
@@ -496,7 +501,8 @@ int unix_listen_opts(QemuOpts *opts)
     }
 
     unlink(un.sun_path);
-    if (bind(sock, (struct sockaddr*) &un, sizeof(un)) < 0) {
+    rc = qemu_bind(sock, (struct sockaddr*) &un, sizeof(un));
+    if (rc < 0) {
         fprintf(stderr, "bind(unix:%s): %s\n", un.sun_path, strerror(errno));
         goto err;
     }
@@ -517,7 +523,7 @@ int unix_connect_opts(QemuOpts *opts)
 {
     struct sockaddr_un un;
     const char *path = qemu_opt_get(opts, "path");
-    int sock;
+    int sock, rc;
 
     if (NULL == path) {
         fprintf(stderr, "unix connect: no path specified\n");
@@ -533,7 +539,8 @@ int unix_connect_opts(QemuOpts *opts)
     memset(&un, 0, sizeof(un));
     un.sun_family = AF_UNIX;
     snprintf(un.sun_path, sizeof(un.sun_path), "%s", path);
-    if (connect(sock, (struct sockaddr*) &un, sizeof(un)) < 0) {
+    rc = qemu_connect(sock, (struct sockaddr*) &un, sizeof(un));
+    if (rc < 0) {
         fprintf(stderr, "connect(unix:%s): %s\n", path, strerror(errno));
         close(sock);
 	return -1;
