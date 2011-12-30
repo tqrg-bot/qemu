@@ -229,4 +229,26 @@ void coroutine_fn co_aio_sleep_ns(AioContext *ctx, QEMUClockType type,
  */
 void coroutine_fn yield_until_fd_readable(int fd);
 
+/*
+ * Return whether qemu_coroutine_cancel has been called on this coroutine.
+ */
+bool qemu_coroutine_canceled(void);
+
+/*
+ * Mark @co as cancelled and call cancellation notifiers.
+ */
+void qemu_coroutine_cancel(Coroutine *co);
+
+/*
+ * Register @notify to be called on cancellation of the current coroutine.
+ * The notifier will be called in the context of the caller of
+ * qemu_coroutine_cancel---which may not be coroutine context at all.
+ */
+void qemu_coroutine_add_cancel_notifier(Notifier *notify);
+
+/*
+ * Do not call the notifier anymore if the coroutine is cancelled.
+ */
+void qemu_coroutine_remove_cancel_notifier(Notifier *notify);
+
 #endif /* QEMU_COROUTINE_H */

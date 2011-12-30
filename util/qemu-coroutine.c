@@ -76,6 +76,8 @@ Coroutine *qemu_coroutine_create(CoroutineEntry *entry)
     }
 
     co->entry = entry;
+    co->canceled = false;
+    notifier_list_init(&co->cancel_notifiers);
     QTAILQ_INIT(&co->co_queue_wakeup);
     return co;
 }
@@ -144,4 +146,32 @@ void coroutine_fn qemu_coroutine_yield(void)
 
     self->caller = NULL;
     qemu_coroutine_switch(self, to, COROUTINE_YIELD);
+}
+
+bool qemu_coroutine_canceled(void)
+{
+    Coroutine *self = qemu_coroutine_self();
+
+    return self->canceled;
+}
+
+void qemu_coroutine_cancel(Coroutine *co)
+{
+    if (!atomic_xchg(&co->canceled, true)) {
+        return;
+    }
+    notifier_list_notify(&co->cancel_notifiers, co);
+}
+
+void qemu_coroutine_add_cancel_notifier(Notifier *n)
+{
+    Coroutine *self = qemu_coroutine_self();
+
+    assert(qemu_in_coroutine());
+    notifier_list_add(&self->cancel_notifiers, n);
+}
+
+void qemu_coroutine_remove_cancel_notifier(Notifier *n)
+{
+    notifier_remove(n);
 }
