@@ -857,13 +857,22 @@ BlockAIOCB *blk_abort_aio_request(BlockBackend *blk,
 
 typedef struct BlkAioEmAIOCB {
     BlockAIOCB common;
+    Coroutine *co;
     BlkRwCo rwco;
     bool has_returned;
     QEMUBH* bh;
 } BlkAioEmAIOCB;
 
+static void blk_co_cancel_async(BlockAIOCB *acb)
+{
+    BlkAioEmAIOCB *aiocb = (BlkAioEmAIOCB *) acb;
+
+    qemu_coroutine_cancel(aiocb->co);
+}
+
 static const AIOCBInfo blk_aio_em_aiocb_info = {
     .aiocb_size         = sizeof(BlkAioEmAIOCB),
+    .cancel_async       = blk_co_cancel_async,
 };
 
 static void blk_aio_complete(BlkAioEmAIOCB *acb)
@@ -889,7 +898,6 @@ static BlockAIOCB *blk_aio_prwv(BlockBackend *blk, int64_t offset,
                                 BlockCompletionFunc *cb, void *opaque)
 {
     BlkAioEmAIOCB *acb;
-    Coroutine *co;
 
     acb = blk_aio_get(&blk_aio_em_aiocb_info, blk, cb, opaque);
     acb->rwco = (BlkRwCo) {
@@ -902,8 +910,8 @@ static BlockAIOCB *blk_aio_prwv(BlockBackend *blk, int64_t offset,
     acb->bh = NULL;
     acb->has_returned = false;
 
-    co = qemu_coroutine_create(co_entry);
-    qemu_coroutine_enter(co, acb);
+    acb->co = qemu_coroutine_create(co_entry);
+    qemu_coroutine_enter(acb->co, acb);
 
     acb->has_returned = true;
     if (acb->rwco.ret != NOT_DONE) {
