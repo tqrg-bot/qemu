@@ -54,7 +54,7 @@ typedef struct {
     Coroutine base;
     void *stack;
     jmp_buf env;
-} CoroutineUContext;
+} CoroutineImpl;
 
 /**
  * Per-thread coroutine bookkeeping
@@ -64,7 +64,7 @@ typedef struct {
     Coroutine *current;
 
     /** The default coroutine */
-    CoroutineUContext leader;
+    CoroutineImpl leader;
 } CoroutineThreadState;
 
 static pthread_key_t thread_state_key;
@@ -94,7 +94,7 @@ static void __attribute__((destructor)) coroutine_cleanup(void)
     Coroutine *tmp;
 
     QLIST_FOREACH_SAFE(co, &pool, pool_next, tmp) {
-        g_free(DO_UPCAST(CoroutineUContext, base, co)->stack);
+        g_free(DO_UPCAST(CoroutineImpl, base, co)->stack);
         g_free(co);
     }
 }
@@ -103,7 +103,7 @@ static void coroutine_trampoline(void)
 {
     CoroutineThreadState *s = coroutine_get_thread_state();
     Coroutine *co = s->current;
-    CoroutineUContext *self = DO_UPCAST(CoroutineUContext, base, co);
+    CoroutineImpl *self = DO_UPCAST(CoroutineImpl, base, co);
 
     /* Initialize longjmp environment and switch back the caller */
     if (!setjmp(self->env)) {
@@ -143,7 +143,7 @@ static Coroutine *coroutine_new(void)
     const size_t stack_size = 1 << 20;
     CoroutineThreadState *s = coroutine_get_thread_state();
     Coroutine *current;
-    CoroutineUContext *co;
+    CoroutineImpl *co;
     sigjmp_buf old_env;
 
     stack_t ss, oss;
@@ -207,7 +207,7 @@ Coroutine *qemu_coroutine_new(void)
 
 void qemu_coroutine_delete(Coroutine *co_)
 {
-    CoroutineUContext *co = DO_UPCAST(CoroutineUContext, base, co_);
+    CoroutineImpl *co = DO_UPCAST(CoroutineImpl, base, co_);
 
     if (pool_size < POOL_MAX_SIZE) {
         QLIST_INSERT_HEAD(&pool, &co->base, pool_next);
@@ -223,8 +223,8 @@ void qemu_coroutine_delete(Coroutine *co_)
 CoroutineAction qemu_coroutine_switch(Coroutine *from_, Coroutine *to_,
                                       CoroutineAction action)
 {
-    CoroutineUContext *from = DO_UPCAST(CoroutineUContext, base, from_);
-    CoroutineUContext *to = DO_UPCAST(CoroutineUContext, base, to_);
+    CoroutineImpl *from = DO_UPCAST(CoroutineImpl, base, from_);
+    CoroutineImpl *to = DO_UPCAST(CoroutineImpl, base, to_);
     CoroutineThreadState *s = coroutine_get_thread_state();
     int ret;
 

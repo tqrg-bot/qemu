@@ -2714,17 +2714,12 @@ EOF
 fi
 
 ##########################################
-# check if we have makecontext
+# sigaltstack tricks do not work on OpenBSD.  Play it safe.
 
-ucontext_coroutine=no
-if test "$darwin" != "yes"; then
-  cat > $TMPC << EOF
-#include <ucontext.h>
-int main(void) { makecontext(0, 0, 0); return 0; }
-EOF
-  if compile_prog "" "" ; then
-      ucontext_coroutine=yes
-  fi
+if [ "$darwin" = "yes" -o "$bsd" = "yes" ] ; then
+  coroutine_sigaltstack=no
+else
+  coroutine_sigaltstack=yes
 fi
 
 ##########################################
@@ -3237,8 +3232,8 @@ if test "$rbd" = "yes" ; then
   echo "CONFIG_RBD=y" >> $config_host_mak
 fi
 
-if test "$ucontext_coroutine" = "yes" ; then
-  echo "CONFIG_UCONTEXT_COROUTINE=y" >> $config_host_mak
+if test "$coroutine_sigaltstack" = "yes" ; then
+  echo "CONFIG_COROUTINE_SIGALTSTACK=y" >> $config_host_mak
 fi
 
 if test "$open_by_handle_at" = "yes" ; then
