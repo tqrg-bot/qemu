@@ -311,10 +311,8 @@ static void piix4_reset(void *opaque)
 static void piix4_powerdown(void *opaque, int irq, int power_failing)
 {
     PIIX4PMState *s = opaque;
-    ACPIPM1EVT *pm1a = s? &s->pm1a: NULL;
-    ACPIPMTimer *tmr = s? &s->tmr: NULL;
 
-    acpi_pm1_evt_power_down(pm1a, tmr);
+    acpi_pm1_evt_power_down(&s->pm1a, &s->tmr);
 }
 
 static void piix4_pm_machine_ready(Notifier *n, void *opaque)
