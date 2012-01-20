@@ -45,6 +45,8 @@
 #define PCI_RMV_BASE 0xae0c
 
 #define PIIX4_PCI_HOTPLUG_STATUS 2
+#define PIIX4_SCI_IRQ 0
+#define PIIX4_SMI_IRQ 1
 
 struct pci_status {
     uint32_t up;
@@ -64,8 +66,7 @@ typedef struct PIIX4PMState {
     PMSMBus smb;
     uint32_t smb_io_base;
 
-    qemu_irq irq;
-    qemu_irq smi_irq;
+    qemu_irq irq[2];
     uint32_t smm;
     Notifier machine_ready;
 
@@ -92,7 +93,7 @@ static void pm_update_sci(PIIX4PMState *s)
                    ACPI_BITMASK_TIMER_ENABLE)) != 0) ||
         (((s->gpe.sts[0] & s->gpe.en[0]) & PIIX4_PCI_HOTPLUG_STATUS) != 0);
 
-    qemu_set_irq(s->irq, sci_level);
+    qemu_set_irq(s->irq[PIIX4_SCI_IRQ], sci_level);
     /* schedule a timer interruption if needed */
     acpi_pm_tmr_update(&s->tmr, (s->pm1a.en & ACPI_BITMASK_TIMER_ENABLE) &&
                        !(pmsts & ACPI_BITMASK_TIMER_STATUS));
@@ -173,8 +174,8 @@ static void apm_ctrl_changed(uint32_t val, void *arg)
     acpi_pm1_cnt_update(&s->pm1_cnt, val == ACPI_ENABLE, val == ACPI_DISABLE);
 
     if (s->dev.config[0x5b] & (1 << 1)) {
-        if (s->smi_irq) {
-            qemu_irq_raise(s->smi_irq);
+        if (s->irq[PIIX4_SMI_IRQ]) {
+            qemu_irq_raise(s->irq[PIIX4_SMI_IRQ]);
         }
     }
 }
@@ -364,7 +365,8 @@ static int piix4_pm_initfn(PCIDevice *dev)
     acpi_pm_tmr_init(&s->tmr, pm_tmr_timer);
     acpi_gpe_init(&s->gpe, GPE_LEN);
 
-    qemu_system_powerdown = *qemu_allocate_irqs(piix4_powerdown, s, 1);
+    qdev_init_gpio_in(&s->dev.qdev, piix4_powerdown, 1);
+    qdev_init_gpio_out(&s->dev.qdev, s->irq, 2);
 
     pm_smbus_init(&s->dev.qdev, &s->smb);
     s->machine_ready.notify = piix4_pm_machine_ready;
@@ -387,11 +389,12 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
     qdev_prop_set_uint32(&dev->qdev, "smm", !kvm_enabled);
 
     s = DO_UPCAST(PIIX4PMState, dev, dev);
-    s->irq = sci_irq;
     acpi_pm1_cnt_init(&s->pm1_cnt, cmos_s3);
-    s->smi_irq = smi_irq;
 
     qdev_init_nofail(&dev->qdev);
+    qdev_connect_gpio_out(&dev->qdev, PIIX4_SCI_IRQ, sci_irq);
+    qdev_connect_gpio_out(&dev->qdev, PIIX4_SMI_IRQ, smi_irq);
+    qemu_system_powerdown = qdev_get_gpio_in(&s->dev.qdev, 0);
 
     return s->smb.smbus;
 }
