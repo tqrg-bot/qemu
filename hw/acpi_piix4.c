@@ -66,7 +66,7 @@ typedef struct PIIX4PMState {
 
     qemu_irq irq;
     qemu_irq smi_irq;
-    int kvm_enabled;
+    uint32_t smm;
     Notifier machine_ready;
 
     /* for pci hotplug */
@@ -300,7 +300,7 @@ static void piix4_reset(void *opaque)
     pci_conf[0x5a] = 0;
     pci_conf[0x5b] = 0;
 
-    if (s->kvm_enabled) {
+    if (!s->smm) {
         /* Mark SMM as already inited (until KVM supports SMM). */
         pci_conf[0x5B] = 0x02;
     }
@@ -347,7 +347,7 @@ static int piix4_pm_initfn(PCIDevice *dev)
 
     register_ioport_write(ACPI_DBG_IO_ADDR, 4, 4, acpi_dbg_writel, s);
 
-    if (s->kvm_enabled) {
+    if (!s->smm) {
         /* Mark SMM as already inited to prevent SMM from running.  KVM does not
          * support SMM mode. */
         pci_conf[0x5B] = 0x02;
@@ -384,12 +384,12 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
 
     dev = pci_create(bus, devfn, "PIIX4_PM");
     qdev_prop_set_uint32(&dev->qdev, "smb_io_base", smb_io_base);
+    qdev_prop_set_uint32(&dev->qdev, "smm", !kvm_enabled);
 
     s = DO_UPCAST(PIIX4PMState, dev, dev);
     s->irq = sci_irq;
     acpi_pm1_cnt_init(&s->pm1_cnt, cmos_s3);
     s->smi_irq = smi_irq;
-    s->kvm_enabled = kvm_enabled;
 
     qdev_init_nofail(&dev->qdev);
 
@@ -398,6 +398,7 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
 
 static Property piix4_pm_properties[] = {
     DEFINE_PROP_UINT32("smb_io_base", PIIX4PMState, smb_io_base, 0),
+    DEFINE_PROP_BIT("smm", PIIX4PMState, smm, 0, true),
     DEFINE_PROP_END_OF_LIST(),
 };
 
