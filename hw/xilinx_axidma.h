@@ -1,39 +1,33 @@
+#ifndef XILINX_AXIDMA_H
+#define XILINX_AXIDMA_H 1
+
 /* AXI DMA connection. Used until qdev provides a generic way.  */
-typedef void (*DMAPushFn)(void *opaque,
-                            unsigned char *buf, size_t len, uint32_t *app);
+#define TYPE_XILINX_AXIDMA_PEER "xilinx-axidma-peer"
 
-struct XilinxDMAConnection {
-    void *dma;
-    void *client;
+#define XILINX_AXIDMA_PEER_IFACE(klass) \
+     OBJECT_CLASS_CHECK(XilinxAXIDMAPeerIface, klass, TYPE_XILINX_AXIDMA_PEER)
 
-    DMAPushFn to_dma;
-    DMAPushFn to_client;
+/* This is usually done implicitly by object_set_link_property.  */
+#define XILINX_AXIDMA_PEER(obj) \
+     OBJECT_CHECK(XilinxAXIDMAPeer, obj, TYPE_XILINX_AXIDMA_PEER)
+
+typedef Interface XilinxAXIDMAPeer;
+typedef struct XilinxAXIDMAPeerIface XilinxAXIDMAPeerIface;
+
+struct XilinxAXIDMAPeerIface {
+    InterfaceClass parent;
+
+    void (*push)(Object *obj, unsigned char *buf, size_t len, uint32_t *app);
 };
 
-static inline void xlx_dma_connect_client(struct XilinxDMAConnection *dmach,
-                                          void *c, DMAPushFn f)
-{
-    dmach->client = c;
-    dmach->to_client = f;
-}
-
-static inline void xlx_dma_connect_dma(struct XilinxDMAConnection *dmach,
-                                       void *d, DMAPushFn f)
-{
-    dmach->dma = d;
-    dmach->to_dma = f;
-}
-
 static inline
-void xlx_dma_push_to_dma(struct XilinxDMAConnection *dmach,
-                         uint8_t *buf, size_t len, uint32_t *app)
+void xlx_dma_push(XilinxAXIDMAPeer *peer,
+                  uint8_t *buf, size_t len, uint32_t *app)
 {
-    dmach->to_dma(dmach->dma, buf, len, app);
-}
-static inline
-void xlx_dma_push_to_client(struct XilinxDMAConnection *dmach,
-                            uint8_t *buf, size_t len, uint32_t *app)
-{
-    dmach->to_client(dmach->client, buf, len, app);
+    XilinxAXIDMAPeerIface *iface = container_of(INTERFACE_GET_CLASS(peer),
+                                                XilinxAXIDMAPeerIface,
+                                                parent);
+    iface->push(INTERFACE_OBJECT(peer), buf, len, app);
 }
 
+#endif

@@ -94,7 +94,7 @@ struct XilinxAXIDMA {
     SysBusDevice busdev;
     MemoryRegion iomem;
     uint32_t freqhz;
-    void *dmach;
+    XilinxAXIDMAPeer *peer;
 
     struct AXIStream streams[2];
 };
@@ -241,7 +241,7 @@ static void stream_complete(struct AXIStream *s)
 }
 
 static void stream_process_mem2s(struct AXIStream *s,
-                                 struct XilinxDMAConnection *dmach)
+                                 XilinxAXIDMAPeer *peer)
 {
     uint32_t prev_d;
     unsigned char txbuf[16 * 1024];
@@ -276,7 +276,7 @@ static void stream_process_mem2s(struct AXIStream *s,
         s->pos += txlen;
 
         if (stream_desc_eof(&s->desc)) {
-            xlx_dma_push_to_client(dmach, txbuf, s->pos, app);
+            xlx_dma_push(peer, txbuf, s->pos, app);
             s->pos = 0;
             stream_complete(s);
         }
@@ -352,9 +352,9 @@ static void stream_process_s2mem(struct AXIStream *s,
 }
 
 static
-void axidma_push(void *opaque, unsigned char *buf, size_t len, uint32_t *app)
+void axidma_push(Object *obj, unsigned char *buf, size_t len, uint32_t *app)
 {
-    struct XilinxAXIDMA *d = opaque;
+    struct XilinxAXIDMA *d = FROM_SYSBUS(typeof(*d), SYS_BUS_DEVICE(obj));
     struct AXIStream *s = &d->streams[1];
 
     if (!app) {
@@ -440,7 +440,7 @@ static void axidma_write(void *opaque, target_phys_addr_t addr,
             s->regs[addr] = value;
             s->regs[R_DMASR] &= ~DMASR_IDLE; /* Not idle.  */
             if (!sid) {
-                stream_process_mem2s(s, d->dmach);
+                stream_process_mem2s(s, d->peer);
             }
             break;
         default:
@@ -466,12 +466,6 @@ static int xilinx_axidma_init(SysBusDevice *dev)
     sysbus_init_irq(dev, &s->streams[1].irq);
     sysbus_init_irq(dev, &s->streams[0].irq);
 
-    if (!s->dmach) {
-        hw_error("Unconnected DMA channel.\n");
-    }
-
-    xlx_dma_connect_dma(s->dmach, s, axidma_push);
-
     memory_region_init_io(&s->iomem, &axidma_ops, s,
                           "axidma", R_MAX * 4 * 2);
     sysbus_init_mmio(dev, &s->iomem);
@@ -486,9 +480,23 @@ static int xilinx_axidma_init(SysBusDevice *dev)
     return 0;
 }
 
+static void xilinx_axidma_initfn(Object *obj)
+{
+    struct XilinxAXIDMA *s = FROM_SYSBUS(typeof(*s), SYS_BUS_DEVICE(obj));
+
+    object_property_add_link(obj, "peer", TYPE_XILINX_AXIDMA_PEER, 
+                             (Object **) &s->peer, NULL);
+}
+
+static void xilinx_axidma_peer_initfn(ObjectClass *klass, void *data)
+{
+    XilinxAXIDMAPeerIface *k = XILINX_AXIDMA_PEER_IFACE(klass);
+
+    k->push = axidma_push;
+}
+
 static Property axidma_properties[] = {
     DEFINE_PROP_UINT32("freqhz", struct XilinxAXIDMA, freqhz, 50000000),
-    DEFINE_PROP_PTR("dmach", struct XilinxAXIDMA, dmach),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -506,6 +514,11 @@ static TypeInfo axidma_info = {
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(struct XilinxAXIDMA),
     .class_init    = axidma_class_init,
+    .instance_init = xilinx_axidma_initfn,
+    .interfaces = (InterfaceInfo[]) {
+	    { TYPE_XILINX_AXIDMA_PEER, xilinx_axidma_peer_initfn },
+	    { }
+    }
 };
 
 static void xilinx_axidma_register(void)

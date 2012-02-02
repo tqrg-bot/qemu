@@ -193,15 +193,14 @@ petalogix_ml605_init(ram_addr_t ram_size,
     /* 2 timers at irq 2 @ 100 Mhz.  */
     xilinx_timer_create(TIMER_BASEADDR, irq[2], 2, 100 * 1000000);
 
-    /* axi ethernet and dma initialization. TODO: Dynamically connect them.  */
-    {
-        static struct XilinxDMAConnection dmach;
+    /* axi ethernet and dma initialization. */
+    DeviceState *dma = qdev_create(NULL, "xilinx-axidma");
+    DeviceState *eth0;
 
-        xilinx_axiethernet_create(&dmach, &nd_table[0], 0x82780000,
-                                  irq[3], 0x1000, 0x1000);
-        xilinx_axiethernetdma_create(&dmach, 0x84600000,
-                                     irq[1], irq[0], 100 * 1000000);
-    }
+    eth0 = xilinx_axiethernet_create(&nd_table[0], XILINX_AXIDMA_PEER(dma),
+                                     0x82780000, irq[3], 0x1000, 0x1000);
+    xilinx_axiethernetdma_init(dma, XILINX_AXIDMA_PEER(eth0),
+                               0x84600000, irq[1], irq[0], 100 * 1000000);
 
     if (kernel_filename) {
         uint64_t entry, low, high;

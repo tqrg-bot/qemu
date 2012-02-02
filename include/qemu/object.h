@@ -454,7 +454,7 @@ typedef struct Interface
  * which actually may fail.
  */
 #define INTERFACE_GET_CLASS(iface_obj) \
-    INTERFACE_CLASS(object_get_class((iface_obj)->iface_parent))
+    INTERFACE_CLASS(object_get_class(&(iface_obj)->iface_parent))
 
 /**
  * INTERFACE_IFACE_CHECK:
