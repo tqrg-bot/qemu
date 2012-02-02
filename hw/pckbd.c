@@ -433,12 +433,14 @@ typedef struct ISAKBDState {
     MemoryRegion io[2];
 } ISAKBDState;
 
-void i8042_isa_mouse_fake_event(void *opaque)
+static void i8042_isa_mouse_fake_event(void *opaque, int n, int level)
 {
     ISADevice *dev = opaque;
     KBDState *s = &(DO_UPCAST(ISAKBDState, dev, dev)->kbd);
 
-    ps2_mouse_fake_event(s->mouse);
+    if (level) {
+        ps2_mouse_fake_event(s->mouse);
+    }
 }
 
 void i8042_setup_a20_line(ISADevice *dev, qemu_irq *a20_out)
@@ -482,6 +484,7 @@ static int i8042_initfn(ISADevice *dev)
     ISAKBDState *isa_s = DO_UPCAST(ISAKBDState, dev, dev);
     KBDState *s = &isa_s->kbd;
 
+    qdev_init_gpio_in(DEVICE(dev), i8042_isa_mouse_fake_event, 1);
     isa_init_irq(dev, &s->irq_kbd, 1);
     isa_init_irq(dev, &s->irq_mouse, 12);
 

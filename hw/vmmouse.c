@@ -60,7 +60,7 @@ typedef struct _VMMouseState
     uint16_t status;
     uint8_t absolute;
     QEMUPutMouseEntry *entry;
-    void *ps2_mouse;
+    qemu_irq ps2_mouse_event;
 } VMMouseState;
 
 static uint32_t vmmouse_get_status(VMMouseState *s)
@@ -99,7 +99,7 @@ static void vmmouse_mouse_event(void *opaque, int x, int y, int dz, int buttons_
 
     /* need to still generate PS2 events to notify driver to
        read from queue */
-    i8042_isa_mouse_fake_event(s->ps2_mouse);
+    qemu_set_irq(s->ps2_mouse_event, 1);
 }
 
 static void vmmouse_remove_handler(VMMouseState *s)
@@ -264,17 +264,13 @@ static int vmmouse_initfn(ISADevice *dev)
 
     DPRINTF("vmmouse_init\n");
 
+    qdev_init_gpio_out(DEVICE(dev), &s->ps2_mouse_event, 1);
     vmport_register(VMMOUSE_STATUS, vmmouse_ioport_read, s);
     vmport_register(VMMOUSE_COMMAND, vmmouse_ioport_read, s);
     vmport_register(VMMOUSE_DATA, vmmouse_ioport_read, s);
 
     return 0;
 }
-
-static Property vmmouse_properties[] = {
-    DEFINE_PROP_PTR("ps2_mouse", VMMouseState, ps2_mouse),
-    DEFINE_PROP_END_OF_LIST(),
-};
 
 static void vmmouse_class_initfn(ObjectClass *klass, void *data)
 {
@@ -284,7 +280,6 @@ static void vmmouse_class_initfn(ObjectClass *klass, void *data)
     dc->no_user = 1;
     dc->reset = vmmouse_reset;
     dc->vmsd = &vmstate_vmmouse;
-    dc->props = vmmouse_properties;
 }
 
 static TypeInfo vmmouse_info = {
