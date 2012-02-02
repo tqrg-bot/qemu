@@ -2282,8 +2282,8 @@ struct omap_mpu_state_s *omap2420_mpu_init(MemoryRegion *sysmem,
     cpu_irq = arm_pic_init_cpu(s->env);
     s->ih[0] = qdev_create(NULL, "omap2-intc");
     qdev_prop_set_uint8(s->ih[0], "revision", 0x21);
-    qdev_prop_set_ptr(s->ih[0], "fclk", omap_findclk(s, "mpu_intc_fclk"));
-    qdev_prop_set_ptr(s->ih[0], "iclk", omap_findclk(s, "mpu_intc_iclk"));
+    omap_prop_set_clk(s, s->ih[0], "fclk", "mpu_intc_fclk");
+    omap_prop_set_clk(s, s->ih[0], "iclk", "mpu_intc_iclk");
     qdev_init_nofail(s->ih[0]);
     busdev = sysbus_from_qdev(s->ih[0]);
     sysbus_connect_irq(busdev, 0, cpu_irq[ARM_PIC_CPU_IRQ]);
@@ -2408,13 +2408,13 @@ struct omap_mpu_state_s *omap2420_mpu_init(MemoryRegion *sysmem,
 
     s->gpio = qdev_create(NULL, "omap2-gpio");
     qdev_prop_set_int32(s->gpio, "mpu_model", s->mpu_model);
-    qdev_prop_set_ptr(s->gpio, "iclk", omap_findclk(s, "gpio_iclk"));
-    qdev_prop_set_ptr(s->gpio, "fclk0", omap_findclk(s, "gpio1_dbclk"));
-    qdev_prop_set_ptr(s->gpio, "fclk1", omap_findclk(s, "gpio2_dbclk"));
-    qdev_prop_set_ptr(s->gpio, "fclk2", omap_findclk(s, "gpio3_dbclk"));
-    qdev_prop_set_ptr(s->gpio, "fclk3", omap_findclk(s, "gpio4_dbclk"));
+    omap_prop_set_clk(s, s->gpio, "iclk", "gpio_iclk");
+    omap_prop_set_clk(s, s->gpio, "fclk0", "gpio1_dbclk");
+    omap_prop_set_clk(s, s->gpio, "fclk1", "gpio2_dbclk");
+    omap_prop_set_clk(s, s->gpio, "fclk2", "gpio3_dbclk");
+    omap_prop_set_clk(s, s->gpio, "fclk3", "gpio4_dbclk");
     if (s->mpu_model == omap2430) {
-        qdev_prop_set_ptr(s->gpio, "fclk4", omap_findclk(s, "gpio5_dbclk"));
+        omap_prop_set_clk(s, s->gpio, "fclk4", "gpio5_dbclk");
     }
     qdev_init_nofail(s->gpio);
     busdev = sysbus_from_qdev(s->gpio);

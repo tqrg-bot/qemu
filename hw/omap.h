@@ -49,6 +49,8 @@
 # define OMAP_CS3_SIZE		0x04000000
 
 /* omap_clk.c */
+#define TYPE_OMAP_CLK "omap-clk"
+
 struct omap_mpu_state_s;
 typedef struct clk *omap_clk;
 omap_clk omap_findclk(struct omap_mpu_state_s *mpu, const char *name);
@@ -61,6 +63,8 @@ void omap_clk_canidle(omap_clk clk, int can);
 void omap_clk_setrate(omap_clk clk, int divide, int multiply);
 int64_t omap_clk_getrate(omap_clk clk);
 void omap_clk_reparent(omap_clk clk, omap_clk parent);
+void omap_prop_set_clk(struct omap_mpu_state_s *s, DeviceState *dev,
+                       const char *name, const char *clk);
 
 /* OMAP2 l4 Interconnect */
 struct omap_l4_s;

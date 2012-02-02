@@ -3856,7 +3856,7 @@ struct omap_mpu_state_s *omap310_mpu_init(MemoryRegion *system_memory,
     cpu_irq = arm_pic_init_cpu(s->env);
     s->ih[0] = qdev_create(NULL, "omap-intc");
     qdev_prop_set_uint32(s->ih[0], "size", 0x100);
-    qdev_prop_set_ptr(s->ih[0], "clk", omap_findclk(s, "arminth_ck"));
+    omap_prop_set_clk(s, s->ih[0], "clk", "arminth_ck");
     qdev_init_nofail(s->ih[0]);
     busdev = sysbus_from_qdev(s->ih[0]);
     sysbus_connect_irq(busdev, 0, cpu_irq[ARM_PIC_CPU_IRQ]);
@@ -3864,7 +3864,7 @@ struct omap_mpu_state_s *omap310_mpu_init(MemoryRegion *system_memory,
     sysbus_mmio_map(busdev, 0, 0xfffecb00);
     s->ih[1] = qdev_create(NULL, "omap-intc");
     qdev_prop_set_uint32(s->ih[1], "size", 0x800);
-    qdev_prop_set_ptr(s->ih[1], "clk", omap_findclk(s, "arminth_ck"));
+    omap_prop_set_clk(s, s->ih[1], "clk", "arminth_ck");
     qdev_init_nofail(s->ih[1]);
     busdev = sysbus_from_qdev(s->ih[1]);
     sysbus_connect_irq(busdev, 0,
@@ -3977,7 +3977,7 @@ struct omap_mpu_state_s *omap310_mpu_init(MemoryRegion *system_memory,
 
     s->gpio = qdev_create(NULL, "omap-gpio");
     qdev_prop_set_int32(s->gpio, "mpu_model", s->mpu_model);
-    qdev_prop_set_ptr(s->gpio, "clk", omap_findclk(s, "arm_gpio_ck"));
+    omap_prop_set_clk(s, s->gpio, "clk", "arm_gpio_ck");
     qdev_init_nofail(s->gpio);
     sysbus_connect_irq(sysbus_from_qdev(s->gpio), 0,
                        qdev_get_gpio_in(s->ih[0], OMAP_INT_GPIO_BANK1));
