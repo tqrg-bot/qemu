@@ -27,10 +27,11 @@
 #include "smbus.h"
 
 //#define DEBUG
+#define SMBUS_EEPROM_SIZE 256
 
 typedef struct SMBusEEPROMDevice {
     SMBusDevice smbusdev;
-    void *data;
+    uint8_t data[SMBUS_EEPROM_SIZE];
     uint8_t offset;
 } SMBusEEPROMDevice;
 
@@ -54,8 +55,7 @@ static void eeprom_send_byte(SMBusDevice *dev, uint8_t val)
 static uint8_t eeprom_receive_byte(SMBusDevice *dev)
 {
     SMBusEEPROMDevice *eeprom = (SMBusEEPROMDevice *) dev;
-    uint8_t *data = eeprom->data;
-    uint8_t val = data[eeprom->offset++];
+    uint8_t val = eeprom->data[eeprom->offset++];
 #ifdef DEBUG
     printf("eeprom_receive_byte: addr=0x%02x val=0x%02x\n",
            dev->i2c.address, val);
@@ -75,8 +75,8 @@ static void eeprom_write_data(SMBusDevice *dev, uint8_t cmd, uint8_t *buf, int l
        It is a block write without a length byte.  Fortunately we
        get the full block anyway.  */
     /* TODO: Should this set the current location?  */
-    if (cmd + len > 256)
-        n = 256 - cmd;
+    if (cmd + len > SMBUS_EEPROM_SIZE)
+        n = SMBUS_EEPROM_SIZE - cmd;
     else
         n = len;
     memcpy(eeprom->data + cmd, buf, n);
@@ -104,14 +104,8 @@ static int smbus_eeprom_initfn(SMBusDevice *dev)
     return 0;
 }
 
-static Property smbus_eeprom_properties[] = {
-    DEFINE_PROP_PTR("data", SMBusEEPROMDevice, data),
-    DEFINE_PROP_END_OF_LIST(),
-};
-
 static void smbus_eeprom_class_initfn(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
     SMBusDeviceClass *sc = SMBUS_DEVICE_CLASS(klass);
 
     sc->init = smbus_eeprom_initfn;
@@ -120,7 +114,6 @@ static void smbus_eeprom_class_initfn(ObjectClass *klass, void *data)
     sc->receive_byte = eeprom_receive_byte;
     sc->write_data = eeprom_write_data;
     sc->read_data = eeprom_read_data;
-    dc->props = smbus_eeprom_properties;
 }
 
 static TypeInfo smbus_eeprom_info = {
@@ -141,16 +134,26 @@ void smbus_eeprom_init(i2c_bus *smbus, int nb_eeprom,
                        const uint8_t *eeprom_spd, int eeprom_spd_size)
 {
     int i;
-    uint8_t *eeprom_buf = g_malloc0(8 * 256); /* XXX: make this persistent */
-    if (eeprom_spd_size > 0) {
-        memcpy(eeprom_buf, eeprom_spd, eeprom_spd_size);
-    }
 
     for (i = 0; i < nb_eeprom; i++) {
         DeviceState *eeprom;
+        int address = 0x50 + i;
+
         eeprom = qdev_create((BusState *)smbus, "smbus-eeprom");
-        qdev_prop_set_uint8(eeprom, "address", 0x50 + i);
-        qdev_prop_set_ptr(eeprom, "data", eeprom_buf + (i * 256));
+        qdev_prop_set_uint8(eeprom, "address", address);
         qdev_init_nofail(eeprom);
+
+        if (eeprom_spd_size > 0) {
+            int len = MIN(eeprom_spd_size, SMBUS_EEPROM_SIZE);
+            int offset = 0;
+            while (len > 0) {
+                int xfer_len = MIN(len, 32);
+                smbus_write_block(smbus, address, offset, eeprom_spd, xfer_len);
+                len -= xfer_len;
+                eeprom_spd_size -= xfer_len;
+                eeprom_spd += xfer_len;
+                offset += xfer_len;
+            }
+        }
     }
 }

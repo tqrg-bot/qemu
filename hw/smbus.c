@@ -295,8 +295,8 @@ int smbus_read_block(i2c_bus *bus, uint8_t addr, uint8_t command, uint8_t *data)
     return len;
 }
 
-void smbus_write_block(i2c_bus *bus, uint8_t addr, uint8_t command, uint8_t *data,
-                       int len)
+void smbus_write_block(i2c_bus *bus, uint8_t addr, uint8_t command,
+                       const uint8_t *data, int len)
 {
     int i;
 
