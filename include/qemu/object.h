@@ -186,6 +186,40 @@ typedef struct InterfaceInfo InterfaceInfo;
  * similar to normal types except for the fact that are only defined by
  * their classes and never carry any state.  You can dynamically cast an object
  * to one of its #Interface types and vice versa.
+ *
+ * Interfaces are special in that a cast from or to an interface type returns
+ * a different object pointer than what you pass.  Interface methods typically
+ * pass the whole object as the first argument, rather than the interface.
+ *
+ * <example>
+ *   <title>Defining an interface</title>
+ *   <programlisting>
+ * // An interface has the same basic pieces as a class.
+ * #define TYPE_DMA_PEER "dma-peer"
+ * typedef Interface DMAPeer;
+ * typedef struct DMAPeerIface DMAPeerIface;
+ * struct DMAPeerIface {
+ *     InterfaceClass parent;
+ *     void (*push)(Object *obj, int channel, uint8_t *buf, size_t len);
+ * };
+ *
+ * // Interfaces also define utility macros for casting.
+ * #define DMA_PEER_GET_IFACE(obj) \
+ *    INTERFACE_GET_IFACE(DMAPeerIface, obj, TYPE_DMA_PEER)
+ * #define DMA_PEER_IFACE(klass) \
+ *    INTERFACE_IFACE_CHECK(DMAPeerIface, klass, TYPE_DMA_PEER)
+ * #define DMA_PEER(obj) \
+ *    INTERFACE_CHECK(obj, TYPE_DMA_PEER)
+ *
+ * // This is the wrapper that calls the method.
+ * void dma_push(DMAPeer *peer, int channel, uint8_t *buf, size_t len)
+ * {
+ *     DMAPeerIface *iface = DMA_PEER_GET_IFACE(peer);
+ *
+ *     peer->push(INTERFACE_OBJECT(peer), channel, buf, len);
+ * }
+ *    </programlisting>
+ *  </example>
  */
 
 
@@ -391,6 +425,82 @@ struct InterfaceClass
 {
     ObjectClass parent_class;
 };
+
+typedef struct Interface
+{
+    Object iface_parent;
+    Object *iface_obj;
+} Interface;
+
+/**
+ * INTERFACE_CLASS:
+ * @class: A derivative of #InterfaceClass.
+ *
+ * Converts a class to an #InterfaceClass.  Right now it really has the
+ * same layout as #ObjectClass, so this function will always succeed.
+ * This may change in the future.
+ */
+#define INTERFACE_CLASS(class) \
+    ((InterfaceClass *)(class))
+
+/**
+ * INTERFACE_GET_CLASS:
+ * @class: An interface object (an instance of Interface)
+ *
+ * Retrieve the class object (vtable) of the implementation object for an
+ * interface.  Since all such objects have the same layout, this function
+ * can be statically type-checked and will always succeed.  However, note
+ * that the result is typically passed to an OBJECT_CLASS_CHECK macro,
+ * which actually may fail.
+ */
+#define INTERFACE_GET_CLASS(iface_obj) \
+    INTERFACE_CLASS(object_get_class((iface_obj)->iface_parent))
+
+/**
+ * INTERFACE_IFACE_CHECK:
+ * @class: The C type to use for the return value.
+ * @obj: A derivative of @type to cast.
+ * @name: the QOM typename of @class.
+ *
+ * A type safe version of @object_class_dynamic_cast_assert.  This macro is
+ * typically wrapped by each type to perform type safe casts of an interface
+ * to a specific type.
+ */
+#define INTERFACE_IFACE_CHECK(class, obj, name) \
+    OBJECT_CLASS_CHECK(class, obj, name)
+
+/**
+ * INTERFACE_GET_IFACE:
+ * @class: An interface object (an instance of Interface)
+ *
+ * Retrieve the class object (vtable) of the implementation object for an
+ * interface.  This macro is typically wrapped by each type to safely
+ * retrieve a specific vtable from an implementation object.
+ */
+#define INTERFACE_GET_IFACE(iface, obj, type) \
+     INTERFACE_IFACE_CHECK(iface, INTERFACE_GET_CLASS(obj), type)
+
+/**
+ * INTERFACE_CHECK:
+ * @obj: The object to obtain the class for.
+ * @name: The QOM typename of @obj.
+ *
+ * This function will return the specific implementation object for a given
+ * interface.  It's generally used by each type to provide a type safe macro
+ * to get a specific class type from an object.
+ */
+#define INTERFACE_CHECK(obj, name) OBJECT_CHECK(Interface, obj, name)
+
+/**
+ * INTERFACE_OBJECT:
+ * @impl: The interface implementation to obtain the parent object for.
+ *
+ * This function will return the parent object associated to any object
+ * that is an interface implementation.  It expects a pointer to Interface.
+ * Since all interface objects have the same layout, this function can be
+ * statically type-checked and will always succeed.
+ */
+#define INTERFACE_OBJECT(impl)      ((impl)->iface_obj)
 
 /**
  * InterfaceInfo:

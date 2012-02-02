@@ -61,13 +61,7 @@ struct TypeImpl
     InterfaceImpl interfaces[MAX_INTERFACES];
 };
 
-typedef struct Interface
-{
-    Object parent;
-    Object *obj;
-} Interface;
-
-#define INTERFACE(obj) OBJECT_CHECK(Interface, obj, TYPE_INTERFACE)
+#define INTERFACE(obj) INTERFACE_CHECK(obj, TYPE_INTERFACE)
 
 static Type type_interface;
 
@@ -235,7 +229,7 @@ static void object_interface_init(Object *obj, InterfaceImpl *iface)
     Interface *iface_obj;
 
     iface_obj = INTERFACE(object_new(ti->name));
-    iface_obj->obj = obj;
+    iface_obj->iface_obj = obj;
 
     obj->interfaces = g_slist_prepend(obj->interfaces, iface_obj);
 }
@@ -421,7 +415,7 @@ Object *object_dynamic_cast(Object *obj, const char *typename)
      */
     if (object_is_type(obj, type_interface)) {
         assert(!obj->interfaces);
-        obj = INTERFACE(obj)->obj;
+        obj = INTERFACE(obj)->iface_obj;
         if (object_is_type(obj, target_type)) {
             return obj;
         }
@@ -929,7 +923,7 @@ gchar *object_get_canonical_path(Object *obj)
     char *newpath = NULL, *path = NULL;
 
     if (object_is_type(obj, type_interface)) {
-        obj = INTERFACE(obj)->obj;
+        obj = INTERFACE(obj)->iface_obj;
     }
 
     while (obj != root) {
