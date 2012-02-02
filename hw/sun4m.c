@@ -391,7 +391,7 @@ static DeviceState *sparc32_dma_init(target_phys_addr_t daddr,
     SysBusDevice *s;
 
     dev = qdev_create(NULL, "sparc32_dma");
-    qdev_prop_set_ptr(dev, "iommu_opaque", iommu);
+    object_property_set_link(OBJECT(dev), OBJECT(iommu), "iommu", NULL);
     qdev_prop_set_uint32(dev, "is_ledma", is_ledma);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);

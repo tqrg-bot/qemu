@@ -67,7 +67,7 @@ struct DMAState {
     MemoryRegion iomem;
     uint32_t dmaregs[DMA_REGS];
     qemu_irq irq;
-    void *iommu;
+    DeviceState *iommu;
     qemu_irq gpio[2];
     uint32_t is_ledma;
 };
@@ -283,11 +283,13 @@ static int sparc32_dma_init1(SysBusDevice *dev)
     return 0;
 }
 
-static Property sparc32_dma_properties[] = {
-    DEFINE_PROP_PTR("iommu_opaque", DMAState, iommu),
-    DEFINE_PROP_UINT32("is_ledma", DMAState, is_ledma, 0),
-    DEFINE_PROP_END_OF_LIST(),
-};
+static void sparc32_dma_initfn(Object *obj)
+{
+    DMAState *s = FROM_SYSBUS(DMAState, SYS_BUS_DEVICE(obj));
+
+    object_property_add_link(OBJECT(s), "iommu", "iommu", (Object **) &s->iommu,
+                             NULL);
+}
 
 static void sparc32_dma_class_init(ObjectClass *klass, void *data)
 {
@@ -297,7 +299,6 @@ static void sparc32_dma_class_init(ObjectClass *klass, void *data)
     k->init = sparc32_dma_init1;
     dc->reset = dma_reset;
     dc->vmsd = &vmstate_dma;
-    dc->props = sparc32_dma_properties;
 }
 
 static TypeInfo sparc32_dma_info = {
@@ -305,6 +306,7 @@ static TypeInfo sparc32_dma_info = {
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(DMAState),
     .class_init    = sparc32_dma_class_init,
+    .instance_init = sparc32_dma_initfn,
 };
 
 static void sparc32_dma_register_devices(void)
