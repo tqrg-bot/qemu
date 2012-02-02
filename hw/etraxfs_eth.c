@@ -328,14 +328,8 @@ struct fs_eth
 	uint8_t macaddr[2][6];
 	uint32_t regs[FS_ETH_MAX_REGS];
 
-	union {
-		void *vdma_out;
-		struct etraxfs_dma_client *dma_out;
-	};
-	union {
-		void *vdma_in;
-		struct etraxfs_dma_client *dma_in;
-	};
+	struct etraxfs_dma_client *dma_out;
+	struct etraxfs_dma_client *dma_in;
 
 	/* MDIO bus.  */
 	struct qemu_mdio mdio_bus;
@@ -587,18 +581,22 @@ static NetClientInfo net_etraxfs_info = {
 	.link_status_changed = eth_set_link,
 };
 
+static void etraxfs_eth_initfn(Object *obj)
+{
+	struct fs_eth *s = FROM_SYSBUS(typeof(*s), SYS_BUS_DEVICE(obj));
+
+	s->dma_out = ETRAXFS_DMA_CLIENT(object_new(TYPE_ETRAXFS_DMA_CLIENT));
+	object_property_add_child(OBJECT(s), "dma_out", OBJECT(s->dma_out), NULL);
+	s->dma_out->client.push = eth_tx_push;
+
+	s->dma_in = ETRAXFS_DMA_CLIENT(object_new(TYPE_ETRAXFS_DMA_CLIENT));
+	object_property_add_child(OBJECT(s), "dma_in", OBJECT(s->dma_in), NULL);
+	s->dma_in->client.pull = NULL;
+}
+
 static int fs_eth_init(SysBusDevice *dev)
 {
 	struct fs_eth *s = FROM_SYSBUS(typeof(*s), dev);
-
-	if (!s->dma_out || !s->dma_in) {
-		hw_error("Unconnected ETRAX-FS Ethernet MAC.\n");
-	}
-
-	s->dma_out->client.push = eth_tx_push;
-	s->dma_out->client.opaque = s;
-	s->dma_in->client.opaque = s;
-	s->dma_in->client.pull = NULL;
 
 	memory_region_init_io(&s->mmio, &eth_ops, s, "etraxfs-eth", 0x5c);
 	sysbus_init_mmio(dev, &s->mmio);
@@ -615,8 +613,6 @@ static int fs_eth_init(SysBusDevice *dev)
 
 static Property etraxfs_eth_properties[] = {
     DEFINE_PROP_UINT32("phyaddr", struct fs_eth, phyaddr, 1),
-    DEFINE_PROP_PTR("dma_out", struct fs_eth, vdma_out),
-    DEFINE_PROP_PTR("dma_in", struct fs_eth, vdma_in),
     DEFINE_NIC_PROPERTIES(struct fs_eth, conf),
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -635,6 +631,7 @@ static TypeInfo etraxfs_eth_info = {
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(struct fs_eth),
     .class_init    = etraxfs_eth_class_init,
+    .instance_init = etraxfs_eth_initfn
 };
 
 static void etraxfs_eth_register(void)

@@ -21,11 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <stdio.h>
-#include <sys/time.h>
-#include "hw.h"
-#include "exec-memory.h"
 #include "qemu-common.h"
+#include "hw.h"
+#include "hw/qdev.h"
+#include "exec-memory.h"
 #include "sysemu.h"
 
 #include "etraxfs_dma.h"
@@ -741,12 +740,18 @@ void etraxfs_dmac_connect(void *opaque, int c, qemu_irq *line, int input)
 }
 
 void etraxfs_dmac_connect_client(void *opaque, int c, 
-				 struct etraxfs_dma_client *cl)
+				 DeviceState *dev, const char *name)
 {
 	struct fs_dma_ctrl *ctrl = opaque;
+	Object *target;
+	struct etraxfs_dma_client *cl;
+
+	target = object_property_get_link(OBJECT(dev), name, NULL);
+	cl = ETRAXFS_DMA_CLIENT(target);
 	cl->ctrl = ctrl;
 	cl->channel = c;
 	ctrl->channels[c].client = cl;
+	ctrl->channels[c].client->client.opaque = dev;
 }
 
 

@@ -1,10 +1,17 @@
+#include "qemu/object.h"
+
 struct dma_context_metadata {
 	/* data descriptor md */
 	uint16_t metadata;
 };
 
+#define TYPE_ETRAXFS_DMA_CLIENT "etraxfs-dma-client"
+#define ETRAXFS_DMA_CLIENT(x) ((struct etraxfs_dma_client *)(x))
+
 struct etraxfs_dma_client
 {
+        Object obj;
+
 	/* DMA controller. */
 	int channel;
 	void *ctrl;
@@ -24,6 +31,6 @@ void *etraxfs_dmac_init(target_phys_addr_t base, int nr_channels);
 void etraxfs_dmac_connect(void *opaque, int channel, qemu_irq *line,
 			  int input);
 void etraxfs_dmac_connect_client(void *opaque, int c, 
-				 struct etraxfs_dma_client *cl);
+                                 DeviceState *obj, const char *name);
 int etraxfs_dmac_input(struct etraxfs_dma_client *client, 
 		       void *buf, int len, int eop);
