@@ -413,7 +413,7 @@ static void lance_init(NICInfo *nd, target_phys_addr_t leaddr,
 
     dev = qdev_create(NULL, "lance");
     qdev_set_nic_properties(dev, nd);
-    qdev_prop_set_ptr(dev, "dma", dma);
+    object_property_set_link(OBJECT(dev), OBJECT(dma), "dma", NULL);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_mmio_map(s, 0, leaddr);

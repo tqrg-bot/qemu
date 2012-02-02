@@ -47,10 +47,7 @@ struct PCNetState_st {
                          uint8_t *buf, int len, int do_bswap);
     void (*phys_mem_write)(DeviceState *dev, target_phys_addr_t addr,
                           uint8_t *buf, int len, int do_bswap);
-    union {
-        DeviceState *dma;
-        void *dma_opaque;
-    };
+    DeviceState *dma;
     int tx_busy;
     int looptest;
 };

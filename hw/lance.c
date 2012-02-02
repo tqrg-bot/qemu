@@ -137,8 +137,15 @@ static void lance_reset(DeviceState *dev)
     pcnet_h_reset(&d->state);
 }
 
+static void lance_initfn(Object *obj)
+{
+    SysBusPCNetState *d = DO_UPCAST(SysBusPCNetState, busdev.qdev, DEVICE(obj));
+
+    object_property_add_link(obj, "dma", TYPE_SYS_BUS_DEVICE,
+			     (Object **) &d->state.dma, NULL);
+}
+
 static Property lance_properties[] = {
-    DEFINE_PROP_PTR("dma", SysBusPCNetState, state.dma_opaque),
     DEFINE_NIC_PROPERTIES(SysBusPCNetState, state.conf),
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -159,6 +166,7 @@ static TypeInfo lance_info = {
     .name          = "lance",
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(SysBusPCNetState),
+    .instance_init = lance_initfn,
     .class_init    = lance_class_init,
 };
 
