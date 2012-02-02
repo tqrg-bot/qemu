@@ -37,8 +37,8 @@ struct omap_intr_handler_s {
     qemu_irq *pins;
     qemu_irq parent_intr[2];
     MemoryRegion mmio;
-    void *iclk;
-    void *fclk;
+    struct clk *iclk;
+    struct clk *fclk;
     unsigned char nbanks;
     int level_only;
     uint32_t size;
@@ -373,9 +373,16 @@ static int omap_intc_init(SysBusDevice *dev)
     return 0;
 }
 
+static void omap_intc_initfn(Object *obj)
+{
+    struct omap_intr_handler_s *s = FROM_SYSBUS(struct omap_intr_handler_s,
+                                                SYS_BUS_DEVICE(obj));
+
+    object_property_add_link(obj, "clk", TYPE_OMAP_CLK, (Object **)&s->iclk, NULL);
+}
+
 static Property omap_intc_properties[] = {
     DEFINE_PROP_UINT32("size", struct omap_intr_handler_s, size, 0x100),
-    DEFINE_PROP_PTR("clk", struct omap_intr_handler_s, iclk),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -394,6 +401,7 @@ static TypeInfo omap_intc_info = {
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(struct omap_intr_handler_s),
     .class_init    = omap_intc_class_init,
+    .instance_init = omap_intc_initfn,
 };
 
 static uint64_t omap2_inth_read(void *opaque, target_phys_addr_t addr,
@@ -615,11 +623,18 @@ static int omap2_intc_init(SysBusDevice *dev)
     return 0;
 }
 
+static void omap2_intc_initfn(Object *obj)
+{
+    struct omap_intr_handler_s *s = FROM_SYSBUS(struct omap_intr_handler_s,
+                                                SYS_BUS_DEVICE(obj));
+
+    object_property_add_link(obj, "iclk", TYPE_OMAP_CLK, (Object **)&s->iclk, NULL);
+    object_property_add_link(obj, "fclk", TYPE_OMAP_CLK, (Object **)&s->fclk, NULL);
+}
+
 static Property omap2_intc_properties[] = {
     DEFINE_PROP_UINT8("revision", struct omap_intr_handler_s,
     revision, 0x21),
-    DEFINE_PROP_PTR("iclk", struct omap_intr_handler_s, iclk),
-    DEFINE_PROP_PTR("fclk", struct omap_intr_handler_s, fclk),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -638,6 +653,7 @@ static TypeInfo omap2_intc_info = {
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(struct omap_intr_handler_s),
     .class_init    = omap2_intc_class_init,
+    .instance_init = omap2_intc_initfn,
 };
 
 static void omap_intc_register_device(void)

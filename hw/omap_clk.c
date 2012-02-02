@@ -1307,7 +1307,7 @@ void omap_prop_set_clk(struct omap_mpu_state_s *s, DeviceState *dev,
                        const char *name, const char *clk)
 {
     struct clk *target = omap_findclk(s, clk);
-    qdev_prop_set_ptr(dev, name, target);
+    object_property_set_link(OBJECT(dev), OBJECT(target), name, NULL);
 }
 
 static void omap_clk_register(void)

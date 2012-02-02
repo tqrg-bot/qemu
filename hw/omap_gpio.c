@@ -39,7 +39,7 @@ struct omap_gpif_s {
     SysBusDevice busdev;
     MemoryRegion iomem;
     int mpu_model;
-    void *clk;
+    struct clk *clk;
     struct omap_gpio_s omap1;
 };
 
@@ -207,8 +207,8 @@ struct omap2_gpif_s {
     SysBusDevice busdev;
     MemoryRegion iomem;
     int mpu_model;
-    void *iclk;
-    void *fclk[6];
+    struct clk *iclk;
+    struct clk *fclk[6];
     int modulecount;
     struct omap2_gpio_s *modules;
     qemu_irq *handler;
@@ -719,21 +719,15 @@ static int omap2_gpio_init(SysBusDevice *dev)
     return 0;
 }
 
-/* Using qdev pointer properties for the clocks is not ideal.
- * qdev should support a generic means of defining a 'port' with
- * an arbitrary interface for connecting two devices. Then we
- * could reframe the omap clock API in terms of clock ports,
- * and get some type safety. For now the best qdev provides is
- * passing an arbitrary pointer.
- * (It's not possible to pass in the string which is the clock
- * name, because this device does not have the necessary information
- * (ie the struct omap_mpu_state_s*) to do the clockname to pointer
- * translation.)
- */
+static void omap_gpio_initfn(Object *obj)
+{
+    struct omap_gpif_s *s = FROM_SYSBUS(struct omap_gpif_s, SYS_BUS_DEVICE(obj));
+
+    object_property_add_link(obj, "clk", TYPE_OMAP_CLK, (Object **)&s->clk, NULL);
+}
 
 static Property omap_gpio_properties[] = {
     DEFINE_PROP_INT32("mpu_model", struct omap_gpif_s, mpu_model, 0),
-    DEFINE_PROP_PTR("clk", struct omap_gpif_s, clk),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -752,17 +746,24 @@ static TypeInfo omap_gpio_info = {
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(struct omap_gpif_s),
     .class_init    = omap_gpio_class_init,
+    .instance_init = omap_gpio_initfn,
 };
+
+static void omap2_gpio_initfn(Object *obj)
+{
+    struct omap2_gpif_s *s = FROM_SYSBUS(struct omap2_gpif_s, SYS_BUS_DEVICE(obj));
+
+    object_property_add_link(obj, "iclk", TYPE_OMAP_CLK, (Object **) &s->iclk, NULL);
+    object_property_add_link(obj, "fclk0", TYPE_OMAP_CLK, (Object **) &s->fclk[0], NULL);
+    object_property_add_link(obj, "fclk1", TYPE_OMAP_CLK, (Object **) &s->fclk[1], NULL);
+    object_property_add_link(obj, "fclk2", TYPE_OMAP_CLK, (Object **) &s->fclk[2], NULL);
+    object_property_add_link(obj, "fclk3", TYPE_OMAP_CLK, (Object **) &s->fclk[3], NULL);
+    object_property_add_link(obj, "fclk4", TYPE_OMAP_CLK, (Object **) &s->fclk[4], NULL);
+    object_property_add_link(obj, "fclk5", TYPE_OMAP_CLK, (Object **) &s->fclk[5], NULL);
+}
 
 static Property omap2_gpio_properties[] = {
     DEFINE_PROP_INT32("mpu_model", struct omap2_gpif_s, mpu_model, 0),
-    DEFINE_PROP_PTR("iclk", struct omap2_gpif_s, iclk),
-    DEFINE_PROP_PTR("fclk0", struct omap2_gpif_s, fclk[0]),
-    DEFINE_PROP_PTR("fclk1", struct omap2_gpif_s, fclk[1]),
-    DEFINE_PROP_PTR("fclk2", struct omap2_gpif_s, fclk[2]),
-    DEFINE_PROP_PTR("fclk3", struct omap2_gpif_s, fclk[3]),
-    DEFINE_PROP_PTR("fclk4", struct omap2_gpif_s, fclk[4]),
-    DEFINE_PROP_PTR("fclk5", struct omap2_gpif_s, fclk[5]),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -781,6 +782,7 @@ static TypeInfo omap2_gpio_info = {
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(struct omap2_gpif_s),
     .class_init    = omap2_gpio_class_init,
+    .instance_init = omap2_gpio_initfn,
 };
 
 static void omap_gpio_register_device(void)
