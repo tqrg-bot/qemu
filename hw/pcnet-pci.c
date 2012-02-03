@@ -252,16 +252,16 @@ static const MemoryRegionOps pcnet_mmio_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static void pci_physical_memory_write(void *dma_opaque, target_phys_addr_t addr,
+static void pci_physical_memory_write(DeviceState *dev, target_phys_addr_t addr,
                                       uint8_t *buf, int len, int do_bswap)
 {
-    pci_dma_write(dma_opaque, addr, buf, len);
+    pci_dma_write(PCI_DEVICE(dev), addr, buf, len);
 }
 
-static void pci_physical_memory_read(void *dma_opaque, target_phys_addr_t addr,
+static void pci_physical_memory_read(DeviceState *dev, target_phys_addr_t addr,
                                      uint8_t *buf, int len, int do_bswap)
 {
-    pci_dma_read(dma_opaque, addr, buf, len);
+    pci_dma_read(PCI_DEVICE(dev), addr, buf, len);
 }
 
 static void pci_pcnet_cleanup(VLANClientState *nc)
@@ -328,7 +328,7 @@ static int pci_pcnet_init(PCIDevice *pci_dev)
     s->irq = pci_dev->irq[0];
     s->phys_mem_read = pci_physical_memory_read;
     s->phys_mem_write = pci_physical_memory_write;
-    s->dma_opaque = pci_dev;
+    s->dma = DEVICE(pci_dev);
 
     if (!pci_dev->qdev.hotplugged) {
         static int loaded = 0;

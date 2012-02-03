@@ -41,11 +41,16 @@ struct PCNetState_st {
     MemoryRegion mmio;
     uint8_t buffer[4096];
     qemu_irq irq;
-    void (*phys_mem_read)(void *dma_opaque, target_phys_addr_t addr,
+
+    /* TODO: implement an interface in dma_opaque.  */
+    void (*phys_mem_read)(DeviceState *dev, target_phys_addr_t addr,
                          uint8_t *buf, int len, int do_bswap);
-    void (*phys_mem_write)(void *dma_opaque, target_phys_addr_t addr,
+    void (*phys_mem_write)(DeviceState *dev, target_phys_addr_t addr,
                           uint8_t *buf, int len, int do_bswap);
-    void *dma_opaque;
+    union {
+        DeviceState *dma;
+        void *dma_opaque;
+    };
     int tx_busy;
     int looptest;
 };

@@ -78,10 +78,10 @@ enum {
 };
 
 /* Note: on sparc, the lance 16 bit bus is swapped */
-void ledma_memory_read(void *opaque, target_phys_addr_t addr,
+void ledma_memory_read(DeviceState *dma, target_phys_addr_t addr,
                        uint8_t *buf, int len, int do_bswap)
 {
-    DMAState *s = opaque;
+    DMAState *s = DO_UPCAST(DMAState, busdev.qdev, dma);
     int i;
 
     addr |= s->dmaregs[3];
@@ -98,10 +98,10 @@ void ledma_memory_read(void *opaque, target_phys_addr_t addr,
     }
 }
 
-void ledma_memory_write(void *opaque, target_phys_addr_t addr,
+void ledma_memory_write(DeviceState *dma, target_phys_addr_t addr,
                         uint8_t *buf, int len, int do_bswap)
 {
-    DMAState *s = opaque;
+    DMAState *s = DO_UPCAST(DMAState, busdev.qdev, dma);
     int l, i;
     uint16_t tmp_buf[32];
 
@@ -147,18 +147,18 @@ static void dma_set_irq(void *opaque, int irq, int level)
     }
 }
 
-void espdma_memory_read(void *opaque, uint8_t *buf, int len)
+void espdma_memory_read(DeviceState *dma, uint8_t *buf, int len)
 {
-    DMAState *s = opaque;
+    DMAState *s = DO_UPCAST(DMAState, busdev.qdev, dma);
 
     trace_espdma_memory_read(s->dmaregs[1]);
     sparc_iommu_memory_read(s->iommu, s->dmaregs[1], buf, len);
     s->dmaregs[1] += len;
 }
 
-void espdma_memory_write(void *opaque, uint8_t *buf, int len)
+void espdma_memory_write(DeviceState *dma, uint8_t *buf, int len)
 {
-    DMAState *s = opaque;
+    DMAState *s = DO_UPCAST(DMAState, busdev.qdev, dma);
 
     trace_espdma_memory_write(s->dmaregs[1]);
     sparc_iommu_memory_write(s->iommu, s->dmaregs[1], buf, len);

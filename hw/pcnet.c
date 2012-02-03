@@ -300,14 +300,14 @@ static inline void pcnet_tmd_load(PCNetState *s, struct pcnet_TMD *tmd,
             int16_t length;
             int16_t status;
 	} xda;
-        s->phys_mem_read(s->dma_opaque, addr, (void *)&xda, sizeof(xda), 0);
+        s->phys_mem_read(s->dma, addr, (void *)&xda, sizeof(xda), 0);
         tmd->tbadr = le32_to_cpu(xda.tbadr) & 0xffffff;
         tmd->length = le16_to_cpu(xda.length);
         tmd->status = (le32_to_cpu(xda.tbadr) >> 16) & 0xff00;
         tmd->misc = le16_to_cpu(xda.status) << 16;
         tmd->res = 0;
     } else {
-        s->phys_mem_read(s->dma_opaque, addr, (void *)tmd, sizeof(*tmd), 0);
+        s->phys_mem_read(s->dma, addr, (void *)tmd, sizeof(*tmd), 0);
         le32_to_cpus(&tmd->tbadr);
         le16_to_cpus((uint16_t *)&tmd->length);
         le16_to_cpus((uint16_t *)&tmd->status);
@@ -334,7 +334,7 @@ static inline void pcnet_tmd_store(PCNetState *s, const struct pcnet_TMD *tmd,
                                 ((tmd->status & 0xff00) << 16));
         xda.length = cpu_to_le16(tmd->length);
         xda.status = cpu_to_le16(tmd->misc >> 16);
-        s->phys_mem_write(s->dma_opaque, addr, (void *)&xda, sizeof(xda), 0);
+        s->phys_mem_write(s->dma, addr, (void *)&xda, sizeof(xda), 0);
     } else {
         struct {
             uint32_t tbadr;
@@ -353,7 +353,7 @@ static inline void pcnet_tmd_store(PCNetState *s, const struct pcnet_TMD *tmd,
             xda.tbadr = xda.misc;
             xda.misc = tmp;
         }
-        s->phys_mem_write(s->dma_opaque, addr, (void *)&xda, sizeof(xda), 0);
+        s->phys_mem_write(s->dma, addr, (void *)&xda, sizeof(xda), 0);
     }
 }
 
@@ -366,14 +366,14 @@ static inline void pcnet_rmd_load(PCNetState *s, struct pcnet_RMD *rmd,
             int16_t buf_length;
             int16_t msg_length;
 	} rda;
-        s->phys_mem_read(s->dma_opaque, addr, (void *)&rda, sizeof(rda), 0);
+        s->phys_mem_read(s->dma, addr, (void *)&rda, sizeof(rda), 0);
         rmd->rbadr = le32_to_cpu(rda.rbadr) & 0xffffff;
         rmd->buf_length = le16_to_cpu(rda.buf_length);
         rmd->status = (le32_to_cpu(rda.rbadr) >> 16) & 0xff00;
         rmd->msg_length = le16_to_cpu(rda.msg_length);
         rmd->res = 0;
     } else {
-        s->phys_mem_read(s->dma_opaque, addr, (void *)rmd, sizeof(*rmd), 0);
+        s->phys_mem_read(s->dma, addr, (void *)rmd, sizeof(*rmd), 0);
         le32_to_cpus(&rmd->rbadr);
         le16_to_cpus((uint16_t *)&rmd->buf_length);
         le16_to_cpus((uint16_t *)&rmd->status);
@@ -400,7 +400,7 @@ static inline void pcnet_rmd_store(PCNetState *s, struct pcnet_RMD *rmd,
                                 ((rmd->status & 0xff00) << 16));
         rda.buf_length = cpu_to_le16(rmd->buf_length);
         rda.msg_length = cpu_to_le16(rmd->msg_length);
-        s->phys_mem_write(s->dma_opaque, addr, (void *)&rda, sizeof(rda), 0);
+        s->phys_mem_write(s->dma, addr, (void *)&rda, sizeof(rda), 0);
     } else {
         struct {
             uint32_t rbadr;
@@ -419,7 +419,7 @@ static inline void pcnet_rmd_store(PCNetState *s, struct pcnet_RMD *rmd,
             rda.rbadr = rda.msg_length;
             rda.msg_length = tmp;
         }
-        s->phys_mem_write(s->dma_opaque, addr, (void *)&rda, sizeof(rda), 0);
+        s->phys_mem_write(s->dma, addr, (void *)&rda, sizeof(rda), 0);
     }
 }
 
@@ -454,7 +454,7 @@ static inline void pcnet_rmd_store(PCNetState *s, struct pcnet_RMD *rmd,
     case 0x00:                                  \
         do {                                    \
             uint16_t rda[4];                    \
-            s->phys_mem_read(s->dma_opaque, (ADDR), \
+            s->phys_mem_read(s->dma, (ADDR), \
                 (void *)&rda[0], sizeof(rda), 0); \
             (RES) |= (rda[2] & 0xf000)!=0xf000; \
             (RES) |= (rda[3] & 0xf000)!=0x0000; \
@@ -464,7 +464,7 @@ static inline void pcnet_rmd_store(PCNetState *s, struct pcnet_RMD *rmd,
     case 0x02:                                  \
         do {                                    \
             uint32_t rda[4];                    \
-            s->phys_mem_read(s->dma_opaque, (ADDR), \
+            s->phys_mem_read(s->dma, (ADDR), \
                 (void *)&rda[0], sizeof(rda), 0); \
             (RES) |= (rda[1] & 0x0000f000L)!=0x0000f000L; \
             (RES) |= (rda[2] & 0x0000f000L)!=0x00000000L; \
@@ -473,7 +473,7 @@ static inline void pcnet_rmd_store(PCNetState *s, struct pcnet_RMD *rmd,
     case 0x03:                                  \
         do {                                    \
             uint32_t rda[4];                    \
-            s->phys_mem_read(s->dma_opaque, (ADDR), \
+            s->phys_mem_read(s->dma, (ADDR), \
                 (void *)&rda[0], sizeof(rda), 0); \
             (RES) |= (rda[0] & 0x0000f000L)!=0x00000000L; \
             (RES) |= (rda[1] & 0x0000f000L)!=0x0000f000L; \
@@ -487,7 +487,7 @@ static inline void pcnet_rmd_store(PCNetState *s, struct pcnet_RMD *rmd,
     case 0x00:                                  \
         do {                                    \
             uint16_t xda[4];                    \
-            s->phys_mem_read(s->dma_opaque, (ADDR), \
+            s->phys_mem_read(s->dma, (ADDR), \
                 (void *)&xda[0], sizeof(xda), 0); \
             (RES) |= (xda[2] & 0xf000)!=0xf000; \
         } while (0);                            \
@@ -497,7 +497,7 @@ static inline void pcnet_rmd_store(PCNetState *s, struct pcnet_RMD *rmd,
     case 0x03:                                  \
         do {                                    \
             uint32_t xda[4];                    \
-            s->phys_mem_read(s->dma_opaque, (ADDR), \
+            s->phys_mem_read(s->dma, (ADDR), \
                 (void *)&xda[0], sizeof(xda), 0); \
             (RES) |= (xda[1] & 0x0000f000L)!=0x0000f000L; \
         } while (0);                            \
@@ -797,7 +797,7 @@ static void pcnet_init(PCNetState *s)
 
     if (BCR_SSIZE32(s)) {
         struct pcnet_initblk32 initblk;
-        s->phys_mem_read(s->dma_opaque, PHYSADDR(s,CSR_IADR(s)),
+        s->phys_mem_read(s->dma, PHYSADDR(s,CSR_IADR(s)),
                 (uint8_t *)&initblk, sizeof(initblk), 0);
         mode = le16_to_cpu(initblk.mode);
         rlen = initblk.rlen >> 4;
@@ -813,7 +813,7 @@ static void pcnet_init(PCNetState *s)
         tdra = le32_to_cpu(initblk.tdra);
     } else {
         struct pcnet_initblk16 initblk;
-        s->phys_mem_read(s->dma_opaque, PHYSADDR(s,CSR_IADR(s)),
+        s->phys_mem_read(s->dma, PHYSADDR(s,CSR_IADR(s)),
                 (uint8_t *)&initblk, sizeof(initblk), 0);
         mode = le16_to_cpu(initblk.mode);
 	ladrf[0] = le16_to_cpu(initblk.ladrf[0]);
@@ -1118,7 +1118,7 @@ ssize_t pcnet_receive(VLANClientState *nc, const uint8_t *buf, size_t size_)
 #define PCNET_RECV_STORE() do {                                 \
     int count = MIN(4096 - GET_FIELD(rmd.buf_length, RMDL, BCNT),remaining); \
     target_phys_addr_t rbadr = PHYSADDR(s, rmd.rbadr);          \
-    s->phys_mem_write(s->dma_opaque, rbadr, src, count, CSR_BSWP(s)); \
+    s->phys_mem_write(s->dma, rbadr, src, count, CSR_BSWP(s)); \
     src += count; remaining -= count;                           \
     SET_FIELD(&rmd.status, RMDS, OWN, 0);                       \
     RMDSTORE(&rmd, PHYSADDR(s,crda));                           \
@@ -1236,12 +1236,12 @@ static void pcnet_transmit(PCNetState *s)
         }
         if (!GET_FIELD(tmd.status, TMDS, ENP)) {
             int bcnt = 4096 - GET_FIELD(tmd.length, TMDL, BCNT);
-            s->phys_mem_read(s->dma_opaque, PHYSADDR(s, tmd.tbadr),
+            s->phys_mem_read(s->dma, PHYSADDR(s, tmd.tbadr),
                              s->buffer + s->xmit_pos, bcnt, CSR_BSWP(s));
             s->xmit_pos += bcnt;
         } else if (s->xmit_pos >= 0) {
             int bcnt = 4096 - GET_FIELD(tmd.length, TMDL, BCNT);
-            s->phys_mem_read(s->dma_opaque, PHYSADDR(s, tmd.tbadr),
+            s->phys_mem_read(s->dma, PHYSADDR(s, tmd.tbadr),
                              s->buffer + s->xmit_pos, bcnt, CSR_BSWP(s));
             s->xmit_pos += bcnt;
 #ifdef PCNET_DEBUG

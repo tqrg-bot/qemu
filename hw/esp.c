@@ -74,7 +74,7 @@ struct ESPState {
 
     ESPDMAMemoryReadWriteFunc dma_memory_read;
     ESPDMAMemoryReadWriteFunc dma_memory_write;
-    void *dma_opaque;
+    DeviceState *dma_dev;
     void (*dma_cb)(ESPState *s);
 };
 
@@ -200,7 +200,7 @@ static uint32_t get_cmd(ESPState *s, uint8_t *buf)
     target = s->wregs[ESP_WBUSID] & BUSID_DID;
     if (s->dma) {
         dmalen = s->rregs[ESP_TCLO] | (s->rregs[ESP_TCMID] << 8);
-        s->dma_memory_read(s->dma_opaque, buf, dmalen);
+        s->dma_memory_read(s->dma_dev, buf, dmalen);
     } else {
         dmalen = s->ti_size;
         memcpy(buf, s->ti_buf, dmalen);
@@ -317,7 +317,7 @@ static void write_response(ESPState *s)
     s->ti_buf[0] = s->status;
     s->ti_buf[1] = 0;
     if (s->dma) {
-        s->dma_memory_write(s->dma_opaque, s->ti_buf, 2);
+        s->dma_memory_write(s->dma_dev, s->ti_buf, 2);
         s->rregs[ESP_RSTAT] = STAT_TC | STAT_ST;
         s->rregs[ESP_RINTR] = INTR_BS | INTR_FC;
         s->rregs[ESP_RSEQ] = SEQ_CD;
@@ -350,7 +350,7 @@ static void esp_do_dma(ESPState *s)
     len = s->dma_left;
     if (s->do_cmd) {
         trace_esp_do_dma(s->cmdlen, len);
-        s->dma_memory_read(s->dma_opaque, &s->cmdbuf[s->cmdlen], len);
+        s->dma_memory_read(s->dma_dev, &s->cmdbuf[s->cmdlen], len);
         s->ti_size = 0;
         s->cmdlen = 0;
         s->do_cmd = 0;
@@ -365,9 +365,9 @@ static void esp_do_dma(ESPState *s)
         len = s->async_len;
     }
     if (to_device) {
-        s->dma_memory_read(s->dma_opaque, s->async_buf, len);
+        s->dma_memory_read(s->dma_dev, s->async_buf, len);
     } else {
-        s->dma_memory_write(s->dma_opaque, s->async_buf, len);
+        s->dma_memory_write(s->dma_dev, s->async_buf, len);
     }
     s->dma_left -= len;
     s->async_buf += len;
@@ -703,7 +703,7 @@ static const VMStateDescription vmstate_esp = {
 void esp_init(target_phys_addr_t espaddr, int it_shift,
               ESPDMAMemoryReadWriteFunc dma_memory_read,
               ESPDMAMemoryReadWriteFunc dma_memory_write,
-              void *dma_opaque, qemu_irq irq, qemu_irq *reset,
+              DeviceState *dma, qemu_irq irq, qemu_irq *reset,
               qemu_irq *dma_enable)
 {
     DeviceState *dev;
@@ -712,9 +712,11 @@ void esp_init(target_phys_addr_t espaddr, int it_shift,
 
     dev = qdev_create(NULL, "esp");
     esp = DO_UPCAST(ESPState, busdev.qdev, dev);
+
+    /* TODO: implement an interface in dma.  */
     esp->dma_memory_read = dma_memory_read;
     esp->dma_memory_write = dma_memory_write;
-    esp->dma_opaque = dma_opaque;
+    esp->dma_dev = dma;
     esp->it_shift = it_shift;
     /* XXX for now until rc4030 has been changed to use DMA enable signal */
     esp->dma_enabled = 1;
