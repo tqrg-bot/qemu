@@ -59,9 +59,12 @@ static void smbus_do_write(SMBusDevice *dev)
     } else {
         dev->command = dev->data_buf[0];
         DPRINTF("Command %d len %d\n", dev->command, dev->data_len - 1);
+        if (dev->data_buf[1] > dev->data_len - 2) {
+            fprintf(stderr, "SMBus data transfer overrun!\n");
+        }
         if (sc->write_data) {
-            sc->write_data(dev, dev->command, dev->data_buf + 1,
-                           dev->data_len - 1);
+            sc->write_data(dev, dev->command, dev->data_buf + 2,
+                           MIN(dev->data_buf[1], dev->data_len - 2));
         }
     }
 }
