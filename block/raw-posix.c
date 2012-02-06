@@ -2029,13 +2029,9 @@ static int hdev_probe_device(const char *filename)
 {
     struct stat st;
 
-    /* allow a dedicated CD-ROM driver to match with a higher priority */
-    if (strstart(filename, "/dev/cdrom", NULL))
-        return 50;
-
     if (stat(filename, &st) >= 0 &&
             (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))) {
-        return 100;
+        return 50;
     }
 
     return 0;
