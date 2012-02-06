@@ -817,13 +817,9 @@ static int hdev_probe_device(const char *filename)
 {
     struct stat st;
 
-    /* allow a dedicated CD-ROM driver to match with a higher priority */
-    if (strstart(filename, "/dev/cdrom", NULL))
-        return 50;
-
     if (stat(filename, &st) >= 0 &&
             (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))) {
-        return 100;
+        return 50;
     }
 
     return 0;
@@ -1052,9 +1048,6 @@ static int floppy_probe_device(const char *filename)
     struct floppy_struct fdparam;
     struct stat st;
 
-    if (strstart(filename, "/dev/fd", NULL))
-        prio = 50;
-
     fd = open(filename, O_RDONLY | O_NONBLOCK);
     if (fd < 0) {
         goto out;
@@ -1064,7 +1057,8 @@ static int floppy_probe_device(const char *filename)
         goto outc;
     }
 
-    /* Attempt to detect via a floppy specific ioctl */
+    /* Attempt to detect via a floppy specific ioctl.  If it fails,
+     * hdev will be just as good.  */
     ret = ioctl(fd, FDGETPRM, &fdparam);
     if (ret >= 0)
         prio = 100;
