@@ -135,6 +135,13 @@ typedef struct BDRVRawState {
     int open_flags;
     size_t buf_align;
 
+#if defined(__linux__)
+    struct {
+        bool manage_door;
+        bool save_lock;
+        bool save_locked;
+    } cd;
+#endif
 #ifdef CONFIG_LINUX_AIO
     int use_aio;
     void *aio_ctx;
@@ -2337,21 +2344,81 @@ static void cdrom_parse_filename(const char *filename, QDict *options,
 #endif
 
 #ifdef __linux__
+static int cdrom_get_options(int fd)
+{
+    /* CDROM_SET_OPTIONS with arg == 0 returns the current options!  */
+    return ioctl(fd, CDROM_SET_OPTIONS, 0);
+}
+
+static int cdrom_is_locked(int fd)
+{
+    int opts = cdrom_get_options(fd);
+
+    /* This is the only way we have to probe the current status of
+     * CDROM_LOCKDOOR (EBUSY = locked).  We use CDROM_SET_OPTIONS to
+     * reset the previous state in case the ioctl succeeds.
+     */
+    if (ioctl(fd, CDROMEJECT_SW, 0) == 0) {
+        ioctl(fd, CDROM_SET_OPTIONS, opts);
+        return false;
+    } else if (errno == EBUSY) {
+        return true;
+    } else {
+        return -errno;
+    }
+}
+
 static int cdrom_open(BlockDriverState *bs, QDict *options, int flags,
                       Error **errp)
 {
     BDRVRawState *s = bs->opaque;
     Error *local_err = NULL;
-    int ret;
+    int rc;
 
     s->type = FTYPE_CD;
 
-    /* open will not fail even if no CD is inserted, so add O_NONBLOCK */
-    ret = raw_open_common(bs, options, flags, O_NONBLOCK, &local_err);
-    if (local_err) {
-        error_propagate(errp, local_err);
+    /* open will not fail even if no CD is inserted, so add O_NONBLOCK.
+     * First try with O_EXCL to see whether the CD is mounted.
+     */
+    rc = raw_open_common(bs, filename, flags, O_NONBLOCK | O_EXCL);
+    if (rc < 0 && rc != -EBUSY) {
+        return rc;
     }
-    return ret;
+
+    s->cd.manage_door = false;
+    if (rc == -EBUSY) {
+        /* The CD-ROM is mounted.  No door support, because if we cannot use
+         * O_EXCL udev will always succeed in ejecting the medium under our
+         * feet.
+         */
+        rc = raw_open_common(bs, filename, flags, O_NONBLOCK);
+    } else if (rc == 0) {
+        /* We can handle the door ourselves.  Save state so we can restore
+         * it when we exit.
+         */
+        int is_locked = cdrom_is_locked(s->fd);
+        if (is_locked >= 0 && ioctl(s->fd, CDROM_LOCKDOOR, 0) != -1) {
+            s->cd.save_lock = (cdrom_get_options(s->fd) & CDO_LOCK) != 0;
+            s->cd.save_locked = is_locked;
+            s->cd.manage_door = true;
+
+            ioctl(s->fd, CDROM_CLEAR_OPTIONS, CDO_LOCK);
+        }
+    }
+
+    return rc;
+}
+
+static void cdrom_close(BlockDriverState *bs)
+{
+    BDRVRawState *s = bs->opaque;
+    if (s->fd >= 0 && s->cd.manage_door) {
+        ioctl(s->fd, CDROM_LOCKDOOR, s->cd.save_locked);
+        if (s->cd.save_lock) {
+            ioctl(s->fd, CDROM_SET_OPTIONS, CDO_LOCK);
+        }
+    }
+    raw_close(bs);
 }
 
 static int cdrom_probe_device(const char *filename)
@@ -2393,6 +2460,10 @@ static void cdrom_eject(BlockDriverState *bs, bool eject_flag)
 {
     BDRVRawState *s = bs->opaque;
 
+    if (!s->cd.manage_door) {
+        return;
+    }
+
     if (eject_flag) {
         if (ioctl(s->fd, CDROMEJECT, NULL) < 0)
             perror("CDROMEJECT");
@@ -2406,12 +2477,8 @@ static void cdrom_lock_medium(BlockDriverState *bs, bool locked)
 {
     BDRVRawState *s = bs->opaque;
 
-    if (ioctl(s->fd, CDROM_LOCKDOOR, locked) < 0) {
-        /*
-         * Note: an error can happen if the distribution automatically
-         * mounts the CD-ROM
-         */
-        /* perror("CDROM_LOCKDOOR"); */
+    if (s->cd.manage_door) {
+        ioctl(s->fd, CDROM_LOCKDOOR, locked);
     }
 }
 
@@ -2423,7 +2490,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_probe_device	= cdrom_probe_device,
     .bdrv_parse_filename = cdrom_parse_filename,
     .bdrv_file_open     = cdrom_open,
-    .bdrv_close         = raw_close,
+    .bdrv_close         = cdrom_close,
     .bdrv_reopen_prepare = raw_reopen_prepare,
     .bdrv_reopen_commit  = raw_reopen_commit,
     .bdrv_reopen_abort   = raw_reopen_abort,
