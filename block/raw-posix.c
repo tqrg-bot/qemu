@@ -123,11 +123,15 @@ typedef struct BDRVRawState {
     int type;
     int open_flags;
 #if defined(__linux__)
-    /* linux floppy specific */
-    int64_t fd_open_time;
-    int64_t fd_error_time;
-    int fd_got_error;
-    int fd_media_changed;
+    union {
+        struct {
+            /* linux floppy specific */
+            int64_t open_time;
+            int64_t error_time;
+            int got_error;
+            int media_changed;
+        } fdd;
+    };
 #endif
 #ifdef CONFIG_LINUX_AIO
     int use_aio;
@@ -884,7 +888,7 @@ static int fd_open(BlockDriverState *bs)
         return 0;
     last_media_present = (s->fd >= 0);
     if (s->fd >= 0 &&
-        (get_clock() - s->fd_open_time) >= FD_OPEN_TIMEOUT) {
+        (get_clock() - s->fdd.open_time) >= FD_OPEN_TIMEOUT) {
         close(s->fd);
         s->fd = -1;
 #ifdef DEBUG_FLOPPY
@@ -892,8 +896,8 @@ static int fd_open(BlockDriverState *bs)
 #endif
     }
     if (s->fd < 0) {
-        if (s->fd_got_error &&
-            (get_clock() - s->fd_error_time) < FD_OPEN_TIMEOUT) {
+        if (s->fdd.got_error &&
+            (get_clock() - s->fdd.error_time) < FD_OPEN_TIMEOUT) {
 #ifdef DEBUG_FLOPPY
             printf("No floppy (open delayed)\n");
 #endif
@@ -901,10 +905,10 @@ static int fd_open(BlockDriverState *bs)
         }
         s->fd = open(bs->filename, s->open_flags & ~O_NONBLOCK);
         if (s->fd < 0) {
-            s->fd_error_time = get_clock();
-            s->fd_got_error = 1;
+            s->fdd.error_time = get_clock();
+            s->fdd.got_error = 1;
             if (last_media_present)
-                s->fd_media_changed = 1;
+                s->fdd.media_changed = 1;
 #ifdef DEBUG_FLOPPY
             printf("No floppy\n");
 #endif
@@ -915,9 +919,9 @@ static int fd_open(BlockDriverState *bs)
 #endif
     }
     if (!last_media_present)
-        s->fd_media_changed = 1;
-    s->fd_open_time = get_clock();
-    s->fd_got_error = 0;
+        s->fdd.media_changed = 1;
+    s->fdd.open_time = get_clock();
+    s->fdd.got_error = 0;
     return 0;
 }
 
@@ -1036,7 +1040,7 @@ static int floppy_open(BlockDriverState *bs, const char *filename, int flags)
     /* close fd so that we can reopen it as needed */
     close(s->fd);
     s->fd = -1;
-    s->fd_media_changed = 1;
+    s->fdd.media_changed = 1;
 
     return 0;
 }
@@ -1085,8 +1089,8 @@ static int floppy_media_changed(BlockDriverState *bs)
      * It does not work if the floppy is changed without trying to read it.
      */
     fd_open(bs);
-    ret = s->fd_media_changed;
-    s->fd_media_changed = 0;
+    ret = s->fdd.media_changed;
+    s->fdd.media_changed = 0;
 #ifdef DEBUG_FLOPPY
     printf("Floppy changed=%d\n", ret);
 #endif
