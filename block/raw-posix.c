@@ -28,6 +28,7 @@
 #include "block_int.h"
 #include "module.h"
 #include "block/raw-posix-aio.h"
+#include "block/raw-posix-udisks.h"
 
 #if defined(__APPLE__) && (__MACH__)
 #include <paths.h>
@@ -1174,15 +1175,25 @@ static int cdrom_open(BlockDriverState *bs, const char *filename, int flags)
 {
     BDRVRawState *s = bs->opaque;
     int rc;
+    int i;
 
     s->type = FTYPE_CD;
 
     /* open will not fail even if no CD is inserted, so add O_NONBLOCK.
      * First try with O_EXCL to see whether the CD is mounted.
      */
-    rc = raw_open_common(bs, filename, flags, O_NONBLOCK | O_EXCL);
-    if (rc < 0 && rc != -EBUSY) {
-        return rc;
+    for (i = 0; i < 20; i++) {
+        rc = raw_open_common(bs, filename, flags, O_NONBLOCK | O_EXCL);
+        if (rc == 0) {
+            break;
+        }
+        if (rc != -EBUSY) {
+            return rc;
+        }
+        if (i == 0 && udisks_unmount(filename) < 0) {
+            break;
+        }
+        usleep(100 * 1000);
     }
 
     s->cd.manage_door = false;
