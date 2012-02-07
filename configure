@@ -238,6 +238,7 @@ docs=""
 fdt=""
 netmap="no"
 pixman=""
+dbus=""
 sdl=""
 sdlabi="1.2"
 virtfs=""
@@ -744,6 +745,7 @@ if test "$mingw32" = "yes" ; then
   local_statedir=
   confsuffix=""
   libs_qga="-lws2_32 -lwinmm -lpowrprof -liphlpapi -lnetapi32 $libs_qga"
+  dbus="no"
 fi
 
 werror=""
@@ -893,6 +895,10 @@ for opt do
   --disable-sparse) sparse="no"
   ;;
   --disable-strip) strip_opt="no"
+  ;;
+  --disable-dbus) dbus="no"
+  ;;
+  --enable-dbus) dbus="yes"
   ;;
   --disable-vnc-sasl) vnc_sasl="no"
   ;;
@@ -1355,6 +1361,7 @@ disabled with --disable-FEATURE, default is enabled if available:
   vte             vte support for the gtk UI
   curses          curses UI
   vnc             VNC UI support
+  dbus            DBus interaction
   vnc-sasl        SASL encryption for VNC server
   vnc-jpeg        JPEG lossy compression for VNC server
   vnc-png         PNG compression for VNC server
@@ -2643,6 +2650,32 @@ EOF
   fi
 fi
 
+
+##########################################
+# dbus detection
+if test "$dbus" != "no" ; then
+  cat > $TMPC <<EOF
+#include <glib.h>
+#include <glib-object.h>
+#include <dbus/dbus-glib.h>
+#include <dbus/dbus-glib-lowlevel.h>
+int main(void) { DBusGConnection *bus = dbus_g_bus_get (DBUS_BUS_SYSTEM, NULL);
+dbus_g_connection_unref(bus); return 0; }
+EOF
+  dbus_cflags=`$pkg_config --cflags gobject-2.0 dbus-glib-1 2> /dev/null`
+  dbus_libs=`$pkg_config --libs gobject-2.0 dbus-glib-1 2> /dev/null`
+  if compile_prog "$glib_cflags $dbus_cflags" "$glib_libs $dbus_libs" ; then
+    dbus=yes
+    QEMU_CFLAGS="$QEMU_CFLAGS $dbus_cflags"
+    libs_softmmu="$dbus_libs $libs_softmmu"
+    libs_tools="$dbus_libs $libs_tools"
+  else
+    if test "$dbus" = "yes" ; then
+      feature_not_found "dbus"
+    fi
+    dbus=no
+  fi
+fi
 
 ##########################################
 # VNC SASL detection
