@@ -49,6 +49,10 @@
 #endif
 #endif
 
+#ifdef CONFIG_DBUS
+#include <glib-object.h>
+#endif
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -3269,6 +3273,9 @@ int bdrv_get_backing_file_depth(BlockDriverState *bs)
 void bdrv_init(void)
 {
     module_call_init(MODULE_INIT_BLOCK);
+#ifdef CONFIG_DBUS
+    g_type_init();
+#endif
 }
 
 void bdrv_init_with_whitelist(void)
