@@ -1095,6 +1095,30 @@ static const struct {
     /* [1] handler detects and reports not ready condition itself */
 };
 
+
+/* called when the inserted state of the media has changed */
+void ide_cd_change_cb(void *opaque, bool load)
+{
+    IDEState *s = opaque;
+    uint64_t nb_sectors;
+
+    s->tray_open = !load;
+    bdrv_get_geometry(s->bs, &nb_sectors);
+    s->nb_sectors = nb_sectors;
+
+    /*
+     * First indicate to the guest that a CD has been removed.  That's
+     * done on the next command the guest sends us.
+     *
+     * Then we set UNIT_ATTENTION, by which the guest will
+     * detect a new CD in the drive.  See ide_atapi_cmd() for details.
+     */
+    s->cdrom_changed = 1;
+    s->events.new_media = true;
+    s->events.eject_request = false;
+    ide_set_irq(s->bus);
+}
+
 void ide_atapi_cmd(IDEState *s)
 {
     uint8_t *buf;
@@ -1124,6 +1148,15 @@ void ide_atapi_cmd(IDEState *s)
         ide_atapi_cmd_check_status(s);
         return;
     }
+
+    /*
+     * When running with a passthrough CD-ROM, follow the state of the drive
+     * tray.
+     */
+    if ((state == MEDIUM_TRAY_OPEN) != s->tray_open) {
+        ide_cd_change_cb(s, state != MEDIUM_TRAY_OPEN);
+    }
+
     /*
      * When a CD gets changed, we have to report an ejected state and
      * then a loaded state to guests so that they detect tray
@@ -1131,7 +1164,7 @@ void ide_atapi_cmd(IDEState *s)
      * GET_EVENT_STATUS_NOTIFICATION to detect such tray open/close
      * states rely on this behavior.
      */
-    if (!s->tray_open && state == MEDIUM_OK && s->cdrom_changed) {
+    if (state == MEDIUM_OK && s->cdrom_changed) {
         ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
 
         s->cdrom_changed = 0;

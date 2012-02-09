@@ -536,6 +536,7 @@ void ide_dma_error(IDEState *s);
 void ide_atapi_cmd_ok(IDEState *s);
 void ide_atapi_cmd_error(IDEState *s, int sense_key, int asc);
 void ide_atapi_io_error(IDEState *s, int ret);
+void ide_cd_change_cb(void *opaque, bool load);
 
 void ide_ioport_write(void *opaque, uint32_t addr, uint32_t val);
 uint32_t ide_ioport_read(void *opaque, uint32_t addr1);
