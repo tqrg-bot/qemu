@@ -1291,6 +1291,30 @@ static const struct AtapiCmd {
     /* [1] handler detects and reports not ready condition itself */
 };
 
+
+/* called when the inserted state of the media has changed */
+void ide_cd_change_cb(void *opaque, bool load)
+{
+    IDEState *s = opaque;
+    uint64_t nb_sectors;
+
+    s->tray_open = !load;
+    blk_get_geometry(s->blk, &nb_sectors);
+    s->nb_sectors = nb_sectors;
+
+    /*
+     * First indicate to the guest that a CD has been removed.  That's
+     * done on the next command the guest sends us.
+     *
+     * Then we set UNIT_ATTENTION, by which the guest will
+     * detect a new CD in the drive.  See ide_atapi_cmd() for details.
+     */
+    s->cdrom_changed = 1;
+    s->events.new_media = true;
+    s->events.eject_request = false;
+    ide_set_irq(s->bus);
+}
+
 void ide_atapi_cmd(IDEState *s)
 {
     uint8_t *buf = s->io_buffer;
@@ -1322,6 +1346,14 @@ void ide_atapi_cmd(IDEState *s)
     state = blk_media_state(s->blk);
 
     /*
+     * When running with a passthrough CD-ROM, follow the state of the drive
+     * tray.
+     */
+    if ((state == MEDIUM_TRAY_OPEN) != s->tray_open) {
+        ide_cd_change_cb(s, state != MEDIUM_TRAY_OPEN);
+    }
+
+    /*
      * When a CD gets changed, we have to report an ejected state and
      * then a loaded state to guests so that they detect tray
      * open/close and media change events.  Guests that do not use
@@ -1329,7 +1361,7 @@ void ide_atapi_cmd(IDEState *s)
      * states rely on this behavior.
      */
     if ((cmd->flags & CHECK_READY) &&
-        (state != MEDIUM_OK || (!s->tray_open && s->cdrom_changed == 1))) {
+        (state != MEDIUM_OK || s->cdrom_changed == 1)) {
 
         ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
         s->cdrom_changed = 2;
@@ -1337,7 +1369,7 @@ void ide_atapi_cmd(IDEState *s)
     }
 
     if (!(cmd->flags & ALLOW_UA) &&
-        state == MEDIUM_OK && !s->tray_open && s->cdrom_changed == 2) {
+        state == MEDIUM_OK && s->cdrom_changed == 2) {
 
         ide_atapi_cmd_error(s, UNIT_ATTENTION, ASC_MEDIUM_MAY_HAVE_CHANGED);
         s->cdrom_changed = 0;
