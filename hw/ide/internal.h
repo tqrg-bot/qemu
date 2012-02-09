@@ -290,6 +290,7 @@ typedef struct IDEDMAOps IDEDMAOps;
 
 /* same constants as bochs */
 #define ASC_NO_SEEK_COMPLETE                 0x02
+#define ASC_LUN_NOT_READY                    0x04
 #define ASC_ILLEGAL_OPCODE                   0x20
 #define ASC_LOGICAL_BLOCK_OOR                0x21
 #define ASC_INV_FIELD_IN_CMD_PACKET          0x24
