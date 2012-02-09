@@ -604,12 +604,22 @@ static void cmd_get_event_status_notification(IDEState *s,
 static void cmd_request_sense(IDEState *s, uint8_t *buf)
 {
     int max_len = buf[4];
+    int ascq = 0;
+
+    /* Derive the ascq here to simplify migration.  */
+    if (s->asc == ASC_LUN_NOT_READY) {
+        ascq = s->tray_open ? 2 : 1;
+    }
+    if (s->asc == ASC_MEDIUM_NOT_PRESENT) {
+        ascq = s->tray_open ? 2 : 1;
+    }
 
     memset(buf, 0, 18);
     buf[0] = 0x70 | (1 << 7);
     buf[2] = s->sense_key;
     buf[7] = 10;
     buf[12] = s->asc;
+    buf[13] = ascq;
 
     if (s->sense_key == UNIT_ATTENTION) {
         s->sense_key = NO_SENSE;

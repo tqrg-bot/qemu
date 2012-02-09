@@ -290,6 +290,7 @@ typedef struct IDEDMAOps IDEDMAOps;
 #define ATAPI_INT_REASON_TAG            0xf8
 
 /* same constants as bochs */
+#define ASC_LUN_NOT_READY                    0x04
 #define ASC_ILLEGAL_OPCODE                   0x20
 #define ASC_LOGICAL_BLOCK_OOR                0x21
 #define ASC_INV_FIELD_IN_CMD_PACKET          0x24
