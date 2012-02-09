@@ -257,6 +257,13 @@ int bdrv_has_zero_init(BlockDriverState *bs);
 int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
                       int *pnum);
 
+typedef enum MediumState {
+    MEDIUM_TRAY_OPEN,
+    MEDIUM_NOT_PRESENT,
+    MEDIUM_NOT_READY,
+    MEDIUM_OK,
+} MediumState;
+
 void bdrv_set_on_error(BlockDriverState *bs, BlockErrorAction on_read_error,
                        BlockErrorAction on_write_error);
 BlockErrorAction bdrv_get_on_error(BlockDriverState *bs, int is_read);
@@ -265,6 +272,7 @@ int bdrv_is_sg(BlockDriverState *bs);
 int bdrv_enable_write_cache(BlockDriverState *bs);
 void bdrv_set_enable_write_cache(BlockDriverState *bs, bool wce);
 int bdrv_is_inserted(BlockDriverState *bs);
+MediumState bdrv_media_state(BlockDriverState *bs);
 int bdrv_media_changed(BlockDriverState *bs);
 void bdrv_lock_medium(BlockDriverState *bs, bool locked);
 void bdrv_eject(BlockDriverState *bs, bool eject_flag);

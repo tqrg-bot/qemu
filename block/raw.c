@@ -55,9 +55,9 @@ static int coroutine_fn raw_co_discard(BlockDriverState *bs,
     return bdrv_co_discard(bs->file, sector_num, nb_sectors);
 }
 
-static int raw_is_inserted(BlockDriverState *bs)
+static MediumState raw_media_state(BlockDriverState *bs)
 {
-    return bdrv_is_inserted(bs->file);
+    return bdrv_media_state(bs->file);
 }
 
 static int raw_media_changed(BlockDriverState *bs)
@@ -124,7 +124,7 @@ static BlockDriver bdrv_raw = {
     .bdrv_getlength     = raw_getlength,
     .bdrv_truncate      = raw_truncate,
 
-    .bdrv_is_inserted   = raw_is_inserted,
+    .bdrv_media_state   = raw_media_state,
     .bdrv_media_changed = raw_media_changed,
     .bdrv_eject         = raw_eject,
     .bdrv_lock_medium   = raw_lock_medium,

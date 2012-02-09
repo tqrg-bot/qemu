@@ -1080,9 +1080,9 @@ out:
 }
 
 
-static int floppy_is_inserted(BlockDriverState *bs)
+static MediumState floppy_media_state(BlockDriverState *bs)
 {
-    return fd_open(bs) >= 0;
+    return fd_open(bs) >= 0 ? MEDIUM_OK : MEDIUM_NOT_PRESENT;
 }
 
 static int floppy_media_changed(BlockDriverState *bs)
@@ -1141,7 +1141,7 @@ static BlockDriver bdrv_host_floppy = {
                         = raw_get_allocated_file_size,
 
     /* removable device support */
-    .bdrv_is_inserted   = floppy_is_inserted,
+    .bdrv_media_state   = floppy_media_state,
     .bdrv_media_changed = floppy_media_changed,
     .bdrv_eject         = floppy_eject,
 };
@@ -1258,15 +1258,20 @@ out:
     return prio;
 }
 
-static int cdrom_is_inserted(BlockDriverState *bs)
+static MediumState cdrom_media_state(BlockDriverState *bs)
 {
     BDRVRawState *s = bs->opaque;
     int ret;
+    static MediumState media_state_table[] = {
+        [CDS_NO_INFO] = MEDIUM_OK,
+        [CDS_NO_DISC] = MEDIUM_NOT_PRESENT,
+        [CDS_TRAY_OPEN] = MEDIUM_TRAY_OPEN,
+        [CDS_DRIVE_NOT_READY] = MEDIUM_NOT_READY,
+        [CDS_DISC_OK] = MEDIUM_OK
+    };
 
     ret = ioctl(s->fd, CDROM_DRIVE_STATUS, CDSL_CURRENT);
-    if (ret == CDS_DISC_OK)
-        return 1;
-    return 0;
+    return ret < 0 ? MEDIUM_OK : media_state_table[ret];
 }
 
 static void cdrom_eject(BlockDriverState *bs, bool eject_flag)
@@ -1314,7 +1319,7 @@ static BlockDriver bdrv_host_cdrom = {
                         = raw_get_allocated_file_size,
 
     /* removable device support */
-    .bdrv_is_inserted   = cdrom_is_inserted,
+    .bdrv_media_state   = cdrom_media_state,
     .bdrv_eject         = cdrom_eject,
     .bdrv_lock_medium   = cdrom_lock_medium,
 
@@ -1372,9 +1377,9 @@ static int cdrom_reopen(BlockDriverState *bs)
     return 0;
 }
 
-static int cdrom_is_inserted(BlockDriverState *bs)
+static MediumState cdrom_media_state(BlockDriverState *bs)
 {
-    return raw_getlength(bs) > 0;
+    return raw_getlength(bs) > 0 ? MEDIUM_OK : MEDIUM_NOT_PRESENT;
 }
 
 static void cdrom_eject(BlockDriverState *bs, bool eject_flag)
@@ -1433,7 +1438,7 @@ static BlockDriver bdrv_host_cdrom = {
                         = raw_get_allocated_file_size,
 
     /* removable device support */
-    .bdrv_is_inserted   = cdrom_is_inserted,
+    .bdrv_media_state   = cdrom_media_state,
     .bdrv_eject         = cdrom_eject,
     .bdrv_lock_medium   = cdrom_lock_medium,
 };

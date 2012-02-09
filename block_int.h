@@ -222,7 +222,7 @@ struct BlockDriver {
         const char *backing_file, const char *backing_fmt);
 
     /* removable device specific */
-    int (*bdrv_is_inserted)(BlockDriverState *bs);
+    MediumState (*bdrv_media_state)(BlockDriverState *bs);
     int (*bdrv_media_changed)(BlockDriverState *bs);
     void (*bdrv_eject)(BlockDriverState *bs, bool eject_flag);
     void (*bdrv_lock_medium)(BlockDriverState *bs, bool locked);

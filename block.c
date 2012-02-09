@@ -3682,13 +3682,23 @@ int bdrv_discard(BlockDriverState *bs, int64_t sector_num, int nb_sectors)
  */
 int bdrv_is_inserted(BlockDriverState *bs)
 {
+    return bdrv_media_state(bs) == MEDIUM_OK;
+}
+
+/**
+ * Return state of medium in the drive
+ */
+MediumState bdrv_media_state(BlockDriverState *bs)
+{
     BlockDriver *drv = bs->drv;
 
-    if (!drv)
-        return 0;
-    if (!drv->bdrv_is_inserted)
-        return 1;
-    return drv->bdrv_is_inserted(bs);
+    if (!drv) {
+        return MEDIUM_NOT_PRESENT;
+    }
+    if (drv->bdrv_media_state) {
+        return drv->bdrv_media_state(bs);
+    }
+    return MEDIUM_OK;
 }
 
 /**
