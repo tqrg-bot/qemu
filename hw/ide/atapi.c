@@ -1088,6 +1088,7 @@ static const struct {
 void ide_atapi_cmd(IDEState *s)
 {
     uint8_t *buf;
+    MediumState state;
 
     buf = s->io_buffer;
 #ifdef DEBUG_IDE_ATAPI
@@ -1100,6 +1101,8 @@ void ide_atapi_cmd(IDEState *s)
         printf("\n");
     }
 #endif
+    state = bdrv_media_state(s->bs);
+
     /*
      * If there's a UNIT_ATTENTION condition pending, only command flagged with
      * ALLOW_UA are allowed to complete. with other commands getting a CHECK
@@ -1118,7 +1121,7 @@ void ide_atapi_cmd(IDEState *s)
      * GET_EVENT_STATUS_NOTIFICATION to detect such tray open/close
      * states rely on this behavior.
      */
-    if (!s->tray_open && bdrv_is_inserted(s->bs) && s->cdrom_changed) {
+    if (!s->tray_open && state == MEDIUM_OK && s->cdrom_changed) {
         ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
 
         s->cdrom_changed = 0;
@@ -1129,7 +1132,7 @@ void ide_atapi_cmd(IDEState *s)
 
     /* Report a Not Ready condition if appropriate for the command */
     if ((atapi_cmd_table[s->io_buffer[0]].flags & CHECK_READY) &&
-        (!media_present(s) || !bdrv_is_inserted(s->bs)))
+        (!media_present(s) || state != MEDIUM_OK))
     {
         ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
         return;
