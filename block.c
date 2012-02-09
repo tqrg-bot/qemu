@@ -3377,21 +3377,25 @@ int bdrv_inactivate_all(void)
  */
 bool bdrv_is_inserted(BlockDriverState *bs)
 {
+    return bdrv_media_state(bs) == MEDIUM_OK;
+}
+
+/**
+ * Return state of medium in the drive
+ */
+MediumState bdrv_media_state(BlockDriverState *bs)
+{
     BlockDriver *drv = bs->drv;
-    BdrvChild *child;
 
     if (!drv) {
-        return false;
+        return MEDIUM_NOT_PRESENT;
+    } else if (drv->bdrv_media_state) {
+        return drv->bdrv_media_state(bs);
+    } else if (bs->file) {
+        return bdrv_media_state(bs->file->bs);
+    } else {
+        return -ENOTSUP;
     }
-    if (drv->bdrv_is_inserted) {
-        return drv->bdrv_is_inserted(bs);
-    }
-    QLIST_FOREACH(child, &bs->children, next) {
-        if (!bdrv_is_inserted(child->bs)) {
-            return false;
-        }
-    }
-    return true;
 }
 
 /**

@@ -2458,13 +2458,20 @@ out:
     return prio;
 }
 
-static bool cdrom_is_inserted(BlockDriverState *bs)
+static MediumState cdrom_media_state(BlockDriverState *bs)
 {
     BDRVRawState *s = bs->opaque;
     int ret;
+    static MediumState media_state_table[] = {
+        [CDS_NO_INFO] = MEDIUM_OK,
+        [CDS_NO_DISC] = MEDIUM_NOT_PRESENT,
+        [CDS_TRAY_OPEN] = MEDIUM_TRAY_OPEN,
+        [CDS_DRIVE_NOT_READY] = MEDIUM_NOT_READY,
+        [CDS_DISC_OK] = MEDIUM_OK
+    };
 
     ret = ioctl(s->fd, CDROM_DRIVE_STATUS, CDSL_CURRENT);
-    return ret == CDS_DISC_OK;
+    return ret < 0 ? MEDIUM_OK : media_state_table[ret];
 }
 
 static void cdrom_eject(BlockDriverState *bs, bool eject_flag)
@@ -2524,7 +2531,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_attach_aio_context = raw_attach_aio_context,
 
     /* removable device support */
-    .bdrv_is_inserted   = cdrom_is_inserted,
+    .bdrv_media_state   = cdrom_media_state,
     .bdrv_eject         = cdrom_eject,
     .bdrv_lock_medium   = cdrom_lock_medium,
 
@@ -2587,9 +2594,9 @@ static int cdrom_reopen(BlockDriverState *bs)
     return 0;
 }
 
-static bool cdrom_is_inserted(BlockDriverState *bs)
+static MediumState cdrom_media_state(BlockDriverState *bs)
 {
-    return raw_getlength(bs) > 0;
+    return raw_getlength(bs) > 0 ? MEDIUM_OK : MEDIUM_NOT_PRESENT;
 }
 
 static void cdrom_eject(BlockDriverState *bs, bool eject_flag)
@@ -2660,7 +2667,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_attach_aio_context = raw_attach_aio_context,
 
     /* removable device support */
-    .bdrv_is_inserted   = cdrom_is_inserted,
+    .bdrv_media_state   = cdrom_media_state,
     .bdrv_eject         = cdrom_eject,
     .bdrv_lock_medium   = cdrom_lock_medium,
 };

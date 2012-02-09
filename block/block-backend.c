@@ -491,6 +491,24 @@ bool blk_dev_has_tray(BlockBackend *blk)
 }
 
 /*
+ * What is the state of the medium inside @blk?
+ */
+MediumState blk_media_state(BlockBackend *blk)
+{
+    int ret;
+   
+    if (!blk->bs) {
+        return MEDIUM_NOT_PRESENT;
+    }
+
+    ret = bdrv_media_state(blk->bs);
+    if (ret == -ENOTSUP) {
+        ret = MEDIUM_OK;
+    }
+    return ret;
+}
+
+/*
  * Notify @blk's attached device model of a media eject request.
  * If @force is true, the medium is about to be yanked out forcefully.
  */
