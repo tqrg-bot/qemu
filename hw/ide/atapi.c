@@ -1143,7 +1143,7 @@ void ide_atapi_cmd(IDEState *s)
      * condition response unless a higher priority status, defined by the drive
      * here, is pending.
      */
-    if (s->sense_key == UNIT_ATTENTION &&
+    if (state != MEDIUM_NOT_READY && s->sense_key == UNIT_ATTENTION &&
         !(atapi_cmd_table[s->io_buffer[0]].flags & ALLOW_UA)) {
         ide_atapi_cmd_check_status(s);
         return;
@@ -1164,7 +1164,7 @@ void ide_atapi_cmd(IDEState *s)
      * GET_EVENT_STATUS_NOTIFICATION to detect such tray open/close
      * states rely on this behavior.
      */
-    if (state == MEDIUM_OK && s->cdrom_changed) {
+    if ((state == MEDIUM_NOT_READY || state == MEDIUM_OK) && s->cdrom_changed) {
         ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
 
         s->cdrom_changed = 0;
@@ -1177,7 +1177,11 @@ void ide_atapi_cmd(IDEState *s)
     if ((atapi_cmd_table[s->io_buffer[0]].flags & CHECK_READY) &&
         state != MEDIUM_OK)
     {
-        ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
+        if (state == MEDIUM_NOT_READY) {
+            ide_atapi_cmd_error(s, NOT_READY, ASC_LUN_NOT_READY);
+        } else {
+            ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
+        }
         return;
     }
 
