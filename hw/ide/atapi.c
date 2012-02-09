@@ -1373,8 +1373,12 @@ void ide_atapi_cmd(IDEState *s)
     if ((cmd->flags & CHECK_READY) &&
         (state != MEDIUM_OK || s->cdrom_changed == 1)) {
 
-        ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
-        s->cdrom_changed = 2;
+        if (state == MEDIUM_NOT_READY) {
+            ide_atapi_cmd_error(s, NOT_READY, ASC_LUN_NOT_READY);
+        } else {
+            ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
+            s->cdrom_changed = 2;
+        }
         return;
     }
 
