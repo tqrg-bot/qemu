@@ -145,6 +145,7 @@ bool blk_is_inserted(BlockBackend *blk);
 MediumState blk_media_state(BlockBackend *blk);
 bool blk_is_available(BlockBackend *blk);
 void blk_lock_medium(BlockBackend *blk, bool locked);
+bool blk_poll_eject_request(BlockBackend *blk);
 void blk_eject(BlockBackend *blk, bool eject_flag);
 int blk_get_flags(BlockBackend *blk);
 int blk_get_max_transfer_length(BlockBackend *blk);

@@ -2432,6 +2432,29 @@ static void cdrom_close(BlockDriverState *bs)
     raw_close(bs);
 }
 
+static bool cdrom_poll_eject_request(BlockDriverState *bs)
+{
+    BDRVRawState *s = bs->opaque;
+    uint8_t buffer[8];
+    struct cdrom_generic_command cgc = {
+        .cmd[0] = 0x4a,   /* GET EVENT STATUS NOTIFICATION */
+        .cmd[1] = 1,      /* IMMED */
+        .cmd[4] = 1 << 4, /* media event */
+        .cmd[8] = sizeof(buffer),
+        .sense = NULL,
+        .buffer = buffer,
+        .buflen = sizeof(buffer), /* resid on output */
+        .data_direction = CGC_DATA_READ,
+        .quiet = 1,
+        .timeout = 0,
+    };
+
+    return (ioctl(s->fd, CDROM_SEND_PACKET, &cgc) >= 0 &&
+            sizeof(buffer) - cgc.buflen >= 5 && /* event status filled */
+            buffer[2] == 4 && /* media event */
+            buffer[4] == 1); /* eject request */
+}
+
 static int cdrom_probe_device(const char *filename)
 {
     int fd, ret;
@@ -2534,6 +2557,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_media_state   = cdrom_media_state,
     .bdrv_eject         = cdrom_eject,
     .bdrv_lock_medium   = cdrom_lock_medium,
+    .bdrv_poll_eject_request = cdrom_poll_eject_request,
 
     /* generic scsi device */
     .bdrv_aio_ioctl     = hdev_aio_ioctl,

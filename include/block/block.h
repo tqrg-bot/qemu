@@ -413,6 +413,7 @@ bool bdrv_is_inserted(BlockDriverState *bs);
 MediumState bdrv_media_state(BlockDriverState *bs);
 int bdrv_media_changed(BlockDriverState *bs);
 void bdrv_lock_medium(BlockDriverState *bs, bool locked);
+bool bdrv_poll_eject_request(BlockDriverState *bs);
 void bdrv_eject(BlockDriverState *bs, bool eject_flag);
 const char *bdrv_get_format_name(BlockDriverState *bs);
 BlockDriverState *bdrv_find_node(const char *node_name);

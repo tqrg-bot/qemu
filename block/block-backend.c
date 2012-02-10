@@ -1053,6 +1053,11 @@ void blk_lock_medium(BlockBackend *blk, bool locked)
     }
 }
 
+bool blk_poll_eject_request(BlockBackend *blk)
+{
+    return blk->bs && bdrv_poll_eject_request(blk->bs);
+}
+
 void blk_eject(BlockBackend *blk, bool eject_flag)
 {
     if (blk->bs) {

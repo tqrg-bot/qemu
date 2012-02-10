@@ -619,7 +619,7 @@ static unsigned int event_status_media(IDEState *s,
         if (s->events.new_media) {
             event_code = MEC_NEW_MEDIA;
             s->events.new_media = false;
-        } else if (s->events.eject_request) {
+        } else if (s->events.eject_request || blk_poll_eject_request(s->blk)) {
             event_code = MEC_EJECT_REQUESTED;
             s->events.eject_request = false;
         }

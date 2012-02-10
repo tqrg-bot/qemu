@@ -3551,6 +3551,18 @@ int bdrv_dirty_bitmap_create_successor(BlockDriverState *bs,
     return 0;
 }
 
+bool bdrv_poll_eject_request(BlockDriverState *bs)
+{
+    BlockDriver *drv = bs->drv;
+
+    if (!drv || drv->bdrv_poll_eject_request) {
+        return false;
+    }
+
+    return drv->bdrv_poll_eject_request(bs);
+}
+
+
 /**
  * For a bitmap with a successor, yield our name to the successor,
  * delete the old bitmap, and return a handle to the new bitmap.
