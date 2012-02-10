@@ -3704,6 +3704,18 @@ MediumState bdrv_media_state(BlockDriverState *bs)
     return MEDIUM_OK;
 }
 
+bool bdrv_poll_eject_request(BlockDriverState *bs)
+{
+    BlockDriver *drv = bs->drv;
+
+    if (!drv || drv->bdrv_poll_eject_request) {
+        return false;
+    }
+
+    return drv->bdrv_poll_eject_request(bs);
+}
+
+
 /**
  * Return whether the media changed since the last call to this
  * function, or -ENOTSUP if we don't know.  Most drivers don't know.

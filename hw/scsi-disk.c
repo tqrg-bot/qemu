@@ -869,7 +869,8 @@ static int scsi_event_status_media(SCSIDiskState *s, uint8_t *outbuf)
         if (s->media_event) {
             event_code = MEC_NEW_MEDIA;
             s->media_event = false;
-        } else if (s->eject_request) {
+        } else if (bdrv_poll_eject_request(s->qdev.conf.bs) ||
+		   s->eject_request) {
             event_code = MEC_EJECT_REQUESTED;
             s->eject_request = false;
         }
