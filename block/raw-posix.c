@@ -1267,11 +1267,9 @@ static void cdrom_eject(BlockDriverState *bs, bool eject_flag)
     }
 
     if (eject_flag) {
-        if (ioctl(s->fd, CDROMEJECT, NULL) < 0)
-            perror("CDROMEJECT");
+        ioctl(s->fd, CDROMEJECT, NULL);
     } else {
-        if (ioctl(s->fd, CDROMCLOSETRAY, NULL) < 0)
-            perror("CDROMEJECT");
+        ioctl(s->fd, CDROMCLOSETRAY, NULL);
     }
 }
 
