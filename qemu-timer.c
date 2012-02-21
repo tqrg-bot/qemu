@@ -86,25 +86,18 @@ static bool qemu_timer_expired_ns(QEMUTimer *timer_head, int64_t current_time)
 static int64_t qemu_next_alarm_deadline(void)
 {
     int64_t delta = INT64_MAX;
-    int64_t rtdelta;
+    int64_t hdelta, rtdelta;
 
-    if (!use_icount && vm_clock->enabled && vm_clock->active_timers) {
-        delta = vm_clock->active_timers->expire_time -
-                     qemu_get_clock_ns(vm_clock);
+    if (!use_icount) {
+        delta = qemu_clock_deadline(vm_clock);
     }
-    if (host_clock->enabled && host_clock->active_timers) {
-        int64_t hdelta = host_clock->active_timers->expire_time -
-                 qemu_get_clock_ns(host_clock);
-        if (hdelta < delta) {
-            delta = hdelta;
-        }
+    hdelta = qemu_clock_deadline(host_clock);
+    if (hdelta < delta) {
+        delta = hdelta;
     }
-    if (rt_clock->enabled && rt_clock->active_timers) {
-        rtdelta = (rt_clock->active_timers->expire_time -
-                 qemu_get_clock_ns(rt_clock));
-        if (rtdelta < delta) {
-            delta = rtdelta;
-        }
+    rtdelta = qemu_clock_deadline(rt_clock);
+    if (rtdelta < delta) {
+        delta = rtdelta;
     }
 
     return delta;
@@ -267,8 +260,7 @@ int64_t qemu_clock_expired(QEMUClock *clock)
 
 int64_t qemu_clock_deadline(QEMUClock *clock)
 {
-    /* To avoid problems with overflow limit this to 2^32.  */
-    int64_t delta = INT32_MAX;
+    int64_t delta = INT64_MAX;
 
     if (clock->active_timers) {
         delta = clock->active_timers->expire_time - qemu_get_clock_ns(clock);
