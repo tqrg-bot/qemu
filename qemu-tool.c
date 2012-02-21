@@ -79,10 +79,6 @@ void qemu_mutex_unlock_iothread(void)
 
 int use_icount;
 
-void qemu_clock_warp(QEMUClock *clock)
-{
-}
-
 int qemu_init_main_loop(void)
 {
     init_clocks();
