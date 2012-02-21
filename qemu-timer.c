@@ -45,6 +45,7 @@
 #endif
 
 #include "qemu-timer.h"
+#include "qemu-thread.h"
 
 /***********************************************************/
 /* timers */
@@ -56,7 +57,9 @@
 struct QEMUClock {
     int type;
     int enabled;
+    int64_t expire_time;
 
+    QemuMutex mutex;
     QEMUTimer *active_timers;
 
     NotifierList reset_notifiers;
@@ -88,6 +91,7 @@ struct qemu_alarm_timer {
 };
 
 static struct qemu_alarm_timer *alarm_timer;
+static QEMUBH *rearm_bh;
 
 static bool qemu_timer_expired_ns(QEMUTimer *timer_head, int64_t current_time)
 {
@@ -126,9 +130,11 @@ static int64_t qemu_next_alarm_deadline(void)
     return delta;
 }
 
-static void qemu_rearm_alarm_timer(struct qemu_alarm_timer *t)
+static void qemu_rearm_alarm_timer(void *opaque)
 {
+    struct qemu_alarm_timer *t = opaque;
     int64_t nearest_delta_ns;
+
     assert(alarm_has_dynticks(t));
     if (!rt_clock->active_timers &&
         !vm_clock->active_timers &&
@@ -258,16 +264,16 @@ static QEMUClock *qemu_new_clock(int type)
     clock->type = type;
     clock->enabled = 1;
     clock->last = INT64_MIN;
+    qemu_mutex_init(&clock->mutex);
     notifier_list_init(&clock->reset_notifiers);
     return clock;
 }
 
 void qemu_clock_enable(QEMUClock *clock, int enabled)
 {
-    bool old = clock->enabled;
-    clock->enabled = enabled;
+    bool old = atomic_xchg(&clock->enabled, enabled);
     if (enabled && !old) {
-        qemu_rearm_alarm_timer(alarm_timer);
+        qemu_bh_schedule(rearm_bh);
     }
 }
 
@@ -284,11 +290,19 @@ int64_t qemu_clock_expired(QEMUClock *clock)
 
 int64_t qemu_clock_deadline(QEMUClock *clock)
 {
-    /* To avoid problems with overflow limit this to 2^32.  */
-    int64_t delta = INT32_MAX;
+    int64_t delta;
 
-    if (clock->active_timers) {
-        delta = clock->active_timers->expire_time - qemu_get_clock_ns(clock);
+    /* Locks are not needed.  When expire_time changes or enabled
+     * becomes true, the main loop exits immediately.
+     */
+    if (!clock->enabled) {
+        return INT32_MAX;
+    }
+
+    delta = clock->expire_time - qemu_get_clock_ns(clock);
+    /* To avoid problems with overflow limit this to 2^32.  */
+    if (delta > INT32_MAX) {
+        delta = INT32_MAX;
     }
     if (delta < 0) {
         delta = 0;
@@ -315,7 +329,7 @@ void qemu_free_timer(QEMUTimer *ts)
 }
 
 /* stop a timer, but do not dealloc it */
-void qemu_del_timer(QEMUTimer *ts)
+static void qemu_del_timer_locked(QEMUTimer *ts)
 {
     QEMUTimer **pt, *t;
 
@@ -334,13 +348,27 @@ void qemu_del_timer(QEMUTimer *ts)
     }
 }
 
+/* stop a timer, but do not dealloc it */
+void qemu_del_timer(QEMUTimer *ts)
+{
+    qemu_mutex_lock(&ts->clock->mutex);
+    qemu_del_timer_locked(ts);
+    if (clock->active_timers) {
+        clock->expire_time = clock->active_timers->expire_time;
+    } else {
+        clock->expire_time = INT32_MAX;
+    }
+    qemu_mutex_unlock(&ts->clock->mutex);
+}
+
 /* modify the current timer so that it will be fired when current_time
    >= expire_time. The corresponding callback will be called. */
 void qemu_mod_timer_ns(QEMUTimer *ts, int64_t expire_time)
 {
     QEMUTimer **pt, *t;
 
-    qemu_del_timer(ts);
+    qemu_mutex_lock(&ts->clock->mutex);
+    qemu_del_timer_locked(ts);
 
     /* add the timer in the sorted list */
     /* NOTE: this code must be signal safe because
@@ -359,14 +387,15 @@ void qemu_mod_timer_ns(QEMUTimer *ts, int64_t expire_time)
 
     /* Rearm if necessary  */
     if (pt == &ts->clock->active_timers) {
-        if (!alarm_timer->pending) {
-            qemu_rearm_alarm_timer(alarm_timer);
+        clock->expire_time = expire_time;
+        if (!alarm_timer->pending && ts->clock->enabled) {
+            qemu_bh_schedule(rearm_bh);
         }
-        /* Interrupt execution to force deadline recalculation.  */
-        if (use_icount) {
-            qemu_notify_event();
-        }
+        /* For icount we also need to interrupt execution to force deadline
+         * recalculation.  This is taken care of by the bottom half.
+         */
     }
+    qemu_mutex_unlock(&ts->clock->mutex);
 }
 
 void qemu_mod_timer(QEMUTimer *ts, int64_t expire_time)
@@ -399,7 +428,11 @@ static void qemu_run_timers(QEMUClock *clock)
 
     current_time = qemu_get_clock_ns(clock);
     ptimer_head = &clock->active_timers;
+    qemu_mutex_lock(&clock->mutex);
     for(;;) {
+        QEMUTimerCB *cb;
+        void *opaque;
+
         ts = *ptimer_head;
         if (!qemu_timer_expired_ns(ts, current_time)) {
             break;
@@ -407,10 +440,15 @@ static void qemu_run_timers(QEMUClock *clock)
         /* remove timer from the list before calling the callback */
         *ptimer_head = ts->next;
         ts->next = NULL;
+        cb = ts->cb;
+        opaque = ts->opaque;
+        qemu_mutex_unlock(&clock->mutex);
 
         /* run the callback (the timer list can be modified) */
-        ts->cb(ts->opaque);
+        cb(opaque);
+        qemu_mutex_lock(&clock->mutex);
     }
+    qemu_mutex_unlock(&clock->mutex);
 }
 
 int64_t qemu_get_clock_ns(QEMUClock *clock)
@@ -774,6 +812,7 @@ static void win32_rearm_timer(struct qemu_alarm_timer *t,
 static void quit_timers(void)
 {
     struct qemu_alarm_timer *t = alarm_timer;
+    qemu_bh_delete(rearm_bh);
     alarm_timer = NULL;
     t->stop(t);
 }
@@ -800,6 +839,7 @@ int init_timer_alarm(void)
     atexit(quit_timers);
     t->pending = 1;
     alarm_timer = t;
+    rearm_bh = qemu_bh_new(qemu_rearm_alarm_timer, alarm_timer);
 
     return 0;
 
