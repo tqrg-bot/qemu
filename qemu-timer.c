@@ -338,7 +338,6 @@ void qemu_mod_timer_ns(QEMUTimer *ts, int64_t expire_time)
             qemu_rearm_alarm_timer(alarm_timer);
         }
         /* Interrupt execution to force deadline recalculation.  */
-        qemu_clock_warp(ts->clock);
         if (use_icount) {
             qemu_notify_event();
         }

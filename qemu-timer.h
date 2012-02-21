@@ -41,7 +41,6 @@ int64_t qemu_clock_has_timers(QEMUClock *clock);
 int64_t qemu_clock_expired(QEMUClock *clock);
 int64_t qemu_clock_deadline(QEMUClock *clock);
 void qemu_clock_enable(QEMUClock *clock, bool enabled);
-void qemu_clock_warp(QEMUClock *clock);
 
 void qemu_register_clock_reset_notifier(QEMUClock *clock, Notifier *notifier);
 void qemu_unregister_clock_reset_notifier(QEMUClock *clock,

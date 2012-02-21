@@ -253,16 +253,10 @@ void qtest_clock_warp(int64_t dest)
     qemu_notify_event();
 }
 
-void qemu_clock_warp(QEMUClock *clock)
+static void qemu_warp_vmclock(void)
 {
     int64_t deadline;
-
-    /*
-     * There are too many global variables to make the "warp" behavior
-     * applicable to other clocks.  But a clock argument removes the
-     * need for if statements all over the place.
-     */
-    if (clock != vm_clock || !use_icount) {
+    if (!use_icount) {
         return;
     }
 
@@ -699,10 +693,10 @@ static void qemu_tcg_wait_io_event(void)
 {
     CPUArchState *env;
 
+    qemu_warp_vmclock();
     while (all_cpu_threads_idle()) {
        /* Start accounting real time to the virtual clock if the CPUs
           are idle.  */
-        qemu_clock_warp(vm_clock);
         qemu_cond_wait(tcg_halt_cond, &qemu_global_mutex);
     }
 
@@ -1114,7 +1108,7 @@ static void tcg_exec_all(void)
     int r;
 
     /* Account partial waits to the vm_clock.  */
-    qemu_clock_warp(vm_clock);
+    qemu_warp_vmclock();
 
     if (next_cpu == NULL) {
         next_cpu = first_cpu;
