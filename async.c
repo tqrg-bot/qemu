@@ -25,6 +25,7 @@
 #include "qemu-common.h"
 #include "qemu-aio.h"
 #include "main-loop.h"
+#include "qemu/atomic.h"
 
 /* Anchor of the list of Bottom Halves belonging to the context */
 static struct QEMUBH *first_bh;
@@ -93,31 +94,30 @@ int qemu_bh_poll(void)
 
 void qemu_bh_schedule_idle(QEMUBH *bh)
 {
-    if (bh->scheduled)
+    if (atomic_read(&bh->scheduled))
         return;
-    bh->scheduled = 1;
-    bh->idle = 1;
+    atomic_mb_set(&bh->idle, 1);
+    atomic_mb_set(&bh->scheduled, 1);
 }
 
 void qemu_bh_schedule(QEMUBH *bh)
 {
-    if (bh->scheduled)
-        return;
-    bh->scheduled = 1;
-    bh->idle = 0;
-    /* stop the currently executing CPU to execute the BH ASAP */
-    qemu_notify_event();
+    atomic_mb_set(&bh->idle, 0);
+    if (atomic_xchg(&bh->scheduled, 1) == 0) {
+        /* stop the currently executing CPU to execute the BH ASAP */
+        qemu_notify_event();
+    }
 }
 
 void qemu_bh_cancel(QEMUBH *bh)
 {
-    bh->scheduled = 0;
+    atomic_mb_set(&bh->scheduled, 0);
 }
 
 void qemu_bh_delete(QEMUBH *bh)
 {
-    bh->scheduled = 0;
-    bh->deleted = 1;
+    atomic_mb_set(&bh->scheduled, 0);
+    atomic_mb_set(&bh->deleted, 1);
 }
 
 void qemu_bh_update_timeout(int *timeout)
