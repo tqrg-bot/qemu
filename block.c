@@ -3035,11 +3035,37 @@ char *bdrv_snapshot_dump(char *buf, int buf_size, QEMUSnapshotInfo *sn)
 /**************************************************************/
 /* async I/Os */
 
+static bool bdrv_aio_fastpath(BlockDriverState *bs)
+{
+    if (bs->io_limits_enabled) {
+        return false;
+    }
+    if (bs->copy_on_read) {
+        return false;
+    }
+    if (bs->dirty_bitmap) {
+        return false;
+    }
+    return true;
+}
+
 BlockDriverAIOCB *bdrv_aio_readv(BlockDriverState *bs, int64_t sector_num,
                                  QEMUIOVector *qiov, int nb_sectors,
                                  BlockDriverCompletionFunc *cb, void *opaque)
 {
+    BlockDriver *drv = bs->drv;
     trace_bdrv_aio_readv(bs, sector_num, nb_sectors, opaque);
+
+    if (drv && drv->bdrv_aio_readv &&
+        bdrv_aio_fastpath(bs) &&
+        bdrv_check_request(bs, sector_num, nb_sectors)) {
+        BlockDriverAIOCB *acb;
+        acb = drv->bdrv_aio_readv(bs, sector_num, qiov,
+                                  nb_sectors, cb, opaque);
+        if (acb) {
+            return acb;
+        }
+    }
 
     return bdrv_co_aio_rw_vector(bs, sector_num, qiov, nb_sectors,
                                  cb, opaque, BDRV_REQ_READ);
@@ -3049,7 +3075,19 @@ BlockDriverAIOCB *bdrv_aio_writev(BlockDriverState *bs, int64_t sector_num,
                                   QEMUIOVector *qiov, int nb_sectors,
                                   BlockDriverCompletionFunc *cb, void *opaque)
 {
+    BlockDriver *drv = bs->drv;
     trace_bdrv_aio_writev(bs, sector_num, nb_sectors, opaque);
+
+    if (drv && drv->bdrv_aio_writev && !bs->read_only &&
+        bdrv_aio_fastpath(bs) &&
+        bdrv_check_request(bs, sector_num, nb_sectors)) {
+        BlockDriverAIOCB *acb;
+        acb = drv->bdrv_aio_writev(bs, sector_num, qiov,
+                                   nb_sectors, cb, opaque);
+        if (acb) {
+            return acb;
+        }
+    }
 
     return bdrv_co_aio_rw_vector(bs, sector_num, qiov, nb_sectors,
                                  cb, opaque, BDRV_REQ_WRITE);
@@ -3527,9 +3565,19 @@ static int coroutine_fn bdrv_aio_flush_co_entry(void *opaque)
 BlockDriverAIOCB *bdrv_aio_flush(BlockDriverState *bs,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
+    BlockDriver *drv = bs->drv;
     BdrvTrackedRequest *req;
 
     trace_bdrv_aio_flush(bs, opaque);
+
+    if (drv && drv->bdrv_aio_flush &&
+        bdrv_aio_fastpath(bs)) {
+        BlockDriverAIOCB *acb;
+        acb = drv->bdrv_aio_flush(bs, cb, opaque);
+        if (acb) {
+            return acb;
+        }
+    }
 
     tracked_request_get(&req, bs, 0, 0, NULL, BDRV_REQ_FLUSH, 0);
     return thread_pool_submit_aio(bdrv_aio_flush_co_entry, req, cb, opaque);
@@ -3547,9 +3595,20 @@ BlockDriverAIOCB *bdrv_aio_discard(BlockDriverState *bs,
         int64_t sector_num, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
+    BlockDriver *drv = bs->drv;
     BdrvTrackedRequest *req;
 
     trace_bdrv_aio_discard(bs, sector_num, nb_sectors, opaque);
+
+    if (drv && drv->bdrv_aio_discard &&
+        bdrv_aio_fastpath(bs) &&
+        bdrv_check_request(bs, sector_num, nb_sectors)) {
+        BlockDriverAIOCB *acb;
+        acb = drv->bdrv_aio_discard(bs, sector_num, nb_sectors, cb, opaque);
+        if (acb) {
+            return acb;
+        }
+    }
 
     tracked_request_get(&req, bs, sector_num, nb_sectors, NULL,
                         BDRV_REQ_DISCARD, 0);
