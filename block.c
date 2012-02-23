@@ -2496,9 +2496,8 @@ typedef struct BdrvCoIsAllocatedData {
     BlockDriverState *bs;
     int64_t sector_num;
     int nb_sectors;
-    int *pnum;
+    int pnum;
     int ret;
-    bool done;
 } BdrvCoIsAllocatedData;
 
 /*
@@ -2546,8 +2545,7 @@ static void coroutine_fn bdrv_is_allocated_co_entry(void *opaque)
     BlockDriverState *bs = data->bs;
 
     data->ret = bdrv_co_is_allocated(bs, data->sector_num, data->nb_sectors,
-                                     data->pnum);
-    data->done = true;
+                                     &data->pnum);
 }
 
 /*
@@ -2562,16 +2560,17 @@ int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
     BdrvCoIsAllocatedData data = {
         .bs = bs,
         .sector_num = sector_num,
+        .pnum = *pnum,
         .nb_sectors = nb_sectors,
-        .pnum = pnum,
-        .done = false,
+        .ret = NOT_DONE,
     };
 
     co = qemu_coroutine_create(bdrv_is_allocated_co_entry);
     qemu_coroutine_enter(co, &data);
-    while (!data.done) {
+    while (data.ret == NOT_DONE) {
         qemu_aio_wait();
     }
+    *pnum = data.pnum;
     return data.ret;
 }
 
