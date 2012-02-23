@@ -1350,7 +1350,7 @@ struct BdrvTrackedRequest {
     BlockDriverState *bs;
     int64_t sector_num;
     int nb_sectors;
-    bool is_write;
+    int type;
     QLIST_ENTRY(BdrvTrackedRequest) list;
     Coroutine *co; /* owner, used for deadlock detection */
     CoQueue wait_queue; /* coroutines blocked on this request */
@@ -1373,13 +1373,13 @@ static void tracked_request_end(BdrvTrackedRequest *req)
 static void tracked_request_begin(BdrvTrackedRequest *req,
                                   BlockDriverState *bs,
                                   int64_t sector_num,
-                                  int nb_sectors, bool is_write)
+                                  int nb_sectors, int type)
 {
     *req = (BdrvTrackedRequest){
         .bs = bs,
         .sector_num = sector_num,
         .nb_sectors = nb_sectors,
-        .is_write = is_write,
+        .type = type,
         .co = qemu_coroutine_self(),
     };
 
@@ -1852,7 +1852,7 @@ static int coroutine_fn bdrv_co_do_readv(BlockDriverState *bs,
         wait_for_overlapping_requests(bs, sector_num, nb_sectors);
     }
 
-    tracked_request_begin(&req, bs, sector_num, nb_sectors, false);
+    tracked_request_begin(&req, bs, sector_num, nb_sectors, BDRV_REQ_READ);
 
     if (flags & BDRV_REQ_COPY_ON_READ) {
         int pnum;
@@ -1958,7 +1958,7 @@ static int coroutine_fn bdrv_co_do_writev(BlockDriverState *bs,
         wait_for_overlapping_requests(bs, sector_num, nb_sectors);
     }
 
-    tracked_request_begin(&req, bs, sector_num, nb_sectors, true);
+    tracked_request_begin(&req, bs, sector_num, nb_sectors, BDRV_REQ_WRITE);
 
     if (flags & BDRV_REQ_ZERO_WRITE) {
         ret = bdrv_co_do_write_zeroes(bs, sector_num, nb_sectors);

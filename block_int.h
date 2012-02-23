@@ -41,6 +41,13 @@
 #define BLOCK_IO_SLICE_TIME     100000000
 #define NANOSECONDS_PER_SECOND  1000000000.0
 
+/* Block request types */
+#define BDRV_REQ_READ         0x0001
+#define BDRV_REQ_WRITE        0x0002
+#define BDRV_REQ_IOCTL        0x0004
+#define BDRV_REQ_FLUSH        0x0008
+#define BDRV_REQ_DISCARD      0x0010
+
 #define BLOCK_OPT_SIZE          "size"
 #define BLOCK_OPT_ENCRYPT       "encryption"
 #define BLOCK_OPT_COMPAT6       "compat6"
