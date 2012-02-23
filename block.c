@@ -60,7 +60,10 @@ struct BdrvTrackedRequest {
     int type;
     int flags;
     int ret;
-    QEMUIOVector qiov;
+    union {
+        QEMUIOVector qiov;
+        int pnum;
+    };
     QLIST_ENTRY(BdrvTrackedRequest) list;
     Coroutine *co; /* owner, used for deadlock detection */
     CoQueue wait_queue; /* coroutines blocked on this request */
@@ -2492,14 +2495,6 @@ int bdrv_has_zero_init(BlockDriverState *bs)
     return 1;
 }
 
-typedef struct BdrvCoIsAllocatedData {
-    BlockDriverState *bs;
-    int64_t sector_num;
-    int nb_sectors;
-    int pnum;
-    int ret;
-} BdrvCoIsAllocatedData;
-
 /*
  * Returns true iff the specified sector is present in the disk image. Drivers
  * not implementing the functionality are assumed to not support backing files,
@@ -2541,7 +2536,7 @@ int coroutine_fn bdrv_co_is_allocated(BlockDriverState *bs, int64_t sector_num,
 /* Coroutine wrapper for bdrv_is_allocated() */
 static void coroutine_fn bdrv_is_allocated_co_entry(void *opaque)
 {
-    BdrvCoIsAllocatedData *data = opaque;
+    BdrvTrackedRequest *data = opaque;
     BlockDriverState *bs = data->bs;
 
     data->ret = bdrv_co_is_allocated(bs, data->sector_num, data->nb_sectors,
@@ -2557,7 +2552,7 @@ int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
                       int *pnum)
 {
     Coroutine *co;
-    BdrvCoIsAllocatedData data = {
+    BdrvTrackedRequest req = {
         .bs = bs,
         .sector_num = sector_num,
         .pnum = *pnum,
@@ -2566,12 +2561,12 @@ int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
     };
 
     co = qemu_coroutine_create(bdrv_is_allocated_co_entry);
-    qemu_coroutine_enter(co, &data);
-    while (data.ret == NOT_DONE) {
+    qemu_coroutine_enter(co, &req);
+    while (req.ret == NOT_DONE) {
         qemu_aio_wait();
     }
-    *pnum = data.pnum;
-    return data.ret;
+    *pnum = req.pnum;
+    return req.ret;
 }
 
 BlockInfoList *qmp_query_block(Error **errp)
