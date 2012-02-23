@@ -31,6 +31,8 @@ ThreadPoolElement *thread_pool_submit(ThreadPoolFunc *func, void *arg);
 BlockDriverAIOCB *thread_pool_submit_aio(ThreadPoolFunc *func, void *arg,
      BlockDriverCompletionFunc *cb, void *opaque);
 
+void thread_pause(void);
+void thread_resume(ThreadPoolElement *elem);
 void thread_wait(ThreadPoolElement *elem);
 ThreadPoolElement *thread_self(void);
 bool qemu_in_worker(void);

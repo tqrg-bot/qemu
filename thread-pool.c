@@ -42,6 +42,9 @@ struct ThreadStaticData {
     int num_waiters;
     QemuCond wait_done;
     ThreadPoolElement *elem;
+    QemuMutex lock;
+    QemuCond cond;
+    int paused;
     QSLIST_ENTRY(ThreadStaticData) next;
 };
 
@@ -87,6 +90,8 @@ static ThreadStaticData *new_thread_data(void)
 {
     ThreadStaticData *ret = g_malloc0(sizeof (ThreadStaticData));
 
+    qemu_mutex_init(&ret->lock);
+    qemu_cond_init(&ret->cond);
     return ret;
 }
 
@@ -132,6 +137,25 @@ ThreadPoolElement *thread_self(void)
 bool qemu_in_worker(void)
 {
     return !!tdata;
+}
+
+void thread_pause(void)
+{
+    qemu_mutex_lock(&tdata->lock);
+    tdata->paused = true;
+    while (tdata->paused) {
+        qemu_cond_wait(&tdata->cond, &tdata->lock);
+    }
+    qemu_mutex_unlock(&tdata->lock);
+}
+
+void thread_resume(ThreadPoolElement *elem)
+{
+    assert(elem->state == THREAD_ACTIVE);
+    qemu_mutex_lock(&elem->tdata->lock);
+    elem->tdata->paused = false;
+    qemu_cond_signal(&elem->tdata->cond);
+    qemu_mutex_unlock(&elem->tdata->lock);
 }
 
 static void *worker_thread(void *unused)
