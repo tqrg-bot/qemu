@@ -311,7 +311,7 @@ struct BlockDriverState {
     QTAILQ_ENTRY(BlockDriverState) list;
     void *private;
 
-    QLIST_HEAD(, BdrvTrackedRequest) tracked_requests;
+    QTAILQ_HEAD(, BdrvTrackedRequest) tracked_requests;
 
     /* long-running background operation */
     BlockJob *job;
