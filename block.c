@@ -59,6 +59,7 @@ struct BdrvTrackedRequest {
     int nb_sectors;
     int type;
     int flags;
+    int ret;
     QEMUIOVector qiov;
     QLIST_ENTRY(BdrvTrackedRequest) list;
     Coroutine *co; /* owner, used for deadlock detection */
@@ -78,8 +79,8 @@ static int coroutine_fn bdrv_co_readv_em(BlockDriverState *bs,
 static int coroutine_fn bdrv_co_writev_em(BlockDriverState *bs,
                                          int64_t sector_num, int nb_sectors,
                                          QEMUIOVector *iov);
-static int coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req);
-static int coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req);
+static void coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req);
+static void coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req);
 static BlockDriverAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
                                                int64_t sector_num,
                                                QEMUIOVector *qiov,
@@ -1359,9 +1360,10 @@ int bdrv_commit_all(void)
  *
  * This function should be called when a tracked request is completing.
  */
-static void tracked_request_end(BdrvTrackedRequest *req)
+static void tracked_request_end(BdrvTrackedRequest *req, int ret)
 {
     QLIST_REMOVE(req, list);
+    req->ret = ret;
     qemu_co_queue_restart_all(&req->wait_queue);
 }
 
@@ -1384,6 +1386,7 @@ static void tracked_request_init(BdrvTrackedRequest *req,
         .nb_sectors = nb_sectors,
         .type = type,
         .flags = flags,
+        .ret = NOT_DONE,
     };
 
     qemu_iovec_init_copy(&req->qiov, qiov);
@@ -1545,10 +1548,11 @@ static void coroutine_fn bdrv_rw_co_entry(void *opaque)
                          rwco->qiov, rwco->type, 0);
 
     if (rwco->type == BDRV_REQ_READ) {
-        rwco->ret = bdrv_co_do_readv(&req);
+        bdrv_co_do_readv(&req);
     } else {
-        rwco->ret = bdrv_co_do_writev(&req);
+        bdrv_co_do_writev(&req);
     }
+    rwco->ret = req.ret;
 }
 
 /*
@@ -1831,7 +1835,7 @@ err:
 /*
  * Handle a read request in coroutine context
  */
-static int coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req)
+static void coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req)
 {
     BlockDriverState *bs = req->bs;
     int64_t sector_num = req->sector_num;
@@ -1843,10 +1847,12 @@ static int coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req)
 
     assert (req->type == BDRV_REQ_READ);
     if (!drv) {
-        return -ENOMEDIUM;
+        req->ret = -ENOMEDIUM;
+        return;
     }
     if (bdrv_check_request(bs, sector_num, nb_sectors)) {
-        return -EIO;
+        req->ret = -EIO;
+        return;
     }
 
     /* throttling disk read I/O */
@@ -1881,13 +1887,11 @@ static int coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req)
     ret = drv->bdrv_co_readv(bs, sector_num, nb_sectors, qiov);
 
 out:
-    tracked_request_end(req);
+    tracked_request_end(req, ret);
 
     if (flags & BDRV_REQ_COPY_ON_READ) {
         bs->copy_on_read_in_flight--;
     }
-
-    return ret;
 }
 
 int coroutine_fn bdrv_co_readv(BlockDriverState *bs, int64_t sector_num,
@@ -1899,7 +1903,8 @@ int coroutine_fn bdrv_co_readv(BlockDriverState *bs, int64_t sector_num,
     tracked_request_init(&req, bs, sector_num, nb_sectors,
                          qiov, BDRV_REQ_READ, 0);
 
-    return bdrv_co_do_readv(&req);
+    bdrv_co_do_readv(&req);
+    return req.ret;
 }
 
 int coroutine_fn bdrv_co_copy_on_readv(BlockDriverState *bs,
@@ -1911,7 +1916,8 @@ int coroutine_fn bdrv_co_copy_on_readv(BlockDriverState *bs,
     tracked_request_init(&req, bs, sector_num, nb_sectors,
                          qiov, BDRV_REQ_READ, BDRV_REQ_COPY_ON_READ);
 
-    return bdrv_co_do_readv(&req);
+    bdrv_co_do_readv(&req);
+    return req.ret;
 }
 
 static int coroutine_fn bdrv_co_do_write_zeroes(BlockDriverState *bs,
@@ -1948,7 +1954,7 @@ static int coroutine_fn bdrv_co_do_write_zeroes(BlockDriverState *bs,
 /*
  * Handle a write request in coroutine context
  */
-static int coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req)
+static void coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req)
 {
     BlockDriverState *bs = req->bs;
     int64_t sector_num = req->sector_num;
@@ -1960,13 +1966,16 @@ static int coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req)
 
     assert (req->type == BDRV_REQ_WRITE);
     if (!bs->drv) {
-        return -ENOMEDIUM;
+        req->ret = -ENOMEDIUM;
+        return;
     }
     if (bs->read_only) {
-        return -EACCES;
+        req->ret = -EACCES;
+        return;
     }
     if (bdrv_check_request(bs, sector_num, nb_sectors)) {
-        return -EIO;
+        req->ret = -EIO;
+        return;
     }
 
     /* throttling disk write I/O */
@@ -1994,9 +2003,7 @@ static int coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req)
         bs->wr_highest_sector = sector_num + nb_sectors - 1;
     }
 
-    tracked_request_end(req);
-
-    return ret;
+    tracked_request_end(req, ret);
 }
 
 int coroutine_fn bdrv_co_writev(BlockDriverState *bs, int64_t sector_num,
@@ -2008,7 +2015,8 @@ int coroutine_fn bdrv_co_writev(BlockDriverState *bs, int64_t sector_num,
     tracked_request_init(&req, bs, sector_num, nb_sectors,
                          qiov, BDRV_REQ_WRITE, 0);
 
-    return bdrv_co_do_writev(&req);
+    bdrv_co_do_writev(&req);
+    return req.ret;
 }
 
 int coroutine_fn bdrv_co_write_zeroes(BlockDriverState *bs,
@@ -2020,7 +2028,8 @@ int coroutine_fn bdrv_co_write_zeroes(BlockDriverState *bs,
     tracked_request_init(&req, bs, sector_num, nb_sectors,
                          NULL, BDRV_REQ_WRITE, BDRV_REQ_ZERO_WRITE);
 
-    return bdrv_co_do_writev(&req);
+    bdrv_co_do_writev(&req);
+    return req.ret;
 }
 
 /**
@@ -3487,11 +3496,12 @@ static void coroutine_fn bdrv_co_do_rw(void *opaque)
                          acb->req.qiov, acb->type, 0);
 
     if (acb->type == BDRV_REQ_READ) {
-        acb->req.error = bdrv_co_do_readv(&req);
+        bdrv_co_do_readv(&req);
     } else {
-        acb->req.error = bdrv_co_do_writev(&req);
+        bdrv_co_do_writev(&req);
     }
 
+    acb->req.error = req->ret;
     acb->bh = qemu_bh_new(bdrv_co_em_bh, acb);
     qemu_bh_schedule(acb->bh);
 }
