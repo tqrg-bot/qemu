@@ -33,11 +33,14 @@ enum ThreadState {
     THREAD_ACTIVE,
     THREAD_DONE,
     THREAD_CANCELED,
+    THREAD_WAITING,
 };
 
 typedef struct ThreadStaticData ThreadStaticData;
 
 struct ThreadStaticData {
+    int num_waiters;
+    QemuCond wait_done;
     ThreadPoolElement *elem;
     QSLIST_ENTRY(ThreadStaticData) next;
 };
@@ -56,6 +59,7 @@ struct ThreadPoolElement {
 };
 
 static EventNotifier notifier;
+static QemuCond thread_assigned;
 static QemuMutex lock;
 static QemuSemaphore sem;
 static int max_threads = 64;
@@ -100,6 +104,26 @@ static ThreadStaticData *get_thread_data(void)
     }
 }
 
+void thread_wait(ThreadPoolElement *elem)
+{
+    ThreadPoolElement *me = tdata->elem;
+    int save_state = me->state;
+    me->state = THREAD_WAITING;
+
+    qemu_mutex_lock(&lock);
+    elem->tdata->num_waiters++;
+    while (elem->state == THREAD_QUEUED) {
+        qemu_cond_wait(&thread_assigned, &lock);
+    }
+    while (elem->state != THREAD_CANCELED && elem->state != THREAD_DONE) {
+        qemu_cond_wait(&tdata->wait_done, &lock);
+    }
+    elem->tdata->num_waiters--;
+    qemu_mutex_unlock(&lock);
+
+    me->state = save_state;
+}
+
 ThreadPoolElement *thread_self(void)
 {
     return tdata ? tdata->elem : NULL;
@@ -142,6 +166,10 @@ static void *worker_thread(void *unused)
         req->tdata = tdata;
         tdata->elem = req;
         req->state = THREAD_ACTIVE;
+
+        if (tdata->num_waiters) {
+            qemu_cond_broadcast(&thread_assigned);
+        }
         qemu_mutex_unlock(&lock);
 
         ret = req->func(req->arg);
@@ -149,6 +177,9 @@ static void *worker_thread(void *unused)
         qemu_mutex_lock(&lock);
         req->state = THREAD_DONE;
         req->ret = ret;
+        if (tdata->num_waiters) {
+            qemu_cond_broadcast(&tdata->wait_done);
+        }
         qemu_mutex_unlock(&lock);
 
         event_notifier_set(&notifier);
@@ -290,6 +321,7 @@ static void thread_pool_init(void)
 {
     QLIST_INIT(&head);
     event_notifier_init(&notifier, false);
+    qemu_cond_init(&thread_assigned);
     qemu_mutex_init(&lock);
     qemu_mutex_init(&data_lock);
     qemu_sem_init(&sem, 0);
