@@ -78,12 +78,8 @@ static int coroutine_fn bdrv_co_readv_em(BlockDriverState *bs,
 static int coroutine_fn bdrv_co_writev_em(BlockDriverState *bs,
                                          int64_t sector_num, int nb_sectors,
                                          QEMUIOVector *iov);
-static int coroutine_fn bdrv_co_do_readv(BlockDriverState *bs,
-    int64_t sector_num, int nb_sectors, QEMUIOVector *qiov,
-    BdrvRequestFlags flags);
-static int coroutine_fn bdrv_co_do_writev(BlockDriverState *bs,
-    int64_t sector_num, int nb_sectors, QEMUIOVector *qiov,
-    BdrvRequestFlags flags);
+static int coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req);
+static int coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req);
 static BlockDriverAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
                                                int64_t sector_num,
                                                QEMUIOVector *qiov,
@@ -1372,25 +1368,32 @@ static void tracked_request_end(BdrvTrackedRequest *req)
 /**
  * Add an active request to the tracked requests list
  */
-static void tracked_request_begin(BdrvTrackedRequest *req,
-                                  BlockDriverState *bs,
-                                  int64_t sector_num, int nb_sectors,
-                                  QEMUIOVector *qiov,
-                                  int type, int flags)
+static void tracked_request_init(BdrvTrackedRequest *req,
+                                 BlockDriverState *bs,
+                                 int64_t sector_num, int nb_sectors,
+                                 QEMUIOVector *qiov,
+                                 int type, int flags)
 {
+    if (type == BDRV_REQ_READ && bs->copy_on_read) {
+        flags |= BDRV_REQ_COPY_ON_READ;
+    }
+
     *req = (BdrvTrackedRequest){
         .bs = bs,
         .sector_num = sector_num,
         .nb_sectors = nb_sectors,
         .type = type,
         .flags = flags,
-        .co = qemu_coroutine_self(),
     };
 
     qemu_iovec_init_copy(&req->qiov, qiov);
     qemu_co_queue_init(&req->wait_queue);
+}
 
-    QLIST_INSERT_HEAD(&bs->tracked_requests, req, list);
+static void tracked_request_begin(BdrvTrackedRequest *req)
+{
+    req->co = qemu_coroutine_self();
+    QLIST_INSERT_HEAD(&req->bs->tracked_requests, req, list);
 }
 
 /**
@@ -1536,13 +1539,15 @@ typedef struct RwCo {
 static void coroutine_fn bdrv_rw_co_entry(void *opaque)
 {
     RwCo *rwco = opaque;
+    BdrvTrackedRequest req;
+
+    tracked_request_init(&req, rwco->bs, rwco->sector_num, rwco->nb_sectors,
+                         rwco->qiov, rwco->type, 0);
 
     if (rwco->type == BDRV_REQ_READ) {
-        rwco->ret = bdrv_co_do_readv(rwco->bs, rwco->sector_num,
-                                     rwco->nb_sectors, rwco->qiov, 0);
+        rwco->ret = bdrv_co_do_readv(&req);
     } else {
-        rwco->ret = bdrv_co_do_writev(rwco->bs, rwco->sector_num,
-                                      rwco->nb_sectors, rwco->qiov, 0);
+        rwco->ret = bdrv_co_do_writev(&req);
     }
 }
 
@@ -1826,14 +1831,17 @@ err:
 /*
  * Handle a read request in coroutine context
  */
-static int coroutine_fn bdrv_co_do_readv(BlockDriverState *bs,
-    int64_t sector_num, int nb_sectors, QEMUIOVector *qiov,
-    BdrvRequestFlags flags)
+static int coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req)
 {
+    BlockDriverState *bs = req->bs;
+    int64_t sector_num = req->sector_num;
+    int nb_sectors = req->nb_sectors;
+    QEMUIOVector *qiov = &req->qiov;
+    BdrvRequestFlags flags = req->flags;
     BlockDriver *drv = bs->drv;
-    BdrvTrackedRequest req;
     int ret;
 
+    assert (req->type == BDRV_REQ_READ);
     if (!drv) {
         return -ENOMEDIUM;
     }
@@ -1846,9 +1854,6 @@ static int coroutine_fn bdrv_co_do_readv(BlockDriverState *bs,
         bdrv_io_limits_intercept(bs, false, nb_sectors);
     }
 
-    if (bs->copy_on_read) {
-        flags |= BDRV_REQ_COPY_ON_READ;
-    }
     if (flags & BDRV_REQ_COPY_ON_READ) {
         bs->copy_on_read_in_flight++;
     }
@@ -1857,8 +1862,7 @@ static int coroutine_fn bdrv_co_do_readv(BlockDriverState *bs,
         wait_for_overlapping_requests(bs, sector_num, nb_sectors);
     }
 
-    tracked_request_begin(&req, bs, sector_num, nb_sectors, qiov,
-                          BDRV_REQ_READ, flags);
+    tracked_request_begin(req);
 
     if (flags & BDRV_REQ_COPY_ON_READ) {
         int pnum;
@@ -1877,7 +1881,7 @@ static int coroutine_fn bdrv_co_do_readv(BlockDriverState *bs,
     ret = drv->bdrv_co_readv(bs, sector_num, nb_sectors, qiov);
 
 out:
-    tracked_request_end(&req);
+    tracked_request_end(req);
 
     if (flags & BDRV_REQ_COPY_ON_READ) {
         bs->copy_on_read_in_flight--;
@@ -1889,18 +1893,25 @@ out:
 int coroutine_fn bdrv_co_readv(BlockDriverState *bs, int64_t sector_num,
     int nb_sectors, QEMUIOVector *qiov)
 {
+    BdrvTrackedRequest req;
     trace_bdrv_co_readv(bs, sector_num, nb_sectors);
 
-    return bdrv_co_do_readv(bs, sector_num, nb_sectors, qiov, 0);
+    tracked_request_init(&req, bs, sector_num, nb_sectors,
+                         qiov, BDRV_REQ_READ, 0);
+
+    return bdrv_co_do_readv(&req);
 }
 
 int coroutine_fn bdrv_co_copy_on_readv(BlockDriverState *bs,
     int64_t sector_num, int nb_sectors, QEMUIOVector *qiov)
 {
+    BdrvTrackedRequest req;
     trace_bdrv_co_copy_on_readv(bs, sector_num, nb_sectors);
 
-    return bdrv_co_do_readv(bs, sector_num, nb_sectors, qiov,
-                            BDRV_REQ_COPY_ON_READ);
+    tracked_request_init(&req, bs, sector_num, nb_sectors,
+                         qiov, BDRV_REQ_READ, BDRV_REQ_COPY_ON_READ);
+
+    return bdrv_co_do_readv(&req);
 }
 
 static int coroutine_fn bdrv_co_do_write_zeroes(BlockDriverState *bs,
@@ -1937,14 +1948,17 @@ static int coroutine_fn bdrv_co_do_write_zeroes(BlockDriverState *bs,
 /*
  * Handle a write request in coroutine context
  */
-static int coroutine_fn bdrv_co_do_writev(BlockDriverState *bs,
-    int64_t sector_num, int nb_sectors, QEMUIOVector *qiov,
-    BdrvRequestFlags flags)
+static int coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req)
 {
+    BlockDriverState *bs = req->bs;
+    int64_t sector_num = req->sector_num;
+    int nb_sectors = req->nb_sectors;
+    QEMUIOVector *qiov = &req->qiov;
+    BdrvRequestFlags flags = req->flags;
     BlockDriver *drv = bs->drv;
-    BdrvTrackedRequest req;
     int ret;
 
+    assert (req->type == BDRV_REQ_WRITE);
     if (!bs->drv) {
         return -ENOMEDIUM;
     }
@@ -1964,8 +1978,7 @@ static int coroutine_fn bdrv_co_do_writev(BlockDriverState *bs,
         wait_for_overlapping_requests(bs, sector_num, nb_sectors);
     }
 
-    tracked_request_begin(&req, bs, sector_num, nb_sectors, qiov,
-                          BDRV_REQ_WRITE, flags);
+    tracked_request_begin(req);
 
     if (flags & BDRV_REQ_ZERO_WRITE) {
         ret = bdrv_co_do_write_zeroes(bs, sector_num, nb_sectors);
@@ -1981,7 +1994,7 @@ static int coroutine_fn bdrv_co_do_writev(BlockDriverState *bs,
         bs->wr_highest_sector = sector_num + nb_sectors - 1;
     }
 
-    tracked_request_end(&req);
+    tracked_request_end(req);
 
     return ret;
 }
@@ -1989,18 +2002,25 @@ static int coroutine_fn bdrv_co_do_writev(BlockDriverState *bs,
 int coroutine_fn bdrv_co_writev(BlockDriverState *bs, int64_t sector_num,
     int nb_sectors, QEMUIOVector *qiov)
 {
+    BdrvTrackedRequest req;
     trace_bdrv_co_writev(bs, sector_num, nb_sectors);
 
-    return bdrv_co_do_writev(bs, sector_num, nb_sectors, qiov, 0);
+    tracked_request_init(&req, bs, sector_num, nb_sectors,
+                         qiov, BDRV_REQ_WRITE, 0);
+
+    return bdrv_co_do_writev(&req);
 }
 
 int coroutine_fn bdrv_co_write_zeroes(BlockDriverState *bs,
                                       int64_t sector_num, int nb_sectors)
 {
+    BdrvTrackedRequest req;
     trace_bdrv_co_write_zeroes(bs, sector_num, nb_sectors);
 
-    return bdrv_co_do_writev(bs, sector_num, nb_sectors, NULL,
-                             BDRV_REQ_ZERO_WRITE);
+    tracked_request_init(&req, bs, sector_num, nb_sectors,
+                         NULL, BDRV_REQ_WRITE, BDRV_REQ_ZERO_WRITE);
+
+    return bdrv_co_do_writev(&req);
 }
 
 /**
@@ -3460,14 +3480,16 @@ static void bdrv_co_em_bh(void *opaque)
 static void coroutine_fn bdrv_co_do_rw(void *opaque)
 {
     BlockDriverAIOCBCoroutine *acb = opaque;
-    BlockDriverState *bs = acb->common.bs;
+    BdrvTrackedRequest req;
+
+    tracked_request_init(&req, acb->common.bs,
+                         acb->req.sector, acb->req.nb_sectors,
+                         acb->req.qiov, acb->type, 0);
 
     if (acb->type == BDRV_REQ_READ) {
-        acb->req.error = bdrv_co_do_readv(bs, acb->req.sector,
-            acb->req.nb_sectors, acb->req.qiov, 0);
+        acb->req.error = bdrv_co_do_readv(&req);
     } else {
-        acb->req.error = bdrv_co_do_writev(bs, acb->req.sector,
-            acb->req.nb_sectors, acb->req.qiov, 0);
+        acb->req.error = bdrv_co_do_writev(&req);
     }
 
     acb->bh = qemu_bh_new(bdrv_co_em_bh, acb);
