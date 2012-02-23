@@ -35,12 +35,21 @@ enum ThreadState {
     THREAD_CANCELED,
 };
 
+typedef struct ThreadStaticData ThreadStaticData;
+
+struct ThreadStaticData {
+    ThreadPoolElement *elem;
+    QSLIST_ENTRY(ThreadStaticData) next;
+};
+
 struct ThreadPoolElement {
     BlockDriverAIOCB common;
     ThreadPoolFunc *func;
     void *arg;
     enum ThreadState state;
     int ret;
+
+    struct ThreadStaticData *tdata;
 
     QTAILQ_ENTRY(ThreadPoolElement) reqs;
     QLIST_ENTRY(ThreadPoolElement) all;
@@ -58,8 +67,53 @@ static QEMUBH *new_thread_bh;
 static QLIST_HEAD(, ThreadPoolElement) head;
 static QTAILQ_HEAD(, ThreadPoolElement) request_list;
 
+static QSLIST_HEAD(, ThreadStaticData) data_pool;
+static QemuMutex data_lock;
+
+static __thread ThreadStaticData *tdata;
+
+static void free_thread_data(ThreadStaticData *data)
+{
+    qemu_mutex_lock(&data_lock);
+    QSLIST_INSERT_HEAD(&data_pool, data, next);
+    qemu_mutex_unlock(&data_lock);
+}
+
+static ThreadStaticData *new_thread_data(void)
+{
+    ThreadStaticData *ret = g_malloc0(sizeof (ThreadStaticData));
+
+    return ret;
+}
+
+static ThreadStaticData *get_thread_data(void)
+{
+    qemu_mutex_lock(&data_lock);
+    if (QSLIST_EMPTY(&data_pool)) {
+        qemu_mutex_unlock(&data_lock);
+        return new_thread_data();
+    } else {
+        ThreadStaticData *ret = QSLIST_FIRST(&data_pool);
+        QSLIST_REMOVE_HEAD(&data_pool, next);
+        qemu_mutex_unlock(&data_lock);
+        return ret;
+    }
+}
+
+ThreadPoolElement *thread_self(void)
+{
+    return tdata ? tdata->elem : NULL;
+}
+
+bool qemu_in_worker(void)
+{
+    return !!tdata;
+}
+
 static void *worker_thread(void *unused)
 {
+    tdata = get_thread_data();
+
     qemu_mutex_lock(&lock);
     pending_threads--;
     qemu_mutex_unlock(&lock);
@@ -85,6 +139,8 @@ static void *worker_thread(void *unused)
 
         req = QTAILQ_FIRST(&request_list);
         QTAILQ_REMOVE(&request_list, req, reqs);
+        req->tdata = tdata;
+        tdata->elem = req;
         req->state = THREAD_ACTIVE;
         qemu_mutex_unlock(&lock);
 
@@ -101,6 +157,7 @@ static void *worker_thread(void *unused)
     cur_threads--;
     qemu_mutex_unlock(&lock);
 
+    free_thread_data(tdata);
     return NULL;
 }
 
@@ -234,6 +291,7 @@ static void thread_pool_init(void)
     QLIST_INIT(&head);
     event_notifier_init(&notifier, false);
     qemu_mutex_init(&lock);
+    qemu_mutex_init(&data_lock);
     qemu_sem_init(&sem, 0);
     qemu_aio_set_fd_handler(event_notifier_get_fd(&notifier),
                             event_notifier_ready, NULL,
