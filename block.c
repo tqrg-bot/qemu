@@ -3461,8 +3461,7 @@ static BlockDriverAIOCB *bdrv_aio_writev_em(BlockDriverState *bs,
 
 typedef struct BlockDriverAIOCBCoroutine {
     BlockDriverAIOCB common;
-    BlockRequest req;
-    int type;
+    BdrvTrackedRequest req;
     QEMUBH* bh;
 } BlockDriverAIOCBCoroutine;
 
@@ -3480,7 +3479,7 @@ static void bdrv_co_em_bh(void *opaque)
 {
     BlockDriverAIOCBCoroutine *acb = opaque;
 
-    acb->common.cb(acb->common.opaque, acb->req.error);
+    acb->common.cb(acb->common.opaque, acb->req.ret);
     qemu_bh_delete(acb->bh);
     qemu_aio_release(acb);
 }
@@ -3489,19 +3488,13 @@ static void bdrv_co_em_bh(void *opaque)
 static void coroutine_fn bdrv_co_do_rw(void *opaque)
 {
     BlockDriverAIOCBCoroutine *acb = opaque;
-    BdrvTrackedRequest req;
 
-    tracked_request_init(&req, acb->common.bs,
-                         acb->req.sector, acb->req.nb_sectors,
-                         acb->req.qiov, acb->type, 0);
-
-    if (acb->type == BDRV_REQ_READ) {
-        bdrv_co_do_readv(&req);
+    if (acb->req.type == BDRV_REQ_READ) {
+        bdrv_co_do_readv(&acb->req);
     } else {
-        bdrv_co_do_writev(&req);
+        bdrv_co_do_writev(&acb->req);
     }
 
-    acb->req.error = req->ret;
     acb->bh = qemu_bh_new(bdrv_co_em_bh, acb);
     qemu_bh_schedule(acb->bh);
 }
@@ -3518,10 +3511,7 @@ static BlockDriverAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
     BlockDriverAIOCBCoroutine *acb;
 
     acb = qemu_aio_get(&bdrv_em_co_aio_pool, bs, cb, opaque);
-    acb->req.sector = sector_num;
-    acb->req.nb_sectors = nb_sectors;
-    acb->req.qiov = qiov;
-    acb->type = type;
+    tracked_request_init(&acb->req, bs, sector_num, nb_sectors, qiov, type, 0);
 
     co = qemu_coroutine_create(bdrv_co_do_rw);
     qemu_coroutine_enter(co, acb);
@@ -3534,7 +3524,7 @@ static void coroutine_fn bdrv_aio_flush_co_entry(void *opaque)
     BlockDriverAIOCBCoroutine *acb = opaque;
     BlockDriverState *bs = acb->common.bs;
 
-    acb->req.error = bdrv_co_flush(bs);
+    acb->req.ret = bdrv_co_flush(bs);
     acb->bh = qemu_bh_new(bdrv_co_em_bh, acb);
     qemu_bh_schedule(acb->bh);
 }
@@ -3548,6 +3538,7 @@ BlockDriverAIOCB *bdrv_aio_flush(BlockDriverState *bs,
     BlockDriverAIOCBCoroutine *acb;
 
     acb = qemu_aio_get(&bdrv_em_co_aio_pool, bs, cb, opaque);
+    tracked_request_init(&acb->req, bs, 0, 0, NULL, BDRV_REQ_FLUSH, 0);
     co = qemu_coroutine_create(bdrv_aio_flush_co_entry);
     qemu_coroutine_enter(co, acb);
 
@@ -3559,7 +3550,7 @@ static void coroutine_fn bdrv_aio_discard_co_entry(void *opaque)
     BlockDriverAIOCBCoroutine *acb = opaque;
     BlockDriverState *bs = acb->common.bs;
 
-    acb->req.error = bdrv_co_discard(bs, acb->req.sector, acb->req.nb_sectors);
+    acb->req.ret = bdrv_co_discard(bs, acb->req.sector_num, acb->req.nb_sectors);
     acb->bh = qemu_bh_new(bdrv_co_em_bh, acb);
     qemu_bh_schedule(acb->bh);
 }
@@ -3574,8 +3565,8 @@ BlockDriverAIOCB *bdrv_aio_discard(BlockDriverState *bs,
     trace_bdrv_aio_discard(bs, sector_num, nb_sectors, opaque);
 
     acb = qemu_aio_get(&bdrv_em_co_aio_pool, bs, cb, opaque);
-    acb->req.sector = sector_num;
-    acb->req.nb_sectors = nb_sectors;
+    tracked_request_init(&acb->req, bs, sector_num, nb_sectors, NULL,
+                         BDRV_REQ_DISCARD, 0);
     co = qemu_coroutine_create(bdrv_aio_discard_co_entry);
     qemu_coroutine_enter(co, acb);
 
