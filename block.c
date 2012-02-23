@@ -64,7 +64,7 @@ struct BdrvTrackedRequest {
         QEMUIOVector qiov;
         int pnum;
     };
-    QLIST_ENTRY(BdrvTrackedRequest) list;
+    QTAILQ_ENTRY(BdrvTrackedRequest) list;
     Coroutine *co; /* owner, used for deadlock detection */
     CoQueue wait_queue; /* coroutines blocked on this request */
 };
@@ -948,7 +948,7 @@ void bdrv_drain_all(void)
 
     /* If requests are still pending there is a bug somewhere */
     QTAILQ_FOREACH(bs, &bdrv_states, list) {
-        assert(QLIST_EMPTY(&bs->tracked_requests));
+        assert(QTAILQ_EMPTY(&bs->tracked_requests));
         assert(qemu_co_queue_empty(&bs->throttled_reqs));
     }
 }
@@ -1364,7 +1364,7 @@ int bdrv_commit_all(void)
  */
 static void tracked_request_end(BdrvTrackedRequest *req, int ret)
 {
-    QLIST_REMOVE(req, list);
+    QTAILQ_REMOVE(&req->bs->tracked_requests, req, list);
     req->ret = ret;
     qemu_co_queue_restart_all(&req->wait_queue);
 }
@@ -1398,7 +1398,7 @@ static void tracked_request_init(BdrvTrackedRequest *req,
 static void tracked_request_begin(BdrvTrackedRequest *req)
 {
     req->co = qemu_coroutine_self();
-    QLIST_INSERT_HEAD(&req->bs->tracked_requests, req, list);
+    QTAILQ_INSERT_HEAD(&req->bs->tracked_requests, req, list);
 }
 
 /**
@@ -1454,7 +1454,7 @@ static void coroutine_fn wait_for_overlapping_requests(BlockDriverState *bs,
 
     do {
         retry = false;
-        QLIST_FOREACH(req, &bs->tracked_requests, list) {
+        QTAILQ_FOREACH(req, &bs->tracked_requests, list) {
             if (tracked_request_overlaps(req, cluster_sector_num,
                                          cluster_nb_sectors)) {
                 /* Hitting this means there was a reentrant request, for

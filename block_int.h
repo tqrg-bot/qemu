@@ -336,7 +336,7 @@ struct BlockDriverState {
     int in_use; /* users other than guest access, eg. block migration */
     QTAILQ_ENTRY(BlockDriverState) list;
 
-    QLIST_HEAD(, BdrvTrackedRequest) tracked_requests;
+    QTAILQ_HEAD(, BdrvTrackedRequest) tracked_requests;
 
     /* long-running background operation */
     BlockJob *job;
