@@ -144,6 +144,19 @@ void qemu_iovec_init(QEMUIOVector *qiov, int alloc_hint)
     qiov->size = 0;
 }
 
+void qemu_iovec_init_copy(QEMUIOVector *dst, QEMUIOVector *src)
+{
+    if (!src) {
+        memset(dst, 0, sizeof(dst));
+        return;
+    }
+
+    dst->iov = src->iov;
+    dst->niov = src->niov;
+    dst->nalloc = -1;
+    dst->size = src->size;
+}
+
 void qemu_iovec_init_external(QEMUIOVector *qiov, struct iovec *iov, int niov)
 {
     int i;
