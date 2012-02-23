@@ -97,8 +97,7 @@ static bool bdrv_exceed_bps_limits(BlockDriverState *bs, int nb_sectors,
         bool is_write, double elapsed_time, uint64_t *wait);
 static bool bdrv_exceed_iops_limits(BlockDriverState *bs, bool is_write,
         double elapsed_time, uint64_t *wait);
-static bool bdrv_exceed_io_limits(BlockDriverState *bs, int nb_sectors,
-        bool is_write, int64_t *wait);
+static bool bdrv_exceed_io_limits(BdrvTrackedRequest *req, int64_t *wait);
 
 static QTAILQ_HEAD(, BlockDriverState) bdrv_states =
     QTAILQ_HEAD_INITIALIZER(bdrv_states);
@@ -180,9 +179,9 @@ bool bdrv_io_limits_enabled(BlockDriverState *bs)
          || io_limits->iops[BLOCK_IO_LIMIT_TOTAL];
 }
 
-static void bdrv_io_limits_intercept(BlockDriverState *bs,
-                                     bool is_write, int nb_sectors)
+static void bdrv_io_limits_intercept(BdrvTrackedRequest *req)
 {
+    BlockDriverState *bs = req->bs;
     int64_t wait_time = -1;
 
     if (!qemu_co_queue_empty(&bs->throttled_reqs)) {
@@ -196,7 +195,7 @@ static void bdrv_io_limits_intercept(BlockDriverState *bs,
      * be still in throttled_reqs queue.
      */
 
-    while (bdrv_exceed_io_limits(bs, nb_sectors, is_write, &wait_time)) {
+    while (bdrv_exceed_io_limits(req, &wait_time)) {
         qemu_mod_timer(bs->block_timer,
                        wait_time + qemu_get_clock_ns(vm_clock));
         qemu_co_queue_wait_insert_head(&bs->throttled_reqs);
@@ -1593,7 +1592,7 @@ static void coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req)
 
     /* throttling disk read I/O */
     if (bs->io_limits_enabled) {
-        bdrv_io_limits_intercept(bs, false, nb_sectors);
+        bdrv_io_limits_intercept(req);
     }
 
     if (flags & BDRV_REQ_COPY_ON_READ) {
@@ -1710,7 +1709,7 @@ static void coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req)
 
     /* throttling disk write I/O */
     if (bs->io_limits_enabled) {
-        bdrv_io_limits_intercept(bs, true, nb_sectors);
+        bdrv_io_limits_intercept(req);
     }
 
     if (bs->copy_on_read_in_flight) {
@@ -3079,9 +3078,11 @@ static bool bdrv_exceed_iops_limits(BlockDriverState *bs, bool is_write,
     return true;
 }
 
-static bool bdrv_exceed_io_limits(BlockDriverState *bs, int nb_sectors,
-                           bool is_write, int64_t *wait)
+static bool bdrv_exceed_io_limits(BdrvTrackedRequest *req, int64_t *wait)
 {
+    BlockDriverState *bs = req->bs;
+    int nb_sectors = req->nb_sectors;
+    bool is_write = (req->type != QEMU_AIO_READ);
     int64_t  now, max_wait;
     uint64_t bps_wait = 0, iops_wait = 0;
     double   elapsed_time;
