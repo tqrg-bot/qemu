@@ -53,6 +53,18 @@ typedef enum {
     BDRV_REQ_ZERO_WRITE   = 0x2,
 } BdrvRequestFlags;
 
+struct BdrvTrackedRequest {
+    BlockDriverState *bs;
+    int64_t sector_num;
+    int nb_sectors;
+    int type;
+    int flags;
+    QEMUIOVector qiov;
+    QLIST_ENTRY(BdrvTrackedRequest) list;
+    Coroutine *co; /* owner, used for deadlock detection */
+    CoQueue wait_queue; /* coroutines blocked on this request */
+};
+
 static void bdrv_dev_change_media_cb(BlockDriverState *bs, bool load);
 static BlockDriverAIOCB *bdrv_aio_readv_em(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
@@ -1123,16 +1135,6 @@ void bdrv_commit_all(void)
     }
 }
 
-struct BdrvTrackedRequest {
-    BlockDriverState *bs;
-    int64_t sector_num;
-    int nb_sectors;
-    int type;
-    QLIST_ENTRY(BdrvTrackedRequest) list;
-    Coroutine *co; /* owner, used for deadlock detection */
-    CoQueue wait_queue; /* coroutines blocked on this request */
-};
-
 /**
  * Remove an active request from the tracked requests list
  *
@@ -1149,17 +1151,20 @@ static void tracked_request_end(BdrvTrackedRequest *req)
  */
 static void tracked_request_begin(BdrvTrackedRequest *req,
                                   BlockDriverState *bs,
-                                  int64_t sector_num,
-                                  int nb_sectors, int type)
+                                  int64_t sector_num, int nb_sectors,
+                                  QEMUIOVector *qiov,
+                                  int type, int flags)
 {
     *req = (BdrvTrackedRequest){
         .bs = bs,
         .sector_num = sector_num,
         .nb_sectors = nb_sectors,
         .type = type,
+        .flags = flags,
         .co = qemu_coroutine_self(),
     };
 
+    qemu_iovec_init_copy(&req->qiov, qiov);
     qemu_co_queue_init(&req->wait_queue);
 
     QLIST_INSERT_HEAD(&bs->tracked_requests, req, list);
@@ -1604,7 +1609,8 @@ static int coroutine_fn bdrv_co_do_readv(BlockDriverState *bs,
         wait_for_overlapping_requests(bs, sector_num, nb_sectors);
     }
 
-    tracked_request_begin(&req, bs, sector_num, nb_sectors, QEMU_AIO_READ);
+    tracked_request_begin(&req, bs, sector_num, nb_sectors, qiov,
+                          QEMU_AIO_READ, flags);
 
     if (flags & BDRV_REQ_COPY_ON_READ) {
         int pnum;
@@ -1704,7 +1710,8 @@ static int coroutine_fn bdrv_co_do_writev(BlockDriverState *bs,
         wait_for_overlapping_requests(bs, sector_num, nb_sectors);
     }
 
-    tracked_request_begin(&req, bs, sector_num, nb_sectors, QEMU_AIO_WRITE);
+    tracked_request_begin(&req, bs, sector_num, nb_sectors, qiov,
+                          QEMU_AIO_WRITE, flags);
 
     if (flags & BDRV_REQ_ZERO_WRITE) {
         ret = bdrv_co_do_write_zeroes(bs, sector_num, nb_sectors);
