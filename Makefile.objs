@@ -24,9 +24,9 @@ coroutine-obj-$(CONFIG_WIN32) += coroutine-win32.o
 #######################################################################
 # block-obj-y is code used by both qemu system emulation and qemu-img
 
-block-obj-y = cutils.o cache-utils.o qemu-option.o module.o async.o
+block-obj-y = cutils.o cache-utils.o qemu-option.o module.o async.o thread-pool.o
 block-obj-y += nbd.o block.o aio.o aes.o qemu-config.o qemu-progress.o qemu-sockets.o
-block-obj-y += $(coroutine-obj-y) $(qobject-obj-y) $(version-obj-y)
+block-obj-y += $(coroutine-obj-y) $(qobject-obj-y) $(version-obj-y) event_notifier.o
 block-obj-$(CONFIG_POSIX) += posix-aio-compat.o
 block-obj-$(CONFIG_LINUX_AIO) += linux-aio.o
 
@@ -163,7 +163,7 @@ common-obj-$(CONFIG_VNC) += $(addprefix ui/, $(vnc-obj-y))
 
 common-obj-y += iov.o acl.o
 common-obj-$(CONFIG_POSIX) += compatfd.o
-common-obj-y += notify.o event_notifier.o
+common-obj-y += notify.o
 common-obj-y += qemu-timer.o qemu-timer-common.o
 
 slirp-obj-y = cksum.o if.o ip_icmp.o ip_input.o ip_output.o
