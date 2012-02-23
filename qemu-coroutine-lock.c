@@ -61,12 +61,10 @@ void coroutine_fn qemu_co_queue_wait(CoQueue *queue)
     assert(qemu_in_coroutine());
 }
 
-void coroutine_fn qemu_co_queue_wait_insert_head(CoQueue *queue)
+void qemu_co_schedule(Coroutine *co)
 {
-    Coroutine *self = qemu_coroutine_self();
-    QTAILQ_INSERT_HEAD(&queue->entries, self, co_queue_next);
-    qemu_coroutine_yield();
-    assert(qemu_in_coroutine());
+    QTAILQ_INSERT_TAIL(&unlock_bh_queue, co, co_queue_next);
+    qemu_bh_schedule(unlock_bh);
 }
 
 bool qemu_co_queue_next(CoQueue *queue)
@@ -76,9 +74,8 @@ bool qemu_co_queue_next(CoQueue *queue)
     next = QTAILQ_FIRST(&queue->entries);
     if (next) {
         QTAILQ_REMOVE(&queue->entries, next, co_queue_next);
-        QTAILQ_INSERT_TAIL(&unlock_bh_queue, next, co_queue_next);
         trace_qemu_co_queue_next(next);
-        qemu_bh_schedule(unlock_bh);
+        qemu_co_schedule(next);
     }
 
     return (next != NULL);

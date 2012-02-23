@@ -305,7 +305,7 @@ struct BlockDriverState {
     int64_t slice_end;
     BlockIOLimit io_limits;
     BlockIOBaseValue  io_base;
-    CoQueue      throttled_reqs;
+    QTAILQ_HEAD(, BdrvTrackedRequest) throttled_reqs;
     QEMUTimer    *block_timer;
     bool         io_limits_enabled;
 

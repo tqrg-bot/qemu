@@ -119,10 +119,9 @@ void qemu_co_queue_init(CoQueue *queue);
 void coroutine_fn qemu_co_queue_wait(CoQueue *queue);
 
 /**
- * Adds the current coroutine to the head of the CoQueue and transfers control to the
- * caller of the coroutine.
+ * Restarts the coroutine in a bottom half.
  */
-void coroutine_fn qemu_co_queue_wait_insert_head(CoQueue *queue);
+void qemu_co_schedule(Coroutine *co);
 
 /**
  * Restarts the next coroutine in the CoQueue and removes it from the queue.
