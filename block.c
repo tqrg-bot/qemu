@@ -131,12 +131,18 @@ int is_windows_drive(const char *filename)
 }
 #endif
 
+static void bdrv_io_limits_next(BlockDriverState *bs)
+{
+    if (!QTAILQ_EMPTY(&bs->throttled_reqs)) {
+        BdrvTrackedRequest *req = QTAILQ_FIRST(&bs->throttled_reqs);
+        qemu_co_schedule(req->co);
+    }
+}
+
 /* throttling disk I/O limits */
 void bdrv_io_limits_disable(BlockDriverState *bs)
 {
     bs->io_limits_enabled = false;
-
-    while (qemu_co_queue_next(&bs->throttled_reqs));
 
     if (bs->block_timer) {
         qemu_del_timer(bs->block_timer);
@@ -148,18 +154,17 @@ void bdrv_io_limits_disable(BlockDriverState *bs)
     bs->slice_end   = 0;
     bs->slice_time  = 0;
     memset(&bs->io_base, 0, sizeof(bs->io_base));
+    bdrv_io_limits_next(bs);
 }
 
 static void bdrv_block_timer(void *opaque)
 {
-    BlockDriverState *bs = opaque;
-
-    qemu_co_queue_next(&bs->throttled_reqs);
+    bdrv_io_limits_next(opaque);
 }
 
 void bdrv_io_limits_enable(BlockDriverState *bs)
 {
-    qemu_co_queue_init(&bs->throttled_reqs);
+    QTAILQ_INIT(&bs->throttled_reqs);
     bs->block_timer = qemu_new_timer_ns(vm_clock, bdrv_block_timer, bs);
     bs->slice_time  = 5 * BLOCK_IO_SLICE_TIME;
     bs->slice_start = qemu_get_clock_ns(vm_clock);
@@ -184,24 +189,23 @@ static void bdrv_io_limits_intercept(BdrvTrackedRequest *req)
     BlockDriverState *bs = req->bs;
     int64_t wait_time = -1;
 
-    if (!qemu_co_queue_empty(&bs->throttled_reqs)) {
-        qemu_co_queue_wait(&bs->throttled_reqs);
+    if (QTAILQ_EMPTY(&bs->throttled_reqs) &&
+        !bdrv_exceed_io_limits(req, &wait_time)) {
+        return;
     }
 
-    /* In fact, we hope to keep each request's timing, in FIFO mode. The next
-     * throttled requests will not be dequeued until the current request is
-     * allowed to be serviced. So if the current request still exceeds the
-     * limits, it will be inserted to the head. All requests followed it will
-     * be still in throttled_reqs queue.
-     */
-
-    while (bdrv_exceed_io_limits(req, &wait_time)) {
-        qemu_mod_timer(bs->block_timer,
-                       wait_time + qemu_get_clock_ns(vm_clock));
-        qemu_co_queue_wait_insert_head(&bs->throttled_reqs);
-    }
-
-    qemu_co_queue_next(&bs->throttled_reqs);
+    QTAILQ_INSERT_TAIL(&bs->throttled_reqs, req, list);
+    do {
+        if (wait_time != -1) {
+            qemu_mod_timer(bs->block_timer,
+                           wait_time + qemu_get_clock_ns(vm_clock));
+            wait_time = -1;
+        }
+        qemu_coroutine_yield();
+        assert(QTAILQ_FIRST(&bs->throttled_reqs) == req);
+    } while (bdrv_exceed_io_limits(req, &wait_time));
+    QTAILQ_REMOVE(&bs->throttled_reqs, req, list);
+    bdrv_io_limits_next(bs);
 }
 
 /* check if the path starts with "<protocol>:" */
@@ -879,7 +883,7 @@ void bdrv_drain_all(void)
     /* If requests are still pending there is a bug somewhere */
     QTAILQ_FOREACH(bs, &bdrv_states, list) {
         assert(QTAILQ_EMPTY(&bs->tracked_requests));
-        assert(qemu_co_queue_empty(&bs->throttled_reqs));
+        assert(QTAILQ_EMPTY(&bs->throttled_reqs));
     }
 }
 
@@ -1591,9 +1595,7 @@ static void coroutine_fn bdrv_co_do_readv(BdrvTrackedRequest *req)
     }
 
     /* throttling disk read I/O */
-    if (bs->io_limits_enabled) {
-        bdrv_io_limits_intercept(req);
-    }
+    bdrv_io_limits_intercept(req);
 
     if (flags & BDRV_REQ_COPY_ON_READ) {
         bs->copy_on_read_in_flight++;
@@ -1708,9 +1710,7 @@ static void coroutine_fn bdrv_co_do_writev(BdrvTrackedRequest *req)
     }
 
     /* throttling disk write I/O */
-    if (bs->io_limits_enabled) {
-        bdrv_io_limits_intercept(req);
-    }
+    bdrv_io_limits_intercept(req);
 
     if (bs->copy_on_read_in_flight) {
         wait_for_overlapping_requests(bs, sector_num, nb_sectors);
@@ -3087,6 +3087,10 @@ static bool bdrv_exceed_io_limits(BdrvTrackedRequest *req, int64_t *wait)
     uint64_t bps_wait = 0, iops_wait = 0;
     double   elapsed_time;
     int      bps_ret, iops_ret;
+
+    if (!bs->io_limits_enabled) {
+        return false;
+    }
 
     now = qemu_get_clock_ns(vm_clock);
     if ((bs->slice_start < now)
