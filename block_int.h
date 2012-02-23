@@ -41,6 +41,16 @@
 #define BLOCK_IO_SLICE_TIME     100000000
 #define NANOSECONDS_PER_SECOND  1000000000.0
 
+/* AIO request types */
+#define QEMU_AIO_READ         0x0001
+#define QEMU_AIO_WRITE        0x0002
+#define QEMU_AIO_IOCTL        0x0004
+#define QEMU_AIO_FLUSH        0x0008
+#define QEMU_AIO_DISCARD      0x0010
+#define QEMU_AIO_TYPE_MASK \
+	(QEMU_AIO_READ | QEMU_AIO_WRITE | \
+         QEMU_AIO_IOCTL | QEMU_AIO_FLUSH | QEMU_AIO_DISCARD)
+
 #define BLOCK_OPT_SIZE          "size"
 #define BLOCK_OPT_ENCRYPT       "encryption"
 #define BLOCK_OPT_COMPAT6       "compat6"
