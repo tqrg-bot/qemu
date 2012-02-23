@@ -31,6 +31,7 @@
 #include "qemu-coroutine.h"
 #include "qmp-commands.h"
 #include "qemu-timer.h"
+#include "thread-pool.h"
 
 #ifdef CONFIG_BSD
 #include <sys/types.h>
@@ -65,8 +66,7 @@ struct BdrvTrackedRequest {
         int pnum;
     };
     QTAILQ_ENTRY(BdrvTrackedRequest) list;
-    Coroutine *co; /* owner, used for deadlock detection */
-    CoQueue wait_queue; /* coroutines blocked on this request */
+    ThreadPoolElement *elem; /* owner, used for deadlock detection */
 };
 
 static void bdrv_dev_change_media_cb(BlockDriverState *bs, bool load);
@@ -91,7 +91,7 @@ static BlockDriverAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
                                                BlockDriverCompletionFunc *cb,
                                                void *opaque,
                                                int type);
-static void coroutine_fn bdrv_co_do_rw(void *opaque);
+static int coroutine_fn bdrv_co_do_rw(void *opaque);
 
 static bool bdrv_exceed_bps_limits(BlockDriverState *bs, int nb_sectors,
         bool is_write, double elapsed_time, uint64_t *wait);
@@ -137,7 +137,7 @@ static void bdrv_io_limits_next(BlockDriverState *bs)
     if (!QTAILQ_EMPTY(&bs->throttled_reqs)) {
         BdrvTrackedRequest *req = QTAILQ_FIRST(&bs->throttled_reqs);
         qemu_mutex_unlock(&bs->io_limits_lock);
-        qemu_co_schedule(req->co);
+        thread_resume(req->elem);
     } else {
         qemu_mutex_unlock(&bs->io_limits_lock);
     }
@@ -212,7 +212,7 @@ static void bdrv_io_limits_intercept(BdrvTrackedRequest *req)
             wait_time = -1;
         }
         qemu_mutex_unlock(&bs->io_limits_lock);
-        qemu_coroutine_yield();
+        thread_pause();
         qemu_mutex_lock(&bs->io_limits_lock);
         assert(QTAILQ_FIRST(&bs->throttled_reqs) == req);
     } while (bdrv_exceed_io_limits(req, &wait_time));
@@ -1168,7 +1168,6 @@ static void tracked_request_end(BdrvTrackedRequest *req, int ret)
     QTAILQ_REMOVE(&req->bs->tracked_requests, req, list);
     qemu_mutex_unlock(&req->bs->reqs_lock);
     req->ret = ret;
-    qemu_co_queue_restart_all(&req->wait_queue);
 }
 
 /**
@@ -1194,12 +1193,11 @@ static void tracked_request_init(BdrvTrackedRequest *req,
     };
 
     qemu_iovec_init_copy(&req->qiov, qiov);
-    qemu_co_queue_init(&req->wait_queue);
 }
 
 static void tracked_request_begin(BdrvTrackedRequest *req)
 {
-    req->co = qemu_coroutine_self();
+    req->elem = thread_self();
     qemu_mutex_lock(&req->bs->reqs_lock);
     QTAILQ_INSERT_HEAD(&req->bs->tracked_requests, req, list);
     qemu_mutex_unlock(&req->bs->reqs_lock);
@@ -1265,9 +1263,9 @@ static void coroutine_fn wait_for_overlapping_requests(BlockDriverState *bs,
                  * example, a block driver issuing nested requests.  This must
                  * never happen since it means deadlock.
                  */
-                assert(qemu_coroutine_self() != req->co);
+                assert(thread_self() != req->elem);
 
-                qemu_co_queue_wait(&req->wait_queue);
+                thread_wait(req->elem);
                 retry = true;
                 break;
             }
@@ -1324,7 +1322,7 @@ static int bdrv_check_request(BlockDriverState *bs, int64_t sector_num,
                                    nb_sectors * BDRV_SECTOR_SIZE);
 }
 
-static void coroutine_fn bdrv_rw_co_entry(void *opaque)
+static int coroutine_fn bdrv_rw_co_entry(void *opaque)
 {
     BdrvTrackedRequest *req = opaque;
 
@@ -1333,6 +1331,7 @@ static void coroutine_fn bdrv_rw_co_entry(void *opaque)
     } else {
         bdrv_co_do_writev(req);
     }
+    return req->ret;
 }
 
 /*
@@ -1346,19 +1345,17 @@ static int bdrv_rw_co(BlockDriverState *bs, int64_t sector_num, uint8_t *buf,
         .iov_base = (void *)buf,
         .iov_len = nb_sectors * BDRV_SECTOR_SIZE,
     };
-    Coroutine *co;
     BdrvTrackedRequest req;
 
     qemu_iovec_init_external(&qiov, &iov, 1);
     tracked_request_init(&req, bs, sector_num, nb_sectors,
                          &qiov, type, 0);
 
-    if (qemu_in_coroutine()) {
+    if (qemu_in_worker()) {
         /* Fast-path if already in coroutine context */
         bdrv_rw_co_entry(&req);
     } else {
-        co = qemu_coroutine_create(bdrv_rw_co_entry);
-        qemu_coroutine_enter(co, &req);
+        thread_pool_submit(bdrv_rw_co_entry, &req);
         while (req.ret == NOT_DONE) {
             qemu_aio_wait();
         }
@@ -2292,14 +2289,15 @@ int coroutine_fn bdrv_co_is_allocated(BlockDriverState *bs, int64_t sector_num,
     return bs->drv->bdrv_co_is_allocated(bs, sector_num, nb_sectors, pnum);
 }
 
-/* Coroutine wrapper for bdrv_is_allocated() */
-static void coroutine_fn bdrv_is_allocated_co_entry(void *opaque)
+/* Thread-pool wrapper for bdrv_is_allocated() */
+static int coroutine_fn bdrv_is_allocated_co_entry(void *opaque)
 {
     BdrvTrackedRequest *data = opaque;
     BlockDriverState *bs = data->bs;
 
     data->ret = bdrv_co_is_allocated(bs, data->sector_num, data->nb_sectors,
                                      &data->pnum);
+    return data->ret;
 }
 
 /*
@@ -2310,7 +2308,6 @@ static void coroutine_fn bdrv_is_allocated_co_entry(void *opaque)
 int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
                       int *pnum)
 {
-    Coroutine *co;
     BdrvTrackedRequest req = {
         .bs = bs,
         .sector_num = sector_num,
@@ -2319,8 +2316,7 @@ int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
         .ret = NOT_DONE,
     };
 
-    co = qemu_coroutine_create(bdrv_is_allocated_co_entry);
-    qemu_coroutine_enter(co, &req);
+    thread_pool_submit(bdrv_is_allocated_co_entry, &req);
     while (req.ret == NOT_DONE) {
         qemu_aio_wait();
     }
@@ -3271,7 +3267,7 @@ static void bdrv_co_em_bh(void *opaque)
 }
 
 /* Invoke bdrv_co_do_readv/bdrv_co_do_writev */
-static void coroutine_fn bdrv_co_do_rw(void *opaque)
+static int coroutine_fn bdrv_co_do_rw(void *opaque)
 {
     BlockDriverAIOCBCoroutine *acb = opaque;
 
@@ -3283,6 +3279,7 @@ static void coroutine_fn bdrv_co_do_rw(void *opaque)
 
     acb->bh = qemu_bh_new(bdrv_co_em_bh, acb);
     qemu_bh_schedule(acb->bh);
+    return acb->req.ret;
 }
 
 static BlockDriverAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
@@ -3293,19 +3290,16 @@ static BlockDriverAIOCB *bdrv_co_aio_rw_vector(BlockDriverState *bs,
                                                void *opaque,
                                                int type)
 {
-    Coroutine *co;
     BlockDriverAIOCBCoroutine *acb;
 
     acb = qemu_aio_get(&bdrv_em_co_aio_pool, bs, cb, opaque);
     tracked_request_init(&acb->req, bs, sector_num, nb_sectors, qiov, type, 0);
 
-    co = qemu_coroutine_create(bdrv_co_do_rw);
-    qemu_coroutine_enter(co, acb);
-
+    thread_pool_submit(bdrv_co_do_rw, acb);
     return &acb->common;
 }
 
-static void coroutine_fn bdrv_aio_flush_co_entry(void *opaque)
+static int coroutine_fn bdrv_aio_flush_co_entry(void *opaque)
 {
     BlockDriverAIOCBCoroutine *acb = opaque;
     BlockDriverState *bs = acb->common.bs;
@@ -3313,25 +3307,24 @@ static void coroutine_fn bdrv_aio_flush_co_entry(void *opaque)
     acb->req.ret = bdrv_co_flush(bs);
     acb->bh = qemu_bh_new(bdrv_co_em_bh, acb);
     qemu_bh_schedule(acb->bh);
+    return acb->req.ret;
 }
 
 BlockDriverAIOCB *bdrv_aio_flush(BlockDriverState *bs,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
-    trace_bdrv_aio_flush(bs, opaque);
-
-    Coroutine *co;
     BlockDriverAIOCBCoroutine *acb;
+
+    trace_bdrv_aio_flush(bs, opaque);
 
     acb = qemu_aio_get(&bdrv_em_co_aio_pool, bs, cb, opaque);
     tracked_request_init(&acb->req, bs, 0, 0, NULL, QEMU_AIO_FLUSH, 0);
-    co = qemu_coroutine_create(bdrv_aio_flush_co_entry);
-    qemu_coroutine_enter(co, acb);
+    thread_pool_submit(bdrv_aio_flush_co_entry, acb);
 
     return &acb->common;
 }
 
-static void coroutine_fn bdrv_aio_discard_co_entry(void *opaque)
+static int coroutine_fn bdrv_aio_discard_co_entry(void *opaque)
 {
     BlockDriverAIOCBCoroutine *acb = opaque;
     BlockDriverState *bs = acb->common.bs;
@@ -3339,13 +3332,13 @@ static void coroutine_fn bdrv_aio_discard_co_entry(void *opaque)
     acb->req.ret = bdrv_co_discard(bs, acb->req.sector_num, acb->req.nb_sectors);
     acb->bh = qemu_bh_new(bdrv_co_em_bh, acb);
     qemu_bh_schedule(acb->bh);
+    return acb->req.ret;
 }
 
 BlockDriverAIOCB *bdrv_aio_discard(BlockDriverState *bs,
         int64_t sector_num, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
-    Coroutine *co;
     BlockDriverAIOCBCoroutine *acb;
 
     trace_bdrv_aio_discard(bs, sector_num, nb_sectors, opaque);
@@ -3353,8 +3346,7 @@ BlockDriverAIOCB *bdrv_aio_discard(BlockDriverState *bs,
     acb = qemu_aio_get(&bdrv_em_co_aio_pool, bs, cb, opaque);
     tracked_request_init(&acb->req, bs, sector_num, nb_sectors, NULL,
                          QEMU_AIO_DISCARD, 0);
-    co = qemu_coroutine_create(bdrv_aio_discard_co_entry);
-    qemu_coroutine_enter(co, acb);
+    thread_pool_submit(bdrv_aio_discard_co_entry, acb);
 
     return &acb->common;
 }
@@ -3399,25 +3391,25 @@ void qemu_aio_release(void *p)
 /**************************************************************/
 /* Coroutine block device emulation */
 
-typedef struct CoroutineIOCompletion {
-    Coroutine *coroutine;
+typedef struct ThreadPoolAIOCompletion {
+    ThreadPoolElement *elem;
     int ret;
-} CoroutineIOCompletion;
+} ThreadPoolAIOCompletion;
 
 static void bdrv_co_io_em_complete(void *opaque, int ret)
 {
-    CoroutineIOCompletion *co = opaque;
+    ThreadPoolAIOCompletion *co = opaque;
 
     co->ret = ret;
-    qemu_coroutine_enter(co->coroutine, NULL);
+    thread_resume(co->elem);
 }
 
 static int coroutine_fn bdrv_co_io_em(BlockDriverState *bs, int64_t sector_num,
                                       int nb_sectors, QEMUIOVector *iov,
                                       int type)
 {
-    CoroutineIOCompletion co = {
-        .coroutine = qemu_coroutine_self(),
+    ThreadPoolAIOCompletion co = {
+        .elem = thread_self(),
     };
     BlockDriverAIOCB *acb;
 
@@ -3433,7 +3425,7 @@ static int coroutine_fn bdrv_co_io_em(BlockDriverState *bs, int64_t sector_num,
     if (!acb) {
         return -EIO;
     }
-    qemu_coroutine_yield();
+    thread_pause();
 
     return co.ret;
 }
@@ -3452,11 +3444,12 @@ static int coroutine_fn bdrv_co_writev_em(BlockDriverState *bs,
     return bdrv_co_io_em(bs, sector_num, nb_sectors, iov, QEMU_AIO_WRITE);
 }
 
-static void coroutine_fn bdrv_flush_co_entry(void *opaque)
+static int coroutine_fn bdrv_flush_co_entry(void *opaque)
 {
     BdrvTrackedRequest *req = opaque;
 
     req->ret = bdrv_co_flush(req->bs);
+    return req->ret;
 }
 
 int coroutine_fn bdrv_co_flush(BlockDriverState *bs)
@@ -3484,15 +3477,15 @@ int coroutine_fn bdrv_co_flush(BlockDriverState *bs)
         return bs->drv->bdrv_co_flush_to_disk(bs);
     } else if (bs->drv->bdrv_aio_flush) {
         BlockDriverAIOCB *acb;
-        CoroutineIOCompletion co = {
-            .coroutine = qemu_coroutine_self(),
+        ThreadPoolAIOCompletion co = {
+            .elem = thread_self(),
         };
 
         acb = bs->drv->bdrv_aio_flush(bs, bdrv_co_io_em_complete, &co);
         if (acb == NULL) {
             return -EIO;
         } else {
-            qemu_coroutine_yield();
+            thread_pause();
             return co.ret;
         }
     } else {
@@ -3529,16 +3522,14 @@ void bdrv_invalidate_cache_all(void)
 
 int bdrv_flush(BlockDriverState *bs)
 {
-    Coroutine *co;
     BdrvTrackedRequest req;
 
     tracked_request_init(&req, bs, 0, 0, NULL, QEMU_AIO_FLUSH, 0);
-    if (qemu_in_coroutine()) {
+    if (qemu_in_worker()) {
         /* Fast-path if already in coroutine context */
         bdrv_flush_co_entry(&req);
     } else {
-        co = qemu_coroutine_create(bdrv_flush_co_entry);
-        qemu_coroutine_enter(co, &req);
+        thread_pool_submit(bdrv_flush_co_entry, &req);
         while (req.ret == NOT_DONE) {
             qemu_aio_wait();
         }
@@ -3547,11 +3538,12 @@ int bdrv_flush(BlockDriverState *bs)
     return req.ret;
 }
 
-static void coroutine_fn bdrv_discard_co_entry(void *opaque)
+static int coroutine_fn bdrv_discard_co_entry(void *opaque)
 {
     BdrvTrackedRequest *req = opaque;
 
     req->ret = bdrv_co_discard(req->bs, req->sector_num, req->nb_sectors);
+    return req->ret;
 }
 
 int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
@@ -3567,8 +3559,8 @@ int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
         return bs->drv->bdrv_co_discard(bs, sector_num, nb_sectors);
     } else if (bs->drv->bdrv_aio_discard) {
         BlockDriverAIOCB *acb;
-        CoroutineIOCompletion co = {
-            .coroutine = qemu_coroutine_self(),
+        ThreadPoolAIOCompletion co = {
+            .elem = thread_self(),
         };
 
         acb = bs->drv->bdrv_aio_discard(bs, sector_num, nb_sectors,
@@ -3576,7 +3568,7 @@ int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
         if (acb == NULL) {
             return -EIO;
         } else {
-            qemu_coroutine_yield();
+            thread_pause();
             return co.ret;
         }
     } else {
@@ -3586,18 +3578,16 @@ int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
 
 int bdrv_discard(BlockDriverState *bs, int64_t sector_num, int nb_sectors)
 {
-    Coroutine *co;
     BdrvTrackedRequest req;
 
     tracked_request_init(&req, bs, sector_num, nb_sectors, NULL,
                          QEMU_AIO_DISCARD, 0);
 
-    if (qemu_in_coroutine()) {
+    if (qemu_in_worker()) {
         /* Fast-path if already in coroutine context */
         bdrv_discard_co_entry(&req);
     } else {
-        co = qemu_coroutine_create(bdrv_discard_co_entry);
-        qemu_coroutine_enter(co, &req);
+        thread_pool_submit(bdrv_discard_co_entry, &req);
         while (req.ret == NOT_DONE) {
             qemu_aio_wait();
         }
