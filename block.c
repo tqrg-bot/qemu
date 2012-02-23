@@ -1295,29 +1295,15 @@ static int bdrv_check_request(BlockDriverState *bs, int64_t sector_num,
                                    nb_sectors * BDRV_SECTOR_SIZE);
 }
 
-typedef struct RwCo {
-    BlockDriverState *bs;
-    int64_t sector_num;
-    int nb_sectors;
-    QEMUIOVector *qiov;
-    int type;
-    int ret;
-} RwCo;
-
 static void coroutine_fn bdrv_rw_co_entry(void *opaque)
 {
-    RwCo *rwco = opaque;
-    BdrvTrackedRequest req;
+    BdrvTrackedRequest *req = opaque;
 
-    tracked_request_init(&req, rwco->bs, rwco->sector_num, rwco->nb_sectors,
-                         rwco->qiov, rwco->type, 0);
-
-    if (rwco->type == QEMU_AIO_READ) {
-        bdrv_co_do_readv(&req);
+    if (req->type == QEMU_AIO_READ) {
+        bdrv_co_do_readv(req);
     } else {
-        bdrv_co_do_writev(&req);
+        bdrv_co_do_writev(req);
     }
-    rwco->ret = req.ret;
 }
 
 /*
@@ -1332,28 +1318,23 @@ static int bdrv_rw_co(BlockDriverState *bs, int64_t sector_num, uint8_t *buf,
         .iov_len = nb_sectors * BDRV_SECTOR_SIZE,
     };
     Coroutine *co;
-    RwCo rwco = {
-        .bs = bs,
-        .sector_num = sector_num,
-        .nb_sectors = nb_sectors,
-        .qiov = &qiov,
-        .type = type,
-        .ret = NOT_DONE,
-    };
+    BdrvTrackedRequest req;
 
     qemu_iovec_init_external(&qiov, &iov, 1);
+    tracked_request_init(&req, bs, sector_num, nb_sectors,
+                         &qiov, type, 0);
 
     if (qemu_in_coroutine()) {
         /* Fast-path if already in coroutine context */
-        bdrv_rw_co_entry(&rwco);
+        bdrv_rw_co_entry(&req);
     } else {
         co = qemu_coroutine_create(bdrv_rw_co_entry);
-        qemu_coroutine_enter(co, &rwco);
-        while (rwco.ret == NOT_DONE) {
+        qemu_coroutine_enter(co, &req);
+        while (req.ret == NOT_DONE) {
             qemu_aio_wait();
         }
     }
-    return rwco.ret;
+    return req.ret;
 }
 
 /* return < 0 if error. See bdrv_write() for the return codes */
@@ -3449,9 +3430,9 @@ static int coroutine_fn bdrv_co_writev_em(BlockDriverState *bs,
 
 static void coroutine_fn bdrv_flush_co_entry(void *opaque)
 {
-    RwCo *rwco = opaque;
+    BdrvTrackedRequest *req = opaque;
 
-    rwco->ret = bdrv_co_flush(rwco->bs);
+    req->ret = bdrv_co_flush(req->bs);
 }
 
 int coroutine_fn bdrv_co_flush(BlockDriverState *bs)
@@ -3525,31 +3506,28 @@ void bdrv_invalidate_cache_all(void)
 int bdrv_flush(BlockDriverState *bs)
 {
     Coroutine *co;
-    RwCo rwco = {
-        .bs = bs,
-        .type = QEMU_AIO_FLUSH,
-        .ret = NOT_DONE,
-    };
+    BdrvTrackedRequest req;
 
+    tracked_request_init(&req, bs, 0, 0, NULL, QEMU_AIO_FLUSH, 0);
     if (qemu_in_coroutine()) {
         /* Fast-path if already in coroutine context */
-        bdrv_flush_co_entry(&rwco);
+        bdrv_flush_co_entry(&req);
     } else {
         co = qemu_coroutine_create(bdrv_flush_co_entry);
-        qemu_coroutine_enter(co, &rwco);
-        while (rwco.ret == NOT_DONE) {
+        qemu_coroutine_enter(co, &req);
+        while (req.ret == NOT_DONE) {
             qemu_aio_wait();
         }
     }
 
-    return rwco.ret;
+    return req.ret;
 }
 
 static void coroutine_fn bdrv_discard_co_entry(void *opaque)
 {
-    RwCo *rwco = opaque;
+    BdrvTrackedRequest *req = opaque;
 
-    rwco->ret = bdrv_co_discard(rwco->bs, rwco->sector_num, rwco->nb_sectors);
+    req->ret = bdrv_co_discard(req->bs, req->sector_num, req->nb_sectors);
 }
 
 int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
@@ -3585,26 +3563,23 @@ int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
 int bdrv_discard(BlockDriverState *bs, int64_t sector_num, int nb_sectors)
 {
     Coroutine *co;
-    RwCo rwco = {
-        .bs = bs,
-        .sector_num = sector_num,
-        .nb_sectors = nb_sectors,
-        .type = QEMU_AIO_DISCARD,
-        .ret = NOT_DONE,
-    };
+    BdrvTrackedRequest req;
+
+    tracked_request_init(&req, bs, sector_num, nb_sectors, NULL,
+                         QEMU_AIO_DISCARD, 0);
 
     if (qemu_in_coroutine()) {
         /* Fast-path if already in coroutine context */
-        bdrv_discard_co_entry(&rwco);
+        bdrv_discard_co_entry(&req);
     } else {
         co = qemu_coroutine_create(bdrv_discard_co_entry);
-        qemu_coroutine_enter(co, &rwco);
-        while (rwco.ret == NOT_DONE) {
+        qemu_coroutine_enter(co, &req);
+        while (req.ret == NOT_DONE) {
             qemu_aio_wait();
         }
     }
 
-    return rwco.ret;
+    return req.ret;
 }
 
 /**************************************************************/
