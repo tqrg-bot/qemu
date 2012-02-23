@@ -135,15 +135,20 @@ int is_windows_drive(const char *filename)
 
 static void bdrv_io_limits_next(BlockDriverState *bs)
 {
+    qemu_mutex_lock(&bs->io_limits_lock);
     if (!QTAILQ_EMPTY(&bs->throttled_reqs)) {
         BdrvTrackedRequest *req = QTAILQ_FIRST(&bs->throttled_reqs);
+        qemu_mutex_unlock(&bs->io_limits_lock);
         qemu_co_schedule(req->co);
+    } else {
+        qemu_mutex_unlock(&bs->io_limits_lock);
     }
 }
 
 /* throttling disk I/O limits */
 void bdrv_io_limits_disable(BlockDriverState *bs)
 {
+    qemu_mutex_lock(&bs->io_limits_lock);
     bs->io_limits_enabled = false;
 
     if (bs->block_timer) {
@@ -156,6 +161,7 @@ void bdrv_io_limits_disable(BlockDriverState *bs)
     bs->slice_end   = 0;
     bs->slice_time  = 0;
     memset(&bs->io_base, 0, sizeof(bs->io_base));
+    qemu_mutex_unlock(&bs->io_limits_lock);
     bdrv_io_limits_next(bs);
 }
 
@@ -166,6 +172,7 @@ static void bdrv_block_timer(void *opaque)
 
 void bdrv_io_limits_enable(BlockDriverState *bs)
 {
+    qemu_mutex_lock(&bs->io_limits_lock);
     QTAILQ_INIT(&bs->throttled_reqs);
     bs->block_timer = qemu_new_timer_ns(vm_clock, bdrv_block_timer, bs);
     bs->slice_time  = 5 * BLOCK_IO_SLICE_TIME;
@@ -173,6 +180,7 @@ void bdrv_io_limits_enable(BlockDriverState *bs)
     bs->slice_end   = bs->slice_start + bs->slice_time;
     memset(&bs->io_base, 0, sizeof(bs->io_base));
     bs->io_limits_enabled = true;
+    qemu_mutex_unlock(&bs->io_limits_lock);
 }
 
 bool bdrv_io_limits_enabled(BlockDriverState *bs)
@@ -191,8 +199,10 @@ static void bdrv_io_limits_intercept(BdrvTrackedRequest *req)
     BlockDriverState *bs = req->bs;
     int64_t wait_time = -1;
 
+    qemu_mutex_lock(&bs->io_limits_lock);
     if (QTAILQ_EMPTY(&bs->throttled_reqs) &&
         !bdrv_exceed_io_limits(req, &wait_time)) {
+        qemu_mutex_unlock(&bs->io_limits_lock);
         return;
     }
 
@@ -203,10 +213,13 @@ static void bdrv_io_limits_intercept(BdrvTrackedRequest *req)
                            wait_time + qemu_get_clock_ns(vm_clock));
             wait_time = -1;
         }
+        qemu_mutex_unlock(&bs->io_limits_lock);
         qemu_coroutine_yield();
+        qemu_mutex_lock(&bs->io_limits_lock);
         assert(QTAILQ_FIRST(&bs->throttled_reqs) == req);
     } while (bdrv_exceed_io_limits(req, &wait_time));
     QTAILQ_REMOVE(&bs->throttled_reqs, req, list);
+    qemu_mutex_unlock(&bs->io_limits_lock);
     bdrv_io_limits_next(bs);
 }
 
@@ -324,6 +337,7 @@ BlockDriverState *bdrv_new(const char *device_name)
     if (device_name[0] != '\0') {
         QTAILQ_INSERT_TAIL(&bdrv_states, bs, list);
     }
+    qemu_mutex_init(&bs->io_limits_lock);
     bdrv_iostatus_disable(bs);
     return bs;
 }
@@ -953,7 +967,9 @@ void bdrv_drain_all(void)
     /* If requests are still pending there is a bug somewhere */
     QTAILQ_FOREACH(bs, &bdrv_states, list) {
         assert(QTAILQ_EMPTY(&bs->tracked_requests));
+        qemu_mutex_lock(&bs->io_limits_lock);
         assert(QTAILQ_EMPTY(&bs->throttled_reqs));
+        qemu_mutex_unlock(&bs->io_limits_lock);
     }
 }
 
@@ -2236,8 +2252,10 @@ void bdrv_get_geometry_hint(BlockDriverState *bs,
 void bdrv_set_io_limits(BlockDriverState *bs,
                         BlockIOLimit *io_limits)
 {
+    qemu_mutex_lock(&bs->io_limits_lock);
     bs->io_limits = *io_limits;
     bs->io_limits_enabled = bdrv_io_limits_enabled(bs);
+    qemu_mutex_unlock(&bs->io_limits_lock);
 }
 
 /* Recognize floppy formats */

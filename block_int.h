@@ -29,6 +29,7 @@
 #include "qemu-queue.h"
 #include "qemu-coroutine.h"
 #include "qemu-timer.h"
+#include "qemu-thread.h"
 #include "qapi-types.h"
 
 #define BLOCK_FLAG_ENCRYPT	1
@@ -308,6 +309,7 @@ struct BlockDriverState {
     QTAILQ_HEAD(, BdrvTrackedRequest) throttled_reqs;
     QEMUTimer    *block_timer;
     bool         io_limits_enabled;
+    QemuMutex    io_limits_lock;
 
     /* I/O stats (display with "info blockstats"). */
     uint64_t nr_bytes[BDRV_MAX_IOTYPE];
