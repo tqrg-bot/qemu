@@ -52,7 +52,7 @@ int event_notifier_set(EventNotifier *e)
     return r == sizeof(value);
 }
 
-int event_notifier_test_and_clear(EventNotifier *e)
+uint64_t event_notifier_test_and_clear(EventNotifier *e)
 {
     uint64_t value;
     int r = read(e->fd, &value, sizeof(value));
