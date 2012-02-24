@@ -350,4 +350,10 @@ int stream_start(BlockDriverState *bs, BlockDriverState *base,
                  const char *base_id, BlockDriverCompletionFunc *cb,
                  void *opaque);
 
+/* linux-aio.c - Linux native implementation */
+void *laio_init(void);
+BlockDriverAIOCB *laio_submit(BlockDriverState *bs, void *aio_ctx, int fd,
+        int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
+        BlockDriverCompletionFunc *cb, void *opaque, int type);
+
 #endif /* BLOCK_INT_H */

@@ -439,4 +439,3 @@ static inline unsigned int get_physical_block_exp(BlockConf *conf)
                        _conf.discard_granularity, 0)
 
 #endif
-

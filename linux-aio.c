@@ -10,7 +10,6 @@
 #include "qemu-common.h"
 #include "qemu-aio.h"
 #include "block_int.h"
-#include "block/raw-posix-aio.h"
 #include "event_notifier.h"
 
 #include <libaio.h>
