@@ -772,10 +772,11 @@ again:
 
             if (nb_clusters == 0) {
                 /* Wait for the dependency to complete. We need to recheck
-                 * the free/allocated clusters when we continue. */
-                qemu_mutex_unlock(&s->lock);
-                qemu_co_queue_wait(&old_alloc->dependent_requests);
-                qemu_mutex_lock(&s->lock);
+                 * the free/allocated clusters when we continue.  We do
+		 * so even if the conditional variable had a spurious wait,
+		 * because old_alloc might not exist anymore at the time
+		 * we wake up!  */
+                qemu_cond_wait(&s->cond, &s->lock);
                 goto again;
             }
         }

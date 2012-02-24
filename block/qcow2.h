@@ -26,7 +26,7 @@
 #define BLOCK_QCOW2_H
 
 #include "aes.h"
-#include "qemu-coroutine.h"
+#include "thread-pool.h"
 
 //#define DEBUG_ALLOC
 //#define DEBUG_ALLOC2
@@ -123,6 +123,7 @@ typedef struct BDRVQcowState {
     int64_t free_byte_offset;
 
     QemuMutex lock;
+    QemuCond cond;
 
     uint32_t crypt_method; /* current crypt method, 0 if no key yet */
     uint32_t crypt_method_header;
@@ -158,9 +159,9 @@ typedef struct QCowL2Meta
     int n_start;
     int nb_available;
     int nb_clusters;
-    CoQueue dependent_requests;
 
     QLIST_ENTRY(QCowL2Meta) next_in_flight;
+    ThreadPoolElement *writer;
 } QCowL2Meta;
 
 static inline int size_to_clusters(BDRVQcowState *s, int64_t size)

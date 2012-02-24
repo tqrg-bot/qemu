@@ -307,6 +307,7 @@ static int qcow2_open(BlockDriverState *bs, int flags)
 
     /* Initialise locks */
     qemu_mutex_init(&s->lock);
+    qemu_cond_init(&s->cond);
 
 #ifdef DEBUG_ALLOC
     {
@@ -541,11 +542,8 @@ static void run_dependent_requests(BDRVQcowState *s, QCowL2Meta *m)
     }
 
     /* Restart all dependent requests */
-    if (!qemu_co_queue_empty(&m->dependent_requests)) {
-        qemu_mutex_unlock(&s->lock);
-        qemu_co_queue_restart_all(&m->dependent_requests);
-        qemu_mutex_lock(&s->lock);
-    }
+    m->writer = NULL;
+    qemu_cond_broadcast(&s->cond);
 }
 
 static coroutine_fn int qcow2_co_writev(BlockDriverState *bs,
@@ -565,8 +563,6 @@ static coroutine_fn int qcow2_co_writev(BlockDriverState *bs,
     QCowL2Meta l2meta = {
         .nb_clusters = 0,
     };
-
-    qemu_co_queue_init(&l2meta.dependent_requests);
 
     qemu_iovec_init(&hd_qiov, qiov->niov);
 
@@ -852,7 +848,6 @@ static int preallocate(BlockDriverState *bs)
 
     nb_sectors = bdrv_getlength(bs) >> 9;
     offset = 0;
-    qemu_co_queue_init(&meta.dependent_requests);
     meta.cluster_offset = 0;
 
     while (nb_sectors) {
