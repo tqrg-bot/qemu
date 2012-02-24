@@ -57,8 +57,8 @@ typedef struct BDRVNBDState {
     size_t blocksize;
     char *export_name; /* An NBD server may export several devices */
 
-    CoMutex send_mutex;
-    CoMutex free_sema;
+    QemuMutex send_mutex;
+    QemuMutex free_sema;
     Coroutine *send_coroutine;
     int in_flight;
 
@@ -124,7 +124,7 @@ static void nbd_coroutine_start(BDRVNBDState *s, struct nbd_request *request)
     /* Poor man semaphore.  The free_sema is locked when no other request
      * can be accepted, and unlocked after receiving one reply.  */
     if (s->in_flight >= MAX_NBD_REQUESTS - 1) {
-        qemu_co_mutex_lock(&s->free_sema);
+        qemu_mutex_lock(&s->free_sema);
         assert(s->in_flight < MAX_NBD_REQUESTS);
     }
     s->in_flight++;
@@ -188,7 +188,7 @@ static int nbd_co_send_request(BDRVNBDState *s, struct nbd_request *request,
 {
     int rc, ret;
 
-    qemu_co_mutex_lock(&s->send_mutex);
+    qemu_mutex_lock(&s->send_mutex);
     s->send_coroutine = qemu_coroutine_self();
     qemu_aio_set_fd_handler(s->sock, nbd_reply_ready, nbd_restart_write,
                             nbd_have_request, s);
@@ -203,7 +203,7 @@ static int nbd_co_send_request(BDRVNBDState *s, struct nbd_request *request,
     qemu_aio_set_fd_handler(s->sock, nbd_reply_ready, NULL,
                             nbd_have_request, s);
     s->send_coroutine = NULL;
-    qemu_co_mutex_unlock(&s->send_mutex);
+    qemu_mutex_unlock(&s->send_mutex);
     return rc;
 }
 
@@ -237,7 +237,7 @@ static void nbd_coroutine_end(BDRVNBDState *s, struct nbd_request *request)
     int i = HANDLE_TO_INDEX(s, request->handle);
     s->recv_coroutine[i] = NULL;
     if (s->in_flight-- == MAX_NBD_REQUESTS) {
-        qemu_co_mutex_unlock(&s->free_sema);
+        qemu_mutex_unlock(&s->free_sema);
     }
 }
 
@@ -303,8 +303,8 @@ static int nbd_open(BlockDriverState *bs, const char* filename, int flags)
     BDRVNBDState *s = bs->opaque;
     int result;
 
-    qemu_co_mutex_init(&s->send_mutex);
-    qemu_co_mutex_init(&s->free_sema);
+    qemu_mutex_init(&s->send_mutex);
+    qemu_mutex_init(&s->free_sema);
 
     /* Pop the config into our state object. Exit if invalid. */
     result = nbd_config(s, filename, flags);

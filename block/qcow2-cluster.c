@@ -593,9 +593,9 @@ int qcow2_alloc_cluster_link_l2(BlockDriverState *bs, QCowL2Meta *m)
     start_sect = (m->offset & ~(s->cluster_size - 1)) >> 9;
     if (m->n_start) {
         cow = true;
-        qemu_co_mutex_unlock(&s->lock);
+        qemu_mutex_unlock(&s->lock);
         ret = copy_sectors(bs, start_sect, cluster_offset, 0, m->n_start);
-        qemu_co_mutex_lock(&s->lock);
+        qemu_mutex_lock(&s->lock);
         if (ret < 0)
             goto err;
     }
@@ -603,10 +603,10 @@ int qcow2_alloc_cluster_link_l2(BlockDriverState *bs, QCowL2Meta *m)
     if (m->nb_available & (s->cluster_sectors - 1)) {
         uint64_t end = m->nb_available & ~(uint64_t)(s->cluster_sectors - 1);
         cow = true;
-        qemu_co_mutex_unlock(&s->lock);
+        qemu_mutex_unlock(&s->lock);
         ret = copy_sectors(bs, start_sect + end, cluster_offset + (end << 9),
                 m->nb_available - end, s->cluster_sectors);
-        qemu_co_mutex_lock(&s->lock);
+        qemu_mutex_lock(&s->lock);
         if (ret < 0)
             goto err;
     }
@@ -773,9 +773,9 @@ again:
             if (nb_clusters == 0) {
                 /* Wait for the dependency to complete. We need to recheck
                  * the free/allocated clusters when we continue. */
-                qemu_co_mutex_unlock(&s->lock);
+                qemu_mutex_unlock(&s->lock);
                 qemu_co_queue_wait(&old_alloc->dependent_requests);
-                qemu_co_mutex_lock(&s->lock);
+                qemu_mutex_lock(&s->lock);
                 goto again;
             }
         }

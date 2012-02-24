@@ -42,7 +42,7 @@ struct cow_header_v2 {
 };
 
 typedef struct BDRVCowState {
-    CoMutex lock;
+    QemuMutex lock;
     int64_t cow_sectors_offset;
 } BDRVCowState;
 
@@ -96,7 +96,7 @@ static int cow_open(BlockDriverState *bs, int flags)
 
     bitmap_size = ((bs->total_sectors + 7) >> 3) + sizeof(cow_header);
     s->cow_sectors_offset = (bitmap_size + 511) & ~511;
-    qemu_co_mutex_init(&s->lock);
+    qemu_mutex_init(&s->lock);
     return 0;
  fail:
     return ret;
@@ -219,9 +219,9 @@ static coroutine_fn int cow_co_read(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
     BDRVCowState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = cow_read(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 
@@ -245,9 +245,9 @@ static coroutine_fn int cow_co_write(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
     BDRVCowState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = cow_write(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 

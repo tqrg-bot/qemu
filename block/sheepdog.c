@@ -298,7 +298,7 @@ typedef struct BDRVSheepdogState {
     char *port;
     int fd;
 
-    CoMutex lock;
+    QemuMutex lock;
     Coroutine *co_send;
     Coroutine *co_recv;
 
@@ -908,7 +908,7 @@ static int coroutine_fn add_aio_request(BDRVSheepdogState *s, AIOReq *aio_req,
 
     hdr.id = aio_req->id;
 
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     s->co_send = qemu_coroutine_self();
     qemu_aio_set_fd_handler(s->fd, co_read_response, co_write_request,
                             aio_flush_request, s);
@@ -917,7 +917,7 @@ static int coroutine_fn add_aio_request(BDRVSheepdogState *s, AIOReq *aio_req,
     /* send a header */
     ret = qemu_co_send(s->fd, &hdr, sizeof(hdr));
     if (ret < 0) {
-        qemu_co_mutex_unlock(&s->lock);
+        qemu_mutex_unlock(&s->lock);
         error_report("failed to send a req, %s", strerror(errno));
         return -EIO;
     }
@@ -925,7 +925,7 @@ static int coroutine_fn add_aio_request(BDRVSheepdogState *s, AIOReq *aio_req,
     if (wlen) {
         ret = qemu_co_sendv(s->fd, iov, wlen, aio_req->iov_offset);
         if (ret < 0) {
-            qemu_co_mutex_unlock(&s->lock);
+            qemu_mutex_unlock(&s->lock);
             error_report("failed to send a data, %s", strerror(errno));
             return -EIO;
         }
@@ -934,7 +934,7 @@ static int coroutine_fn add_aio_request(BDRVSheepdogState *s, AIOReq *aio_req,
     socket_set_cork(s->fd, 0);
     qemu_aio_set_fd_handler(s->fd, co_read_response, NULL,
                             aio_flush_request, s);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
 
     return 0;
 }
@@ -1051,7 +1051,7 @@ static int sd_open(BlockDriverState *bs, const char *filename, int flags)
 
     bs->total_sectors = s->inode.vdi_size / SECTOR_SIZE;
     strncpy(s->name, vdi, sizeof(s->name));
-    qemu_co_mutex_init(&s->lock);
+    qemu_mutex_init(&s->lock);
     g_free(buf);
     return 0;
 out:
