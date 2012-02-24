@@ -119,6 +119,7 @@ typedef struct BDRVRawState {
     int open_flags;
 #if defined(__linux__)
     /* linux floppy specific */
+    QemuMutex fd_open_lock;
     int64_t fd_open_time;
     int64_t fd_error_time;
     int fd_got_error;
@@ -135,12 +136,23 @@ typedef struct BDRVRawState {
 #endif
 } BDRVRawState;
 
-static int fd_open(BlockDriverState *bs);
 static int64_t raw_getlength(BlockDriverState *bs);
 
 #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
 static int cdrom_reopen(BlockDriverState *bs);
 #endif
+
+static inline int fd_check(BlockDriverState *bs)
+{
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+    BDRVRawState *s = bs->opaque;
+
+    /* this is just to ensure s->fd is sane (its called by io ops) */
+    if (s->fd < 0)
+        return -ENOMEDIUM;
+#endif
+        return 0;
+}
 
 #if defined(__NetBSD__)
 static int raw_normalize_devicepath(const char **filename)
@@ -459,10 +471,6 @@ static BlockDriverAIOCB *raw_aio_submit(BlockDriverState *bs,
      * boundary.  Check if this is the case or tell the low-level
      * driver that it needs to copy the buffer.
      */
-    if (fd_open(bs) < 0) {
-        return NULL;
-    }
-
     if (s->use_aio && s->aligned_buf && qiov_is_aligned(bs, qiov)) {
         return laio_submit(bs, s->aio_ctx, s->fd, sector_num, qiov,
                            nb_sectors, cb, opaque, type);
@@ -493,7 +501,7 @@ static int raw_flush(BlockDriverState *bs)
     BDRVRawState *s = bs->opaque;
     int ret;
 
-    ret = fd_open(bs);
+    ret = fd_check(bs);
     if (ret < 0) {
         return ret;
     }
@@ -589,7 +597,7 @@ static int64_t raw_getlength(BlockDriverState *bs)
     struct dk_minfo minfo;
     int ret;
 
-    ret = fd_open(bs);
+    ret = fd_check(bs);
     if (ret < 0) {
         return ret;
     }
@@ -620,7 +628,7 @@ static int64_t raw_getlength(BlockDriverState *bs)
 #endif
     int ret;
 
-    ret = fd_open(bs);
+    ret = fd_check(bs);
     if (ret < 0)
         return ret;
 
@@ -669,7 +677,7 @@ static int64_t raw_getlength(BlockDriverState *bs)
     BDRVRawState *s = bs->opaque;
     int ret;
 
-    ret = fd_open(bs);
+    ret = fd_check(bs);
     if (ret < 0) {
         return ret;
     }
@@ -913,13 +921,11 @@ static int hdev_open(BlockDriverState *bs, const char *filename, int flags)
 /* Note: we do not have a reliable method to detect if the floppy is
    present. The current method is to try to open the floppy at every
    I/O and to keep it opened during a few hundreds of ms. */
-static int fd_open(BlockDriverState *bs)
+static int floppy_reopen(BlockDriverState *bs)
 {
     BDRVRawState *s = bs->opaque;
     int last_media_present;
 
-    if (s->type != FTYPE_FD)
-        return 0;
     last_media_present = (s->fd >= 0);
     if (s->fd >= 0 &&
         (get_clock() - s->fd_open_time) >= FD_OPEN_TIMEOUT) {
@@ -965,25 +971,7 @@ static int hdev_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
 
     return ioctl(s->fd, req, buf);
 }
-
-#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
-static int fd_open(BlockDriverState *bs)
-{
-    BDRVRawState *s = bs->opaque;
-
-    /* this is just to ensure s->fd is sane (its called by io ops) */
-    if (s->fd >= 0)
-        return 0;
-    return -EIO;
-}
-#else /* !linux && !FreeBSD */
-
-static int fd_open(BlockDriverState *bs)
-{
-    return 0;
-}
-
-#endif /* !linux && !FreeBSD */
+#endif
 
 static int hdev_create(const char *filename, QEMUOptionParameter *options)
 {
@@ -1065,6 +1053,7 @@ static int floppy_open(BlockDriverState *bs, const char *filename, int flags)
 
     /* close fd so that we can reopen it as needed */
     close(s->fd);
+    qemu_mutex_init(&s->fd_open_lock);
     s->fd = -1;
     s->fd_media_changed = 1;
 
@@ -1104,7 +1093,13 @@ out:
 
 static int floppy_is_inserted(BlockDriverState *bs)
 {
-    return fd_open(bs) >= 0;
+    BDRVRawState *s = bs->opaque;
+    int ret;
+
+    qemu_mutex_lock(&s->fd_open_lock);
+    ret = floppy_reopen(bs) >= 0;
+    qemu_mutex_unlock(&s->fd_open_lock);
+    return ret;
 }
 
 static int floppy_media_changed(BlockDriverState *bs)
@@ -1116,12 +1111,14 @@ static int floppy_media_changed(BlockDriverState *bs)
      * XXX: we do not have a true media changed indication.
      * It does not work if the floppy is changed without trying to read it.
      */
-    fd_open(bs);
+    qemu_mutex_lock(&s->fd_open_lock);
+    floppy_reopen(bs);
     ret = s->fd_media_changed;
     s->fd_media_changed = 0;
 #ifdef DEBUG_FLOPPY
     printf("Floppy changed=%d\n", ret);
 #endif
+    qemu_mutex_unlock(&s->fd_open_lock);
     return ret;
 }
 
@@ -1142,6 +1139,45 @@ static void floppy_eject(BlockDriverState *bs, bool eject_flag)
     }
 }
 
+#define floppy_wrapper(ret_type, name, args, call) \
+static ret_type floppy_##name args                 \
+{                                                  \
+    BDRVRawState *s = bs->opaque;                  \
+    int ret;                                       \
+    qemu_mutex_lock(&s->fd_open_lock);             \
+    ret = floppy_reopen(bs);                       \
+    if (ret < 0) {                                 \
+        return ret;                                \
+    }                                              \
+    ret = raw_##name call;                         \
+    qemu_mutex_unlock(&s->fd_open_lock);           \
+    return ret;                                    \
+}
+
+floppy_wrapper(int, co_readv,
+    (BlockDriverState *bs, int64_t sector_num, int nb_sectors, QEMUIOVector *qiov),
+    (bs, sector_num, nb_sectors, qiov))
+
+floppy_wrapper(int, co_writev,
+    (BlockDriverState *bs, int64_t sector_num, int nb_sectors, QEMUIOVector *qiov),
+    (bs, sector_num, nb_sectors, qiov))
+
+floppy_wrapper(int, flush,
+    (BlockDriverState *bs),
+    (bs))
+
+floppy_wrapper(int, truncate,
+    (BlockDriverState *bs, int64_t offset),
+    (bs, offset))
+
+floppy_wrapper(int64_t, getlength,
+    (BlockDriverState *bs),
+    (bs))
+
+floppy_wrapper(int64_t, get_allocated_file_size,
+    (BlockDriverState *bs),
+    (bs))
+
 static BlockDriver bdrv_host_floppy = {
     .format_name        = "host_floppy",
     .protocol_name      = "host_floppy",
@@ -1153,18 +1189,14 @@ static BlockDriver bdrv_host_floppy = {
     .create_options     = raw_create_options,
     .bdrv_has_zero_init = hdev_has_zero_init,
 
-#ifdef CONFIG_LINUX_AIO
-    .bdrv_aio_readv     = raw_aio_readv,
-    .bdrv_aio_writev    = raw_aio_writev,
-#endif
-    .bdrv_co_readv = raw_co_readv,
-    .bdrv_co_writev = raw_co_writev,
-    .bdrv_co_flush_to_disk = raw_flush,
+    .bdrv_co_readv = floppy_co_readv,
+    .bdrv_co_writev = floppy_co_writev,
+    .bdrv_co_flush_to_disk = floppy_flush,
 
-    .bdrv_truncate      = raw_truncate,
-    .bdrv_getlength	= raw_getlength,
+    .bdrv_truncate      = floppy_truncate,
+    .bdrv_getlength	= floppy_getlength,
     .bdrv_get_allocated_file_size
-                        = raw_get_allocated_file_size,
+                        = floppy_get_allocated_file_size,
 
     /* removable device support */
     .bdrv_is_inserted   = floppy_is_inserted,
@@ -1313,8 +1345,11 @@ static int cdrom_reopen(BlockDriverState *bs)
      * Force reread of possibly changed/newly loaded disc,
      * FreeBSD seems to not notice sometimes...
      */
-    if (s->fd >= 0)
-        close(s->fd);
+    if (s->fd >= 0) {
+        fd = s->fd;
+        s->fd = -1;
+        close(fd);
+    }
     fd = open(bs->filename, s->open_flags, 0644);
     if (fd < 0) {
         s->fd = -1;
