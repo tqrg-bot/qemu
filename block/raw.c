@@ -71,13 +71,6 @@ static int raw_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
    return bdrv_ioctl(bs->file, req, buf);
 }
 
-static BlockDriverAIOCB *raw_aio_ioctl(BlockDriverState *bs,
-        unsigned long int req, void *buf,
-        BlockDriverCompletionFunc *cb, void *opaque)
-{
-   return bdrv_aio_ioctl(bs->file, req, buf, cb, opaque);
-}
-
 static int raw_create(const char *filename, QEMUOptionParameter *options)
 {
     return bdrv_create_file(filename, options);
@@ -120,7 +113,6 @@ static BlockDriver bdrv_raw = {
     .bdrv_lock_medium   = raw_lock_medium,
 
     .bdrv_ioctl         = raw_ioctl,
-    .bdrv_aio_ioctl     = raw_aio_ioctl,
 
     .bdrv_create        = raw_create,
     .create_options     = raw_create_options,

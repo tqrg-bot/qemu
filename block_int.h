@@ -237,9 +237,6 @@ struct BlockDriver {
 
     /* to control generic scsi devices */
     int (*bdrv_ioctl)(BlockDriverState *bs, unsigned long int req, void *buf);
-    BlockDriverAIOCB *(*bdrv_aio_ioctl)(BlockDriverState *bs,
-        unsigned long int req, void *buf,
-        BlockDriverCompletionFunc *cb, void *opaque);
 
     /* List of options for creating images, terminated by name == NULL */
     QEMUOptionParameter *create_options;
