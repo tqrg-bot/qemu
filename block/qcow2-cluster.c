@@ -792,10 +792,11 @@ static int do_alloc_cluster_offset(BlockDriverState *bs, uint64_t guest_offset,
 
             if (*nb_clusters == 0) {
                 /* Wait for the dependency to complete. We need to recheck
-                 * the free/allocated clusters when we continue. */
-                qemu_mutex_unlock(&s->lock);
-                qemu_co_queue_wait(&old_alloc->dependent_requests);
-                qemu_mutex_lock(&s->lock);
+                 * the free/allocated clusters when we continue.  We do
+                 * so even if the conditional variable had a spurious wait,
+                 * because old_alloc might not exist anymore at the time
+                 * we wake up!  */
+                qemu_cond_wait(&s->cond, &s->lock);
                 goto again;
             }
         }
@@ -917,7 +918,6 @@ again:
         .cluster_offset     = cluster_offset,
         .nb_clusters        = 0,
     };
-    qemu_co_queue_init(&m->dependent_requests);
 
     if (nb_clusters > 0) {
         uint64_t alloc_offset;
@@ -957,7 +957,6 @@ again:
                 .nb_clusters    = nb_clusters,
                 .nb_available   = MIN(requested_sectors, avail_sectors),
             };
-            qemu_co_queue_init(&m->dependent_requests);
             QLIST_INSERT_HEAD(&s->cluster_allocs, m, next_in_flight);
         }
     }
