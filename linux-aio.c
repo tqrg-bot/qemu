@@ -156,16 +156,16 @@ BlockDriverAIOCB *laio_submit(BlockDriverState *bs, void *aio_ctx, int fd,
     laiocb->nbytes = nb_sectors * 512;
     laiocb->ctx = s;
     laiocb->ret = -EINPROGRESS;
-    laiocb->is_read = (type == QEMU_AIO_READ);
+    laiocb->is_read = (type == BDRV_REQ_READ);
     laiocb->qiov = qiov;
 
     iocbs = &laiocb->iocb;
 
     switch (type) {
-    case QEMU_AIO_WRITE:
+    case BDRV_REQ_WRITE:
         io_prep_pwritev(iocbs, fd, qiov->iov, qiov->niov, offset);
 	break;
-    case QEMU_AIO_READ:
+    case BDRV_REQ_READ:
         io_prep_preadv(iocbs, fd, qiov->iov, qiov->niov, offset);
 	break;
     /* Currently Linux kernel does not support other operations */

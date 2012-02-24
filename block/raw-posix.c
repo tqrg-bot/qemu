@@ -27,7 +27,6 @@
 #include "qemu-log.h"
 #include "block_int.h"
 #include "module.h"
-#include "block/raw-posix-aio.h"
 
 #if defined(__APPLE__) && (__MACH__)
 #include <paths.h>
@@ -125,8 +124,8 @@ typedef struct BDRVRawState {
     int fd_got_error;
     int fd_media_changed;
 #endif
-#ifdef CONFIG_LINUX_AIO
     int use_aio;
+#ifdef CONFIG_LINUX_AIO
     void *aio_ctx;
 #endif
     uint8_t *aligned_buf;
@@ -230,11 +229,7 @@ static int raw_open_common(BlockDriverState *bs, const char *filename,
         }
     }
 
-    /* We're falling back to POSIX AIO in some cases so init always */
-    if (paio_init() < 0) {
-        goto out_free_buf;
-    }
-
+    s->use_aio = 0;
 #ifdef CONFIG_LINUX_AIO
     /*
      * Currently Linux do AIO only for files opened with O_DIRECT
@@ -248,13 +243,8 @@ static int raw_open_common(BlockDriverState *bs, const char *filename,
             goto out_free_buf;
         }
         s->use_aio = 1;
-    } else
-#endif
-    {
-#ifdef CONFIG_LINUX_AIO
-        s->use_aio = 0;
-#endif
     }
+#endif
 
 #ifdef CONFIG_XFS
     if (platform_test_xfs_fd(s->fd)) {
@@ -312,33 +302,173 @@ static int qiov_is_aligned(BlockDriverState *bs, QEMUIOVector *qiov)
     return 1;
 }
 
+#ifdef CONFIG_PREADV
+static ssize_t raw_io_vector(BlockDriverState *bs,
+        int64_t sector_num, QEMUIOVector *qiov, int nb_sectors, int type)
+{
+    BDRVRawState *s = bs->opaque;
+    ssize_t len;
+
+    do {
+        if (type == BDRV_REQ_WRITE) {
+            len = pwritev(s->fd,
+                          qiov->iov,
+                          qiov->niov,
+                          sector_num * BDRV_SECTOR_SIZE);
+        } else {
+            len = preadv(s->fd,
+                         qiov->iov,
+                         qiov->niov,
+                         sector_num * BDRV_SECTOR_SIZE);
+        }
+    } while (len == -1 && errno == EINTR);
+
+    if (len == -1) {
+        return -errno;
+    }
+    return len;
+}
+#endif
+
+/*
+ * Read/writes the data to/from a given linear buffer.
+ *
+ * Returns the number of bytes handles or -errno in case of an error. Short
+ * reads are only returned if the end of the file is reached.
+ */
+static ssize_t raw_io_linear(BlockDriverState *bs,
+        int64_t sector_num, char *buf, int nb_sectors, int type)
+{
+    BDRVRawState *s = bs->opaque;
+    size_t start = sector_num * BDRV_SECTOR_SIZE;
+    size_t nbytes = nb_sectors * BDRV_SECTOR_SIZE;
+    ssize_t offset = 0;
+    ssize_t len;
+
+    while (offset < nbytes) {
+         if (type == BDRV_REQ_WRITE) {
+             len = pwrite(s->fd,
+                          (const char *)buf + offset,
+                          nbytes - offset,
+                          start + offset);
+         } else {
+             len = pread(s->fd,
+                         buf + offset,
+                         nbytes - offset,
+                         start + offset);
+         }
+         if (len == -1 && errno == EINTR) {
+             continue;
+         } else if (len == -1) {
+             return -errno;
+         } else if (len == 0) {
+             /* For a short read, we may get by with a zero padding
+              * of the buffer.
+              */
+             if (type == BDRV_REQ_READ && bs->growable) {
+                 memset(buf + offset, 0, nbytes - offset);
+                 offset = nbytes;
+             }
+             break;
+         }
+         offset += len;
+    }
+
+    if (offset < nbytes) {
+        return -EIO;
+    }
+    return 0;
+}
+
+static ssize_t raw_io(BlockDriverState *bs,
+        int64_t sector_num, QEMUIOVector *qiov, int nb_sectors, int type)
+{
+    BDRVRawState *s = bs->opaque;
+    ssize_t nbytes, ret;
+    char *buf;
+
+    if (s->aligned_buf && qiov_is_aligned(bs, qiov)) {
+        /*
+         * If there is just a single buffer, and it is properly aligned
+         * we can just use plain pread/pwrite without any problems.
+         */
+        if (qiov->niov == 1) {
+             return raw_io_linear(bs, sector_num, qiov->iov->iov_base,
+                                  nb_sectors, type);
+        }
+
+#ifdef CONFIG_PREADV
+        /*
+         * We have more than one iovec, and all are properly aligned.
+         *
+         * Try preadv/pwritev first and fall back to linearizing the
+         * buffer if it's not supported.
+         */
+        nbytes = raw_io_vector(bs, sector_num, qiov, nb_sectors, type);
+        if (nbytes == nb_sectors * BDRV_SECTOR_SIZE ||
+            (nbytes < 0 && nbytes != -ENOSYS)) {
+            return nbytes;
+        }
+#endif
+
+        /*
+         * XXX(hch): short read/write.  no easy way to handle the reminder
+         * using these interfaces.  For now retry using plain
+         * pread/pwrite?
+         */
+    }
+
+    /*
+     * Ok, we have to do it the hard way, copy all segments into
+     * a single aligned buffer.
+     */
+    nbytes = nb_sectors * BDRV_SECTOR_SIZE;
+    buf = qemu_blockalign(bs, nbytes);
+    if (type == BDRV_REQ_WRITE) {
+        qemu_iovec_to_buffer(qiov, buf);
+    }
+    ret = raw_io_linear(bs, sector_num, buf, nb_sectors, type);
+    if (ret >= 0 && type == BDRV_REQ_READ) {
+        qemu_iovec_from_buffer(qiov, buf, nbytes);
+    }
+    qemu_vfree(buf);
+    return 0;
+}
+
+static int raw_co_readv(BlockDriverState *bs,
+        int64_t sector_num, int nb_sectors, QEMUIOVector *qiov)
+{
+    return raw_io(bs, sector_num, qiov, nb_sectors, BDRV_REQ_READ);
+}
+
+static int raw_co_writev(BlockDriverState *bs,
+        int64_t sector_num, int nb_sectors, QEMUIOVector *qiov)
+{
+    return raw_io(bs, sector_num, qiov, nb_sectors, BDRV_REQ_WRITE);
+}
+
+#ifdef CONFIG_LINUX_AIO
 static BlockDriverAIOCB *raw_aio_submit(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque, int type)
 {
     BDRVRawState *s = bs->opaque;
 
-    if (fd_open(bs) < 0)
-        return NULL;
-
     /*
      * If O_DIRECT is used the buffer needs to be aligned on a sector
      * boundary.  Check if this is the case or tell the low-level
      * driver that it needs to copy the buffer.
      */
-    if (s->aligned_buf) {
-        if (!qiov_is_aligned(bs, qiov)) {
-            type |= QEMU_AIO_MISALIGNED;
-#ifdef CONFIG_LINUX_AIO
-        } else if (s->use_aio) {
-            return laio_submit(bs, s->aio_ctx, s->fd, sector_num, qiov,
-                               nb_sectors, cb, opaque, type);
-#endif
-        }
+    if (fd_open(bs) < 0) {
+        return NULL;
     }
 
-    return paio_submit(bs, s->fd, sector_num, qiov, nb_sectors,
-                       cb, opaque, type);
+    if (s->use_aio && s->aligned_buf && qiov_is_aligned(bs, qiov)) {
+        return laio_submit(bs, s->aio_ctx, s->fd, sector_num, qiov,
+                           nb_sectors, cb, opaque, type);
+    }
+
+    return NULL;
 }
 
 static BlockDriverAIOCB *raw_aio_readv(BlockDriverState *bs,
@@ -346,7 +476,7 @@ static BlockDriverAIOCB *raw_aio_readv(BlockDriverState *bs,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
     return raw_aio_submit(bs, sector_num, qiov, nb_sectors,
-                          cb, opaque, QEMU_AIO_READ);
+                          cb, opaque, BDRV_REQ_READ);
 }
 
 static BlockDriverAIOCB *raw_aio_writev(BlockDriverState *bs,
@@ -354,18 +484,23 @@ static BlockDriverAIOCB *raw_aio_writev(BlockDriverState *bs,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
     return raw_aio_submit(bs, sector_num, qiov, nb_sectors,
-                          cb, opaque, QEMU_AIO_WRITE);
+                          cb, opaque, BDRV_REQ_WRITE);
 }
+#endif
 
-static BlockDriverAIOCB *raw_aio_flush(BlockDriverState *bs,
-        BlockDriverCompletionFunc *cb, void *opaque)
+static int raw_flush(BlockDriverState *bs)
 {
     BDRVRawState *s = bs->opaque;
+    int ret;
 
-    if (fd_open(bs) < 0)
-        return NULL;
-
-    return paio_submit(bs, s->fd, 0, NULL, 0, cb, opaque, QEMU_AIO_FLUSH);
+    ret = fd_open(bs);
+    if (ret < 0) {
+        return ret;
+    }
+    if (qemu_fdatasync(s->fd) < 0) {
+        return -errno;
+    }
+    return 0;
 }
 
 static void raw_close(BlockDriverState *bs)
@@ -635,9 +770,13 @@ static BlockDriver bdrv_file = {
     .bdrv_create = raw_create,
     .bdrv_co_discard = raw_co_discard,
 
+#ifdef CONFIG_LINUX_AIO
     .bdrv_aio_readv = raw_aio_readv,
     .bdrv_aio_writev = raw_aio_writev,
-    .bdrv_aio_flush = raw_aio_flush,
+#endif
+    .bdrv_co_readv = raw_co_readv,
+    .bdrv_co_writev = raw_co_writev,
+    .bdrv_co_flush_to_disk = raw_flush,
 
     .bdrv_truncate = raw_truncate,
     .bdrv_getlength = raw_getlength,
@@ -892,9 +1031,13 @@ static BlockDriver bdrv_host_device = {
     .create_options     = raw_create_options,
     .bdrv_has_zero_init = hdev_has_zero_init,
 
+#ifdef CONFIG_LINUX_AIO
     .bdrv_aio_readv	= raw_aio_readv,
     .bdrv_aio_writev	= raw_aio_writev,
-    .bdrv_aio_flush	= raw_aio_flush,
+#endif
+    .bdrv_co_readv = raw_co_readv,
+    .bdrv_co_writev = raw_co_writev,
+    .bdrv_co_flush_to_disk = raw_flush,
 
     .bdrv_truncate      = raw_truncate,
     .bdrv_getlength	= raw_getlength,
@@ -1010,9 +1153,13 @@ static BlockDriver bdrv_host_floppy = {
     .create_options     = raw_create_options,
     .bdrv_has_zero_init = hdev_has_zero_init,
 
+#ifdef CONFIG_LINUX_AIO
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
-    .bdrv_aio_flush	= raw_aio_flush,
+#endif
+    .bdrv_co_readv = raw_co_readv,
+    .bdrv_co_writev = raw_co_writev,
+    .bdrv_co_flush_to_disk = raw_flush,
 
     .bdrv_truncate      = raw_truncate,
     .bdrv_getlength	= raw_getlength,
@@ -1109,9 +1256,13 @@ static BlockDriver bdrv_host_cdrom = {
     .create_options     = raw_create_options,
     .bdrv_has_zero_init = hdev_has_zero_init,
 
+#ifdef CONFIG_LINUX_AIO
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
-    .bdrv_aio_flush	= raw_aio_flush,
+#endif
+    .bdrv_co_readv = raw_co_readv,
+    .bdrv_co_writev = raw_co_writev,
+    .bdrv_co_flush_to_disk = raw_flush,
 
     .bdrv_truncate      = raw_truncate,
     .bdrv_getlength     = raw_getlength,
@@ -1227,9 +1378,13 @@ static BlockDriver bdrv_host_cdrom = {
     .create_options     = raw_create_options,
     .bdrv_has_zero_init = hdev_has_zero_init,
 
+#ifdef CONFIG_LINUX_AIO
     .bdrv_aio_readv     = raw_aio_readv,
     .bdrv_aio_writev    = raw_aio_writev,
-    .bdrv_aio_flush	= raw_aio_flush,
+#endif
+    .bdrv_co_readv = raw_co_readv,
+    .bdrv_co_writev = raw_co_writev,
+    .bdrv_co_flush_to_disk = raw_flush,
 
     .bdrv_truncate      = raw_truncate,
     .bdrv_getlength     = raw_getlength,
