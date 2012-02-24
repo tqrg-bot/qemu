@@ -338,6 +338,7 @@ struct BlockDriverState {
     int in_use; /* users other than guest access, eg. block migration */
     QTAILQ_ENTRY(BlockDriverState) list;
 
+    QemuMutex reqs_lock;
     QTAILQ_HEAD(, BdrvTrackedRequest) tracked_requests;
 
     /* long-running background operation */

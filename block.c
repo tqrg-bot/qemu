@@ -338,6 +338,7 @@ BlockDriverState *bdrv_new(const char *device_name)
         QTAILQ_INSERT_TAIL(&bdrv_states, bs, list);
     }
     qemu_mutex_init(&bs->io_limits_lock);
+    qemu_mutex_init(&bs->reqs_lock);
     bdrv_iostatus_disable(bs);
     return bs;
 }
@@ -966,7 +967,9 @@ void bdrv_drain_all(void)
 
     /* If requests are still pending there is a bug somewhere */
     QTAILQ_FOREACH(bs, &bdrv_states, list) {
+        qemu_mutex_lock(&bs->reqs_lock);
         assert(QTAILQ_EMPTY(&bs->tracked_requests));
+        qemu_mutex_unlock(&bs->reqs_lock);
         qemu_mutex_lock(&bs->io_limits_lock);
         assert(QTAILQ_EMPTY(&bs->throttled_reqs));
         qemu_mutex_unlock(&bs->io_limits_lock);
@@ -1384,7 +1387,9 @@ int bdrv_commit_all(void)
  */
 static void tracked_request_end(BdrvTrackedRequest *req, int ret)
 {
+    qemu_mutex_lock(&req->bs->reqs_lock);
     QTAILQ_REMOVE(&req->bs->tracked_requests, req, list);
+    qemu_mutex_unlock(&req->bs->reqs_lock);
     req->ret = ret;
     qemu_co_queue_restart_all(&req->wait_queue);
 }
@@ -1418,7 +1423,9 @@ static void tracked_request_init(BdrvTrackedRequest *req,
 static void tracked_request_begin(BdrvTrackedRequest *req)
 {
     req->co = qemu_coroutine_self();
+    qemu_mutex_lock(&req->bs->reqs_lock);
     QTAILQ_INSERT_HEAD(&req->bs->tracked_requests, req, list);
+    qemu_mutex_unlock(&req->bs->reqs_lock);
 }
 
 /**
