@@ -315,6 +315,7 @@ struct BlockDriverState {
 
     QemuMutex reqs_lock;
     QTAILQ_HEAD(, BdrvTrackedRequest) tracked_requests;
+    QTAILQ_HEAD(, BdrvTrackedRequest) free_reqs;
 
     /* long-running background operation */
     BlockJob *job;
