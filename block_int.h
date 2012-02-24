@@ -313,6 +313,7 @@ struct BlockDriverState {
     QTAILQ_ENTRY(BlockDriverState) list;
     void *private;
 
+    QemuMutex reqs_lock;
     QTAILQ_HEAD(, BdrvTrackedRequest) tracked_requests;
 
     /* long-running background operation */
