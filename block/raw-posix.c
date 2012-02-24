@@ -827,17 +827,6 @@ static int hdev_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
     return ioctl(s->fd, req, buf);
 }
 
-static BlockDriverAIOCB *hdev_aio_ioctl(BlockDriverState *bs,
-        unsigned long int req, void *buf,
-        BlockDriverCompletionFunc *cb, void *opaque)
-{
-    BDRVRawState *s = bs->opaque;
-
-    if (fd_open(bs) < 0)
-        return NULL;
-    return paio_ioctl(bs, s->fd, req, buf, cb, opaque);
-}
-
 #elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
 static int fd_open(BlockDriverState *bs)
 {
@@ -915,7 +904,6 @@ static BlockDriver bdrv_host_device = {
     /* generic scsi device */
 #ifdef __linux__
     .bdrv_ioctl         = hdev_ioctl,
-    .bdrv_aio_ioctl     = hdev_aio_ioctl,
 #endif
 };
 
@@ -1137,7 +1125,6 @@ static BlockDriver bdrv_host_cdrom = {
 
     /* generic scsi device */
     .bdrv_ioctl         = hdev_ioctl,
-    .bdrv_aio_ioctl     = hdev_aio_ioctl,
 };
 #endif /* __linux__ */
 

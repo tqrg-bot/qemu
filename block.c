@@ -63,6 +63,7 @@ struct BdrvTrackedRequest {
     int ret;
     union {
         QEMUIOVector qiov;
+        void *buf;
         int pnum;
     };
     QTAILQ_ENTRY(BdrvTrackedRequest) list;
@@ -3709,15 +3710,23 @@ int bdrv_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
     return -ENOTSUP;
 }
 
+static int coroutine_fn bdrv_aio_ioctl_co_entry(void *opaque)
+{
+    BdrvTrackedRequest *req = opaque;
+
+    req->ret = bdrv_ioctl(req->bs, req->flags, req->buf);
+    return tracked_request_release(req);
+}
+
 BlockDriverAIOCB *bdrv_aio_ioctl(BlockDriverState *bs,
-        unsigned long int req, void *buf,
+        unsigned long int cmd, void *buf,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
-    BlockDriver *drv = bs->drv;
+    BdrvTrackedRequest *req;
 
-    if (drv && drv->bdrv_aio_ioctl)
-        return drv->bdrv_aio_ioctl(bs, req, buf, cb, opaque);
-    return NULL;
+    tracked_request_get(&req, bs, 0, 0, NULL, QEMU_AIO_IOCTL, cmd);
+    req->buf = buf;
+    return thread_pool_submit_aio(bdrv_aio_ioctl_co_entry, req, cb, opaque);
 }
 
 void bdrv_set_buffer_alignment(BlockDriverState *bs, int align)

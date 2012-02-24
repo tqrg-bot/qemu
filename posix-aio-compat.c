@@ -37,13 +37,9 @@ static void do_spawn_thread(void);
 struct qemu_paiocb {
     BlockDriverAIOCB common;
     int aio_fildes;
-    union {
-        struct iovec *aio_iov;
-        void *aio_ioctl_buf;
-    };
+    struct iovec *aio_iov;
     int aio_niov;
     size_t aio_nbytes;
-#define aio_ioctl_cmd   aio_nbytes /* for QEMU_AIO_IOCTL */
     off_t aio_offset;
 
     QTAILQ_ENTRY(qemu_paiocb) node;
@@ -120,25 +116,6 @@ static void thread_create(pthread_t *thread, pthread_attr_t *attr,
 {
     int ret = pthread_create(thread, attr, start_routine, arg);
     if (ret) die2(ret, "pthread_create");
-}
-
-static ssize_t handle_aiocb_ioctl(struct qemu_paiocb *aiocb)
-{
-    int ret;
-
-    ret = ioctl(aiocb->aio_fildes, aiocb->aio_ioctl_cmd, aiocb->aio_ioctl_buf);
-    if (ret == -1)
-        return -errno;
-
-    /*
-     * This looks weird, but the aio code only considers a request
-     * successful if it has written the full number of bytes.
-     *
-     * Now we overload aio_nbytes as aio_ioctl_cmd for the ioctl command,
-     * so in fact we return the ioctl command here to make posix_aio_read()
-     * happy..
-     */
-    return aiocb->aio_nbytes;
 }
 
 static ssize_t handle_aiocb_flush(struct qemu_paiocb *aiocb)
@@ -366,9 +343,6 @@ static void *aio_thread(void *unused)
             break;
         case QEMU_AIO_FLUSH:
             ret = handle_aiocb_flush(aiocb);
-            break;
-        case QEMU_AIO_IOCTL:
-            ret = handle_aiocb_ioctl(aiocb);
             break;
         default:
             fprintf(stderr, "invalid aio request (0x%x)\n", aiocb->aio_type);
@@ -623,26 +597,6 @@ BlockDriverAIOCB *paio_submit(BlockDriverState *bs, int fd,
     posix_aio_state->first_aio = acb;
 
     trace_paio_submit(acb, opaque, sector_num, nb_sectors, type);
-    qemu_paio_submit(acb);
-    return &acb->common;
-}
-
-BlockDriverAIOCB *paio_ioctl(BlockDriverState *bs, int fd,
-        unsigned long int req, void *buf,
-        BlockDriverCompletionFunc *cb, void *opaque)
-{
-    struct qemu_paiocb *acb;
-
-    acb = qemu_aio_get(&raw_aio_pool, bs, cb, opaque);
-    acb->aio_type = QEMU_AIO_IOCTL;
-    acb->aio_fildes = fd;
-    acb->aio_offset = 0;
-    acb->aio_ioctl_buf = buf;
-    acb->aio_ioctl_cmd = req;
-
-    acb->next = posix_aio_state->first_aio;
-    posix_aio_state->first_aio = acb;
-
     qemu_paio_submit(acb);
     return &acb->common;
 }
