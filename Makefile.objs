@@ -92,7 +92,7 @@ fsdev-obj-$(CONFIG_VIRTFS) += $(addprefix fsdev/, $(fsdev-nested-y))
 # suppress *all* target specific code in case of system emulation, i.e. a
 # single QEMU executable should support all CPUs and machines.
 
-common-obj-y = $(block-obj-y) blockdev.o
+common-obj-y = $(block-obj-y) blockdev.o block/blkmirror.o
 common-obj-y += $(net-obj-y)
 common-obj-y += $(qom-obj-twice-y)
 common-obj-$(CONFIG_LINUX) += $(fsdev-obj-$(CONFIG_LINUX))
