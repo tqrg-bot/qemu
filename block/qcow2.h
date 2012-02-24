@@ -144,7 +144,7 @@ typedef struct BDRVQcowState {
     int64_t free_cluster_index;
     int64_t free_byte_offset;
 
-    CoMutex lock;
+    QemuMutex lock;
 
     uint32_t crypt_method; /* current crypt method, 0 if no key yet */
     uint32_t crypt_method_header;

@@ -46,7 +46,7 @@ struct parallels_header {
 } QEMU_PACKED;
 
 typedef struct BDRVParallelsState {
-    CoMutex lock;
+    QemuMutex lock;
 
     uint32_t *catalog_bitmap;
     int catalog_size;
@@ -96,7 +96,7 @@ static int parallels_open(BlockDriverState *bs, int flags)
     for (i = 0; i < s->catalog_size; i++)
 	le32_to_cpus(&s->catalog_bitmap[i]);
 
-    qemu_co_mutex_init(&s->lock);
+    qemu_mutex_init(&s->lock);
     return 0;
 fail:
     if (s->catalog_bitmap)
@@ -141,9 +141,9 @@ static coroutine_fn int parallels_co_read(BlockDriverState *bs, int64_t sector_n
 {
     int ret;
     BDRVParallelsState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = parallels_read(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 

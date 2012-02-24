@@ -111,7 +111,7 @@ struct vhd_dyndisk_header {
 };
 
 typedef struct BDRVVPCState {
-    CoMutex lock;
+    QemuMutex lock;
     uint8_t footer_buf[HEADER_SIZE];
     uint64_t free_data_block_offset;
     int max_table_entries;
@@ -252,7 +252,7 @@ static int vpc_open(BlockDriverState *bs, int flags)
 #endif
     }
 
-    qemu_co_mutex_init(&s->lock);
+    qemu_mutex_init(&s->lock);
 
     /* Disable migration when VHD images are used */
     error_set(&s->migration_blocker,
@@ -453,9 +453,9 @@ static coroutine_fn int vpc_co_read(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
     BDRVVPCState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = vpc_read(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 
@@ -504,9 +504,9 @@ static coroutine_fn int vpc_co_write(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
     BDRVVPCState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = vpc_write(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 

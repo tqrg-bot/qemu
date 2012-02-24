@@ -91,7 +91,7 @@ typedef struct VmdkExtent {
 } VmdkExtent;
 
 typedef struct BDRVVmdkState {
-    CoMutex lock;
+    QemuMutex lock;
     int desc_offset;
     bool cid_updated;
     uint32_t parent_cid;
@@ -660,7 +660,7 @@ static int vmdk_open(BlockDriverState *bs, int flags)
         goto fail;
     }
     s->parent_cid = vmdk_read_cid(bs, 1);
-    qemu_co_mutex_init(&s->lock);
+    qemu_mutex_init(&s->lock);
 
     /* Disable migration when VMDK images are used */
     error_set(&s->migration_blocker,
@@ -873,10 +873,10 @@ static int coroutine_fn vmdk_co_is_allocated(BlockDriverState *bs,
     if (!extent) {
         return 0;
     }
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = get_cluster_offset(bs, extent, NULL,
                             sector_num * 512, 0, &offset);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     /* get_cluster_offset returning 0 means success */
     ret = !ret;
 
@@ -1051,9 +1051,9 @@ static coroutine_fn int vmdk_co_read(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
     BDRVVmdkState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = vmdk_read(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 
@@ -1146,9 +1146,9 @@ static coroutine_fn int vmdk_co_write(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
     BDRVVmdkState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = vmdk_write(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 

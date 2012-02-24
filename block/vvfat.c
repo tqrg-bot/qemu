@@ -318,7 +318,7 @@ static void print_mapping(const struct mapping_t* mapping);
 /* here begins the real VVFAT driver */
 
 typedef struct BDRVVVFATState {
-    CoMutex lock;
+    QemuMutex lock;
     BlockDriverState* bs; /* pointer to parent */
     unsigned int first_sectors_number; /* 1 for a single partition, 0x40 for a disk with partition table */
     unsigned char first_sectors[0x40*0x200];
@@ -1081,7 +1081,7 @@ DLOG(if (stderr == NULL) {
     }
 
     //    assert(is_consistent(s));
-    qemu_co_mutex_init(&s->lock);
+    qemu_mutex_init(&s->lock);
 
     /* Disable migration when vvfat is used rw */
     if (s->qcow) {
@@ -1310,9 +1310,9 @@ static coroutine_fn int vvfat_co_read(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
     BDRVVVFATState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = vvfat_read(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 
@@ -2761,9 +2761,9 @@ static coroutine_fn int vvfat_co_write(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
     BDRVVVFATState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = vvfat_write(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 

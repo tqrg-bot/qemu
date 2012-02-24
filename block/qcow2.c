@@ -412,7 +412,7 @@ static int qcow2_open(BlockDriverState *bs, int flags)
     }
 
     /* Initialise locks */
-    qemu_co_mutex_init(&s->lock);
+    qemu_mutex_init(&s->lock);
 
 #ifdef DEBUG_ALLOC
     {
@@ -488,9 +488,9 @@ static int coroutine_fn qcow2_co_is_allocated(BlockDriverState *bs,
     *pnum = nb_sectors;
     /* FIXME We can get errors here, but the bdrv_co_is_allocated interface
      * can't pass them on today */
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = qcow2_get_cluster_offset(bs, sector_num << 9, pnum, &cluster_offset);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     if (ret < 0) {
         *pnum = 0;
     }
@@ -529,7 +529,7 @@ static coroutine_fn int qcow2_co_readv(BlockDriverState *bs, int64_t sector_num,
 
     qemu_iovec_init(&hd_qiov, qiov->niov);
 
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
 
     while (remaining_sectors != 0) {
 
@@ -561,10 +561,10 @@ static coroutine_fn int qcow2_co_readv(BlockDriverState *bs, int64_t sector_num,
                     sector_num, cur_nr_sectors);
                 if (n1 > 0) {
                     BLKDBG_EVENT(bs->file, BLKDBG_READ_BACKING_AIO);
-                    qemu_co_mutex_unlock(&s->lock);
+                    qemu_mutex_unlock(&s->lock);
                     ret = bdrv_co_readv(bs->backing_hd, sector_num,
                                         n1, &hd_qiov);
-                    qemu_co_mutex_lock(&s->lock);
+                    qemu_mutex_lock(&s->lock);
                     if (ret < 0) {
                         goto fail;
                     }
@@ -619,11 +619,11 @@ static coroutine_fn int qcow2_co_readv(BlockDriverState *bs, int64_t sector_num,
             }
 
             BLKDBG_EVENT(bs->file, BLKDBG_READ_AIO);
-            qemu_co_mutex_unlock(&s->lock);
+            qemu_mutex_unlock(&s->lock);
             ret = bdrv_co_readv(bs->file,
                                 (cluster_offset >> 9) + index_in_cluster,
                                 cur_nr_sectors, &hd_qiov);
-            qemu_co_mutex_lock(&s->lock);
+            qemu_mutex_lock(&s->lock);
             if (ret < 0) {
                 goto fail;
             }
@@ -651,7 +651,7 @@ static coroutine_fn int qcow2_co_readv(BlockDriverState *bs, int64_t sector_num,
     ret = 0;
 
 fail:
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
 
     qemu_iovec_destroy(&hd_qiov);
     qemu_vfree(cluster_data);
@@ -668,9 +668,9 @@ static void run_dependent_requests(BDRVQcowState *s, QCowL2Meta *m)
 
     /* Restart all dependent requests */
     if (!qemu_co_queue_empty(&m->dependent_requests)) {
-        qemu_co_mutex_unlock(&s->lock);
+        qemu_mutex_unlock(&s->lock);
         qemu_co_queue_restart_all(&m->dependent_requests);
-        qemu_co_mutex_lock(&s->lock);
+        qemu_mutex_lock(&s->lock);
     }
 }
 
@@ -701,7 +701,7 @@ static coroutine_fn int qcow2_co_writev(BlockDriverState *bs,
 
     s->cluster_cache_offset = -1; /* disable compressed cache */
 
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
 
     while (remaining_sectors != 0) {
 
@@ -745,13 +745,13 @@ static coroutine_fn int qcow2_co_writev(BlockDriverState *bs,
         }
 
         BLKDBG_EVENT(bs->file, BLKDBG_WRITE_AIO);
-        qemu_co_mutex_unlock(&s->lock);
+        qemu_mutex_unlock(&s->lock);
         trace_qcow2_writev_data(qemu_coroutine_self(),
                                 (cluster_offset >> 9) + index_in_cluster);
         ret = bdrv_co_writev(bs->file,
                              (cluster_offset >> 9) + index_in_cluster,
                              cur_nr_sectors, &hd_qiov);
-        qemu_co_mutex_lock(&s->lock);
+        qemu_mutex_lock(&s->lock);
         if (ret < 0) {
             goto fail;
         }
@@ -773,7 +773,7 @@ static coroutine_fn int qcow2_co_writev(BlockDriverState *bs,
 fail:
     run_dependent_requests(s, &l2meta);
 
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
 
     qemu_iovec_destroy(&hd_qiov);
     qemu_vfree(cluster_data);
@@ -1309,10 +1309,10 @@ static coroutine_fn int qcow2_co_discard(BlockDriverState *bs,
     int ret;
     BDRVQcowState *s = bs->opaque;
 
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = qcow2_discard_clusters(bs, sector_num << BDRV_SECTOR_BITS,
         nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 
@@ -1438,19 +1438,19 @@ static coroutine_fn int qcow2_co_flush_to_os(BlockDriverState *bs)
     BDRVQcowState *s = bs->opaque;
     int ret;
 
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = qcow2_cache_flush(bs, s->l2_table_cache);
     if (ret < 0) {
-        qemu_co_mutex_unlock(&s->lock);
+        qemu_mutex_unlock(&s->lock);
         return ret;
     }
 
     ret = qcow2_cache_flush(bs, s->refcount_block_cache);
     if (ret < 0) {
-        qemu_co_mutex_unlock(&s->lock);
+        qemu_mutex_unlock(&s->lock);
         return ret;
     }
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
 
     return 0;
 }

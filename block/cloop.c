@@ -27,7 +27,7 @@
 #include <zlib.h>
 
 typedef struct BDRVCloopState {
-    CoMutex lock;
+    QemuMutex lock;
     uint32_t block_size;
     uint32_t n_blocks;
     uint64_t *offsets;
@@ -98,7 +98,7 @@ static int cloop_open(BlockDriverState *bs, int flags)
 
     s->sectors_per_block = s->block_size/512;
     bs->total_sectors = s->n_blocks * s->sectors_per_block;
-    qemu_co_mutex_init(&s->lock);
+    qemu_mutex_init(&s->lock);
     return 0;
 
 cloop_close:
@@ -161,9 +161,9 @@ static coroutine_fn int cloop_co_read(BlockDriverState *bs, int64_t sector_num,
 {
     int ret;
     BDRVCloopState *s = bs->opaque;
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     ret = cloop_read(bs, sector_num, buf, nb_sectors);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 

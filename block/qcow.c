@@ -74,7 +74,7 @@ typedef struct BDRVQcowState {
     uint32_t crypt_method_header;
     AES_KEY aes_encrypt_key;
     AES_KEY aes_decrypt_key;
-    CoMutex lock;
+    QemuMutex lock;
     Error *migration_blocker;
 } BDRVQcowState;
 
@@ -186,7 +186,7 @@ static int qcow_open(BlockDriverState *bs, int flags)
               "qcow", bs->device_name, "live migration");
     migrate_add_blocker(s->migration_blocker);
 
-    qemu_co_mutex_init(&s->lock);
+    qemu_mutex_init(&s->lock);
     return 0;
 
  fail:
@@ -393,9 +393,9 @@ static int coroutine_fn qcow_co_is_allocated(BlockDriverState *bs,
     int index_in_cluster, n;
     uint64_t cluster_offset;
 
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
     cluster_offset = get_cluster_offset(bs, sector_num << 9, 0, 0, 0, 0);
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
     index_in_cluster = sector_num & (s->cluster_sectors - 1);
     n = s->cluster_sectors - index_in_cluster;
     if (n > nb_sectors)
@@ -472,7 +472,7 @@ static coroutine_fn int qcow_co_readv(BlockDriverState *bs, int64_t sector_num,
         buf = (uint8_t *)qiov->iov->iov_base;
     }
 
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
 
     while (nb_sectors != 0) {
         /* prepare next request */
@@ -490,10 +490,10 @@ static coroutine_fn int qcow_co_readv(BlockDriverState *bs, int64_t sector_num,
                 hd_iov.iov_base = (void *)buf;
                 hd_iov.iov_len = n * 512;
                 qemu_iovec_init_external(&hd_qiov, &hd_iov, 1);
-                qemu_co_mutex_unlock(&s->lock);
+                qemu_mutex_unlock(&s->lock);
                 ret = bdrv_co_readv(bs->backing_hd, sector_num,
                                     n, &hd_qiov);
-                qemu_co_mutex_lock(&s->lock);
+                qemu_mutex_lock(&s->lock);
                 if (ret < 0) {
                     goto fail;
                 }
@@ -515,11 +515,11 @@ static coroutine_fn int qcow_co_readv(BlockDriverState *bs, int64_t sector_num,
             hd_iov.iov_base = (void *)buf;
             hd_iov.iov_len = n * 512;
             qemu_iovec_init_external(&hd_qiov, &hd_iov, 1);
-            qemu_co_mutex_unlock(&s->lock);
+            qemu_mutex_unlock(&s->lock);
             ret = bdrv_co_readv(bs->file,
                                 (cluster_offset >> 9) + index_in_cluster,
                                 n, &hd_qiov);
-            qemu_co_mutex_lock(&s->lock);
+            qemu_mutex_lock(&s->lock);
             if (ret < 0) {
                 break;
             }
@@ -537,7 +537,7 @@ static coroutine_fn int qcow_co_readv(BlockDriverState *bs, int64_t sector_num,
     }
 
 done:
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
 
     if (qiov->niov > 1) {
         qemu_iovec_from_buffer(qiov, orig_buf, qiov->size);
@@ -575,7 +575,7 @@ static coroutine_fn int qcow_co_writev(BlockDriverState *bs, int64_t sector_num,
         buf = (uint8_t *)qiov->iov->iov_base;
     }
 
-    qemu_co_mutex_lock(&s->lock);
+    qemu_mutex_lock(&s->lock);
 
     while (nb_sectors != 0) {
 
@@ -605,11 +605,11 @@ static coroutine_fn int qcow_co_writev(BlockDriverState *bs, int64_t sector_num,
         hd_iov.iov_base = (void *)src_buf;
         hd_iov.iov_len = n * 512;
         qemu_iovec_init_external(&hd_qiov, &hd_iov, 1);
-        qemu_co_mutex_unlock(&s->lock);
+        qemu_mutex_unlock(&s->lock);
         ret = bdrv_co_writev(bs->file,
                              (cluster_offset >> 9) + index_in_cluster,
                              n, &hd_qiov);
-        qemu_co_mutex_lock(&s->lock);
+        qemu_mutex_lock(&s->lock);
         if (ret < 0) {
             break;
         }
@@ -619,7 +619,7 @@ static coroutine_fn int qcow_co_writev(BlockDriverState *bs, int64_t sector_num,
         sector_num += n;
         buf += n * 512;
     }
-    qemu_co_mutex_unlock(&s->lock);
+    qemu_mutex_unlock(&s->lock);
 
     if (qiov->niov > 1) {
         qemu_vfree(orig_buf);
