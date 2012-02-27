@@ -189,12 +189,6 @@ int virtio_set_features(VirtIODevice *vdev, uint32_t val);
 void virtio_bind_device(VirtIODevice *vdev, const VirtIOBindings *binding,
                         void *opaque);
 
-/* Base devices.  */
-typedef struct VirtIOSCSIConf VirtIOSCSIConf;
-VirtIODevice *virtio_scsi_init(DeviceState *dev, VirtIOSCSIConf *conf);
-
-void virtio_scsi_exit(VirtIODevice *vdev);
-
 #define DEFINE_VIRTIO_COMMON_FEATURES(_state, _field) \
 	DEFINE_PROP_BIT("indirect_desc", _state, _field, \
 			VIRTIO_RING_F_INDIRECT_DESC, true), \

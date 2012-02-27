@@ -26,11 +26,11 @@
 #define VIRTIO_SCSI_F_HOTPLUG                  1
 #define VIRTIO_SCSI_F_CHANGE                   2
 
-struct VirtIOSCSIConf {
+typedef struct VirtIOSCSIConf {
     uint32_t num_queues;
     uint32_t max_sectors;
     uint32_t cmd_per_lun;
-};
+} VirtIOSCSIConf;
 
 #define DEFINE_VIRTIO_SCSI_PROPERTIES(_state, _features_field, _conf_field) \
     DEFINE_VIRTIO_COMMON_FEATURES(_state, _features_field), \
@@ -39,5 +39,9 @@ struct VirtIOSCSIConf {
     DEFINE_PROP_UINT32("cmd_per_lun", _state, _conf_field.cmd_per_lun, 128), \
     DEFINE_PROP_BIT("hotplug", _state, _features_field, VIRTIO_SCSI_F_HOTPLUG, true), \
     DEFINE_PROP_BIT("param_change", _state, _features_field, VIRTIO_SCSI_F_CHANGE, true)
+
+/* Base devices.  */
+VirtIODevice *virtio_scsi_init(DeviceState *dev, VirtIOSCSIConf *conf);
+void virtio_scsi_exit(VirtIODevice *vdev);
 
 #endif /* _QEMU_VIRTIO_SCSI_H */
