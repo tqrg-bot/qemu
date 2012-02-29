@@ -700,6 +700,7 @@ void qmp_transaction(BlockdevActionList *dev_list, Error **errp)
     int ret = 0;
     BlockdevActionList *dev_entry = dev_list;
     BlkTransactionStates *states, *next;
+    char *new_source = NULL;
 
     QSIMPLEQ_HEAD(snap_bdrv_states, BlkTransactionStates) snap_bdrv_states;
     QSIMPLEQ_INIT(&snap_bdrv_states);
@@ -711,12 +712,13 @@ void qmp_transaction(BlockdevActionList *dev_list, Error **errp)
     while (NULL != dev_entry) {
         BlockdevAction *dev_info = NULL;
         BlockDriver *proto_drv;
-        BlockDriver *drv;
+        BlockDriver *target_drv;
+        BlockDriver *drv = NULL;
         int flags;
         enum NewImageMode mode;
         const char *new_image_file;
         const char *device;
-        const char *format = "qcow2";
+        const char *format;
 
         dev_info = dev_entry->value;
         dev_entry = dev_entry->next;
@@ -731,19 +733,38 @@ void qmp_transaction(BlockdevActionList *dev_list, Error **errp)
                 dev_info->blockdev_snapshot_sync->mode = NEW_IMAGE_MODE_ABSOLUTE_PATHS;
             }
             new_image_file = dev_info->blockdev_snapshot_sync->snapshot_file;
-            if (dev_info->blockdev_snapshot_sync->has_format) {
-                format = dev_info->blockdev_snapshot_sync->format;
+            if (!dev_info->blockdev_snapshot_sync->has_format) {
+                dev_info->blockdev_snapshot_sync->format = (char *) "qcow2";
             }
+            format = dev_info->blockdev_snapshot_sync->format;
             mode = dev_info->blockdev_snapshot_sync->mode;
+            new_source = g_strdup(new_image_file);
             break;
+
+        case BLOCKDEV_ACTION_KIND_DRIVE_MIRROR:
+            device = dev_info->drive_mirror->device;
+            drv = bdrv_find_format("blkmirror");
+            if (!dev_info->drive_mirror->has_mode) {
+                dev_info->drive_mirror->mode = NEW_IMAGE_MODE_ABSOLUTE_PATHS;
+            }
+            new_image_file = dev_info->drive_mirror->target;
+            format = dev_info->drive_mirror->format;
+            mode = dev_info->drive_mirror->mode;
+            new_source = g_strdup_printf("blkmirror:%s:%s", format,
+                                         dev_info->drive_mirror->target);
+            break;
+
         default:
             abort();
         }
 
-        drv = bdrv_find_format(format);
-        if (!drv) {
+        target_drv = bdrv_find_format(format);
+        if (!target_drv) {
             error_set(errp, QERR_INVALID_BLOCK_FORMAT, format);
             goto delete_and_fail;
+        }
+        if (!drv) {
+            drv = target_drv;
         }
 
         states->old_bs = bdrv_find(device);
@@ -771,32 +792,49 @@ void qmp_transaction(BlockdevActionList *dev_list, Error **errp)
 
         flags = states->old_bs->open_flags;
 
-        proto_drv = bdrv_find_protocol(new_image_file);
+        proto_drv = bdrv_find_protocol(new_source);
         if (!proto_drv) {
             error_set(errp, QERR_INVALID_BLOCK_FORMAT, format);
             goto delete_and_fail;
         }
 
         /* create new image w/backing file */
-        if (mode != NEW_IMAGE_MODE_EXISTING) {
+        switch (mode) {
+        case NEW_IMAGE_MODE_EXISTING:
+            ret = 0;
+            break;
+        case NEW_IMAGE_MODE_ABSOLUTE_PATHS:
             ret = bdrv_img_create(new_image_file, format,
                                   states->old_bs->filename,
                                   states->old_bs->drv->format_name,
                                   NULL, -1, flags);
-            if (ret) {
-                error_set(errp, QERR_OPEN_FILE_FAILED, new_image_file);
-                goto delete_and_fail;
-            }
+            break;
+        case NEW_IMAGE_MODE_NO_BACKING_FILE: {
+            uint64_t size;
+            bdrv_get_geometry(states->old_bs, &size);
+            size *= 512;
+            ret = bdrv_img_create(new_image_file, format,
+                                  NULL, NULL, NULL, size, flags);
+            break;
+        }
+        default:
+            abort();
+        }
+        if (ret) {
+            error_set(errp, QERR_OPEN_FILE_FAILED, new_image_file);
+            goto delete_and_fail;
         }
 
         /* We will manually add the backing_hd field to the bs later */
         states->new_bs = bdrv_new("");
-        ret = bdrv_open(states->new_bs, new_image_file,
+        ret = bdrv_open(states->new_bs, new_source,
                         flags | BDRV_O_NO_BACKING, drv);
         if (ret != 0) {
-            error_set(errp, QERR_OPEN_FILE_FAILED, new_image_file);
+            error_set(errp, QERR_OPEN_FILE_FAILED, new_source);
             goto delete_and_fail;
         }
+        g_free(new_source);
+        new_source = NULL;
     }
 
 
@@ -824,6 +862,7 @@ exit:
     QSIMPLEQ_FOREACH_SAFE(states, &snap_bdrv_states, entry, next) {
         g_free(states);
     }
+    g_free(new_source);
     return;
 }
 

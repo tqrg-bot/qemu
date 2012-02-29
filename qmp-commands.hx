@@ -716,12 +716,16 @@ SQMP
 transaction
 -----------
 
-Atomically operate on one or more block devices.  The only supported
-operation for now is snapshotting.  If there is any failure performing
+Atomically operate on one or more block devices, snapshotting them
+or enabling mirrored writes.  If there is any failure performing
 any of the operations, all snapshots for the group are abandoned, and
 the original disks pre-snapshot attempt are used.
 
+Mirrored writes keep the previous image file open, and start writing
+data also to the new file specified in the command.
+
 A list of dictionaries is accepted, that contains the actions to be performed.
+
 For snapshots this is the device, the file to use for the new snapshot,
 and the format.  The default format, if not specified, is qcow2.
 
@@ -735,14 +739,20 @@ current image file as the backing file for the new image.
 Arguments:
 
 actions array:
-    - "type": the operation to perform.  The only supported
-      value is "blockdev-snapshot-sync". (json-string)
+    - "type": the operation to perform.  The only supported values
+      are "blockdev-snapshot-sync" and "drive-mirror". (json-string)
     - "data": a dictionary.  The contents depend on the value
       of "type".  When "type" is "blockdev-snapshot-sync":
       - "device": device name to snapshot (json-string)
       - "snapshot-file": name of new image file (json-string)
       - "format": format of new image (json-string, optional)
       - "mode": whether and how QEMU should create the snapshot file
+        (NewImageMode, optional, default "absolute-paths")
+      When "type" is "drive-mirror":
+      - "device": device name to snapshot (json-string)
+      - "target": name of destination image file (json-string)
+      - "format": format of new image (json-string, optional)
+      - "mode": how QEMU should look for an existing image file
         (NewImageMode, optional, default "absolute-paths")
 
 Example:
