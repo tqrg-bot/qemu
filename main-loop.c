@@ -26,6 +26,7 @@
 #include "qemu-timer.h"
 #include "slirp/slirp.h"
 #include "main-loop.h"
+#include "qemu-aio.h"
 
 #ifndef _WIN32
 
@@ -83,8 +84,10 @@ static int qemu_event_init(void)
     if (err < 0) {
         goto fail;
     }
-    qemu_set_fd_handler2(fds[0], NULL, qemu_event_read, NULL,
-                         (void *)(intptr_t)fds[0]);
+
+    /* Pass bottom half invocation to qemu_aio_wait.  */
+    qemu_aio_set_fd_handler(fds[0], qemu_event_read, NULL, NULL,
+                            (void *)(intptr_t)fds[0]);
 
     io_thread_fd = fds[1];
     return 0;
