@@ -3698,6 +3698,9 @@ MediumState bdrv_media_state(BlockDriverState *bs)
     if (drv->bdrv_media_state) {
         return drv->bdrv_media_state(bs);
     }
+    if (bdrv_dev_is_tray_open(bs)) {
+        return MEDIUM_TRAY_OPEN;
+    }
     return MEDIUM_OK;
 }
 
