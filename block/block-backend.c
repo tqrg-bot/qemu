@@ -503,7 +503,11 @@ MediumState blk_media_state(BlockBackend *blk)
 
     ret = bdrv_media_state(blk->bs);
     if (ret == -ENOTSUP) {
-        ret = MEDIUM_OK;
+        if (blk_dev_is_tray_open(blk->bs)) {
+            ret = MEDIUM_TRAY_OPEN;
+        } else {
+            ret = MEDIUM_OK;
+        }
     }
     return ret;
 }

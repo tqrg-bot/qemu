@@ -1329,9 +1329,7 @@ void ide_atapi_cmd(IDEState *s)
      * states rely on this behavior.
      */
     if ((cmd->flags & CHECK_READY) &&
-        (state != MEDIUM_OK
-         || !media_present(s)
-         || (!s->tray_open && s->cdrom_changed == 1))) {
+        (state != MEDIUM_OK || (!s->tray_open && s->cdrom_changed == 1))) {
 
         ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
         s->cdrom_changed = 2;
