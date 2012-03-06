@@ -838,6 +838,36 @@ Example:
 EQMP
 
     {
+        .name       = "drive-reopen",
+        .args_type  = "device:B,new-image-file:s,format:s?",
+        .mhandler.cmd_new = qmp_marshal_input_drive_reopen,
+    },
+
+SQMP
+drive-reopen
+------------
+
+Assigns a new image file to a device. Except extremely rare cases where the
+guest is expecting the drive to change its content, the new image should
+contain the same data of the current one.  One use case is to terminate
+a drive-mirror command.
+
+Arguments:
+
+- "device": device name to operate on (json-string)
+- "new-image-file": name of new image file (json-string)
+- "format": format of new image (json-string, optional)
+
+Example:
+
+-> { "execute": "drive-reopen", "arguments": {"device": "ide-hd0",
+                                    "new-image-file": "/some/place/my-image",
+                                    "format": "qcow2" } }
+<- { "return": {} }
+
+EQMP
+
+    {
         .name       = "balloon",
         .args_type  = "value:M",
         .mhandler.cmd_new = qmp_marshal_input_balloon,

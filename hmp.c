@@ -739,6 +739,17 @@ void hmp_snapshot_blkdev(Monitor *mon, const QDict *qdict)
     hmp_handle_error(mon, &errp);
 }
 
+void hmp_drive_reopen(Monitor *mon, const QDict *qdict)
+{
+    const char *device = qdict_get_str(qdict, "device");
+    const char *filename = qdict_get_str(qdict, "new-image-file");
+    const char *format = qdict_get_try_str(qdict, "format");
+    Error *errp = NULL;
+
+    qmp_drive_reopen(device, filename, !!format, format, &errp);
+    hmp_handle_error(mon, &errp);
+}
+
 void hmp_migrate_cancel(Monitor *mon, const QDict *qdict)
 {
     qmp_migrate_cancel(NULL);
