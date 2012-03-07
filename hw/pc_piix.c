@@ -370,6 +370,10 @@ static QEMUMachine pc_machine_v1_1 = {
             .property = "check_media_rate",\
             .value    = "off",\
         }, {\
+            .driver   = "virtio-blk-pci",\
+            .property = "scsi-always-on",\
+            .value    = "off",\
+        }, {\
             .driver   = "virtio-balloon-pci",\
             .property = "class",\
             .value    = stringify(PCI_CLASS_MEMORY_RAM),\

@@ -105,6 +105,7 @@ struct VirtIOBlkConf
 };
 
 #define DEFINE_VIRTIO_BLK_FEATURES(_state, _field) \
-        DEFINE_VIRTIO_COMMON_FEATURES(_state, _field)
+        DEFINE_VIRTIO_COMMON_FEATURES(_state, _field) \
+        DEFINE_PROP_BIT("scsi-always-on", _state, _field, VIRTIO_BLK_F_SCSI, true)
 
 #endif
