@@ -2724,14 +2724,11 @@ static void gdb_accept(void)
 
     for(;;) {
         len = sizeof(sockaddr);
-        fd = accept(gdbserver_fd, (struct sockaddr *)&sockaddr, &len);
+        fd = qemu_accept(gdbserver_fd, (struct sockaddr *)&sockaddr, &len);
         if (fd < 0 && errno != EINTR) {
             perror("accept");
             return;
         } else if (fd >= 0) {
-#ifndef _WIN32
-            fcntl(fd, F_SETFD, FD_CLOEXEC);
-#endif
             break;
         }
     }
@@ -2756,14 +2753,11 @@ static int gdbserver_open(int port)
     struct sockaddr_in sockaddr;
     int fd, val, ret;
 
-    fd = socket(PF_INET, SOCK_STREAM, 0);
+    fd = qemu_socket(PF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
         perror("socket");
         return -1;
     }
-#ifndef _WIN32
-    fcntl(fd, F_SETFD, FD_CLOEXEC);
-#endif
 
     /* allow fast reuse */
     val = 1;

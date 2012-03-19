@@ -208,7 +208,7 @@ fork_exec(struct socket *so, const char *ex, int do_pty)
                  * of connect() fail in the child process
                  */
                 do {
-                    so->s = accept(s, (struct sockaddr *)&addr, &addrlen);
+                    so->s = qemu_accept(s, (struct sockaddr *)&addr, &addrlen);
                 } while (so->s < 0 && errno == EINTR);
                 closesocket(s);
                 opt = 1;

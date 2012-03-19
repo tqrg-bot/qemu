@@ -474,7 +474,7 @@ static int connect_to_sdog(const char *addr, const char *port)
             continue;
         }
 
-        fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        fd = qemu_socket(res->ai_family, res->ai_socktype, res->ai_protocol);
         if (fd < 0) {
             continue;
         }

@@ -17,6 +17,7 @@
  */
 
 #include "qemu-common.h"
+#include "qemu_socket.h"
 #include "block_int.h"
 #include "nbd.h"
 
@@ -266,7 +267,7 @@ static void nbd_accept(void *opaque)
     struct sockaddr_in addr;
     socklen_t addr_len = sizeof(addr);
 
-    int fd = accept(server_fd, (struct sockaddr *)&addr, &addr_len);
+    int fd = qemu_accept(server_fd, (struct sockaddr *)&addr, &addr_len);
     nbd_started = true;
     if (fd != -1 && nbd_client_new(exp, fd, nbd_client_closed)) {
         nb_fds++;

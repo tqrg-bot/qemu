@@ -15,6 +15,7 @@
 #include "virtio-9p.h"
 #include "fsdev/qemu-fsdev.h"
 #include "virtio-9p-proxy.h"
+#include "qemu_socket.h"
 
 typedef struct V9fsProxy {
     int sockfd;
@@ -1100,7 +1101,7 @@ static int connect_namedsocket(const char *path)
     int sockfd, size;
     struct sockaddr_un helper;
 
-    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    sockfd = qemu_socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd < 0) {
         fprintf(stderr, "socket %s\n", strerror(errno));
         return -1;
