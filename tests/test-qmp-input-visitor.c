@@ -154,9 +154,9 @@ static void visit_type_TestStruct(Visitor *v, TestStruct **obj,
     visit_start_struct(v, (void **)obj, "TestStruct", name, sizeof(TestStruct),
                        errp);
 
-    visit_type_int(v, &(*obj)->integer, "integer", errp);
-    visit_type_bool(v, &(*obj)->boolean, "boolean", errp);
-    visit_type_str(v, &(*obj)->string, "string", errp);
+    visit_type_int(v, obj ? &(*obj)->integer : NULL, "integer", errp);
+    visit_type_bool(v, obj ? &(*obj)->boolean : NULL, "boolean", errp);
+    visit_type_str(v, obj ? &(*obj)->string : NULL, "string", errp);
 
     visit_end_struct(v, errp);
 }

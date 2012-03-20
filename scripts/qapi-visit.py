@@ -24,11 +24,21 @@ def generate_visit_struct_body(field_prefix, members):
     for argname, argentry, optional, structured in parse_args(members):
         if optional:
             ret += mcgen('''
-visit_start_optional(m, (obj && *obj) ? &(*obj)->%(c_prefix)shas_%(c_name)s : NULL, "%(name)s", errp);
-if ((*obj)->%(prefix)shas_%(c_name)s) {
+{
+    bool has_%(c_name)s = false;
+    if (obj) {
+        visit_start_optional(m, &(*obj)->%(c_prefix)shas_%(c_name)s, "type", errp);
+        has_%(c_name)s = (*obj)->%(c_prefix)shas_%(c_name)s;
+    } else {
+        /* Assume M to be an input visitor (i.e. it will write
+         * has_%(c_name)s).  */
+        visit_start_optional(m, &has_%(c_name)s, "%(name)s", errp);
+    }
+    if (has_%(c_name)s) {
 ''',
                          c_prefix=c_var(field_prefix), prefix=field_prefix,
                          c_name=c_var(argname), name=argname)
+            push_indent()
             push_indent()
 
         if structured:
@@ -42,7 +52,7 @@ visit_end_struct(m, errp);
 ''')
         else:
             ret += mcgen('''
-visit_type_%(type)s(m, (obj && *obj) ? &(*obj)->%(c_prefix)s%(c_name)s : NULL, "%(name)s", errp);
+visit_type_%(type)s(m, obj ? &(*obj)->%(c_prefix)s%(c_name)s : NULL, "%(name)s", errp);
 ''',
                          c_prefix=c_var(field_prefix), prefix=field_prefix,
                          type=type_name(argentry), c_name=c_var(argname),
@@ -50,7 +60,9 @@ visit_type_%(type)s(m, (obj && *obj) ? &(*obj)->%(c_prefix)s%(c_name)s : NULL, "
 
         if optional:
             pop_indent()
+            pop_indent()
             ret += mcgen('''
+    }
 }
 visit_end_optional(m, errp);
 ''')
@@ -93,9 +105,9 @@ void visit_type_%(name)sList(Visitor *m, %(name)sList ** obj, const char *name, 
     }
     visit_start_list(m, name, errp);
 
-    for (; (i = visit_next_list(m, prev, errp)) != NULL; prev = &i) {
+    for (; (i = visit_next_list(m, prev, errp)) != NULL; prev = obj ? &i : NULL) {
         %(name)sList *native_i = (%(name)sList *)i;
-        visit_type_%(name)s(m, &native_i->value, NULL, errp);
+        visit_type_%(name)s(m, obj ? &native_i->value : NULL, NULL, errp);
     }
 
     visit_end_list(m, errp);
@@ -121,6 +133,7 @@ def generate_visit_union(name, members):
 void visit_type_%(name)s(Visitor *m, %(name)s ** obj, const char *name, Error **errp)
 {
     Error *err = NULL;
+    %(name)sKind kind;
 
     if (error_is_set(errp)) {
         return;
@@ -129,19 +142,25 @@ void visit_type_%(name)s(Visitor *m, %(name)s ** obj, const char *name, Error **
     if (obj && !*obj) {
         goto end;
     }
-    visit_type_%(name)sKind(m, &(*obj)->kind, "type", &err);
+    if (obj) {
+        visit_type_%(name)sKind(m, &(*obj)->kind, "type", &err);
+        kind = (*obj)->kind;
+    } else {
+        /* Assume M to be an input visitor (i.e. it will write kind).  */
+        visit_type_%(name)sKind(m, &kind, "type", &err);
+    }
     if (err) {
         error_propagate(errp, err);
         goto end;
     }
-    switch ((*obj)->kind) {
+    switch (kind) {
 ''',
                  name=name)
 
     for key in members:
         ret += mcgen('''
     case %(abbrev)s_KIND_%(enum)s:
-        visit_type_%(c_type)s(m, &(*obj)->%(c_name)s, "data", errp);
+        visit_type_%(c_type)s(m, obj ? &(*obj)->%(c_name)s : NULL, "data", errp);
         break;
 ''',
                 abbrev = de_camel_case(name).upper(),
