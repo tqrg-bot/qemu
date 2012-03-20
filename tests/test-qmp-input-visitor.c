@@ -275,6 +275,42 @@ static void test_visitor_in_errors(TestInputVisitorData *data,
     g_free(p);
 }
 
+static void test_visitor_in_validate_struct_nested(TestInputVisitorData *data,
+                                                   const void *unused)
+{
+    Error *errp = NULL;
+    Visitor *v;
+
+    v = visitor_input_test_init(data, "{ 'string0': 'string0', 'dict1': { 'string1': 'string1', 'dict2': { 'userdef1': { 'integer': 42, 'string': 'string' }, 'string2': 'string2'}}}");
+
+    visit_type_UserDefNested(v, NULL, NULL, &errp);
+    g_assert(!error_is_set(&errp));
+}
+
+static void test_visitor_in_validate_union(TestInputVisitorData *data,
+                                           const void *unused)
+{
+    Visitor *v;
+    Error *errp = NULL;
+
+    v = visitor_input_test_init(data, "{ 'type': 'b', 'data' : { 'integer': 42 } }");
+
+    visit_type_UserDefUnion(v, NULL, NULL, &errp);
+    g_assert(!error_is_set(&errp));
+}
+
+static void test_visitor_in_validate_errors(TestInputVisitorData *data,
+                                   const void *unused)
+{
+    Error *errp = NULL;
+    Visitor *v;
+
+    v = visitor_input_test_init(data, "{ 'integer': false, 'boolean': 'foo', 'string': -42 }");
+
+    visit_type_TestStruct(v, NULL, NULL, &errp);
+    g_assert(error_is_set(&errp));
+}
+
 int main(int argc, char **argv)
 {
     TestInputVisitorData in_visitor_data;
@@ -301,6 +337,12 @@ int main(int argc, char **argv)
                             &in_visitor_data, test_visitor_in_union);
     input_visitor_test_add("/visitor/input/errors",
                             &in_visitor_data, test_visitor_in_errors);
+    input_visitor_test_add("/visitor/input/validate/struct-nested",
+                            &in_visitor_data, test_visitor_in_validate_struct_nested);
+    input_visitor_test_add("/visitor/input/validate/union",
+                            &in_visitor_data, test_visitor_in_validate_union);
+    input_visitor_test_add("/visitor/input/validate/errors",
+                            &in_visitor_data, test_visitor_in_validate_errors);
 
     g_test_run();
 
