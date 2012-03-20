@@ -165,5 +165,7 @@ void input_type_enum(Visitor *v, int *obj, const char *strings[],
     }
 
     g_free(enum_str);
-    *obj = value;
+    if (obj) {
+        *obj = value;
+    }
 }

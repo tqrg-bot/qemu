@@ -169,6 +169,11 @@ static GenericList *qmp_input_next_list(Visitor *v, GenericList **list,
         return NULL;
     }
 
+    if (!list) {
+        /* Return a placeholder.  */
+        return (GenericList *) so->entry;
+    }
+
     entry = g_malloc0(sizeof(*entry));
     if (first) {
         *list = entry;
@@ -198,7 +203,9 @@ static void qmp_input_type_int(Visitor *v, int64_t *obj, const char *name,
         return;
     }
 
-    *obj = qint_get_int(qobject_to_qint(qobj));
+    if (obj) {
+        *obj = qint_get_int(qobject_to_qint(qobj));
+    }
 }
 
 static void qmp_input_type_bool(Visitor *v, bool *obj, const char *name,
@@ -213,7 +220,9 @@ static void qmp_input_type_bool(Visitor *v, bool *obj, const char *name,
         return;
     }
 
-    *obj = qbool_get_int(qobject_to_qbool(qobj));
+    if (obj) {
+        *obj = qbool_get_int(qobject_to_qbool(qobj));
+    }
 }
 
 static void qmp_input_type_str(Visitor *v, char **obj, const char *name,
@@ -228,7 +237,9 @@ static void qmp_input_type_str(Visitor *v, char **obj, const char *name,
         return;
     }
 
-    *obj = g_strdup(qstring_get_str(qobject_to_qstring(qobj)));
+    if (obj) {
+        *obj = g_strdup(qstring_get_str(qobject_to_qstring(qobj)));
+    }
 }
 
 static void qmp_input_type_number(Visitor *v, double *obj, const char *name,
@@ -243,7 +254,9 @@ static void qmp_input_type_number(Visitor *v, double *obj, const char *name,
         return;
     }
 
-    *obj = qfloat_get_double(qobject_to_qfloat(qobj));
+    if (obj) {
+        *obj = qfloat_get_double(qobject_to_qfloat(qobj));
+    }
 }
 
 static void qmp_input_start_optional(Visitor *v, bool *present,
