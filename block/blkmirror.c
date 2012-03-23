@@ -39,11 +39,10 @@ struct DupAIOCB {
  * it efficiently reuses other bits of infrastructure in the QEMU block
  * layer.  In particular:
  *
- *    * Storing the source in bs->backing_hd lets CoR read correctly from
- *      the source and write to the target.  This is also used when streaming
- *      operates on the blkmirror device: data is read from the source and
- *      written to both source and target (which is a bit inefficient, but
- *      could be optimized).
+ *    * Storing the source's backing file in bs->backing_hd makes streaming
+ *      commands operate transparently on the blkmirror device: data is read
+ *      from the source and written to both source and target (which is a bit
+ *      inefficient, but could be optimized).
  *
  *    * Sharing the backing file is needed so that the target can already
  *      operate before the destination backing file is in place, in case it
@@ -113,16 +112,41 @@ out:
     return ret;
 }
 
+static void blkmirror_rebind(BlockDriverState *bs)
+{
+    BlockDriverState *source = bs->backing_hd;
+
+    /* Do not store the source in backing_hd.  Store the source's backing
+     * file instead.
+     */
+    bs->opaque = bs->backing_hd;
+    bs->backing_hd = source->backing_hd;
+
+    /* Forbid committing to the backing file.  */
+    if (bs->backing_hd) {
+        bs->backing_hd->keep_read_only = true;
+    }
+
+    /* That is also the target's backing file.  */
+    bs->file->backing_hd = source->backing_hd;
+}
+
 static void blkmirror_close(BlockDriverState *bs)
 {
+    BlockDriverState *source = bs->opaque;
+
+    source->backing_hd = NULL;
     bs->file->backing_hd = NULL;
 
     /* backing_hd and file closed by the caller.  */
+    bdrv_delete(source);
 }
 
 static coroutine_fn int blkmirror_co_flush(BlockDriverState *bs)
 {
-    return bdrv_co_flush(bs->backing_hd);
+    BlockDriverState *source = bs->opaque;
+
+    return bdrv_co_flush(source);
 }
 
 static int64_t blkmirror_getlength(BlockDriverState *bs)
@@ -143,7 +167,9 @@ static BlockDriverAIOCB *blkmirror_aio_readv(BlockDriverState *bs,
                                              BlockDriverCompletionFunc *cb,
                                              void *opaque)
 {
-    return bdrv_aio_readv(bs->backing_hd, sector_num, qiov, nb_sectors,
+    BlockDriverState *source = bs->opaque;
+
+    return bdrv_aio_readv(source, sector_num, qiov, nb_sectors,
                           cb, opaque);
 }
 
@@ -206,12 +232,10 @@ static BlockDriverAIOCB *blkmirror_aio_writev(BlockDriverState *bs,
                                               BlockDriverCompletionFunc *cb,
                                               void *opaque)
 {
+    BlockDriverState *source = bs->opaque;
     DupAIOCB *dcb = dup_aio_get(bs, cb, opaque);
 
-    /* Now we can make source and target share the backing file.  */
-    bs->file->backing_hd = bs->backing_hd->backing_hd;
-
-    dcb->aios[0].aiocb = bdrv_aio_writev(bs->backing_hd, sector_num, qiov,
+    dcb->aios[0].aiocb = bdrv_aio_writev(source, sector_num, qiov,
                                          nb_sectors, blkmirror_aio_cb,
                                          &dcb->aios[0]);
     dcb->aios[1].aiocb = bdrv_aio_writev(bs->file, sector_num, qiov,
@@ -227,14 +251,10 @@ static BlockDriverAIOCB *blkmirror_aio_discard(BlockDriverState *bs,
                                                BlockDriverCompletionFunc *cb,
                                                void *opaque)
 {
+    BlockDriverState *source = bs->opaque;
     DupAIOCB *dcb = dup_aio_get(bs, cb, opaque);
 
-    /* We cannot be sure whether discard needs the backing file.  Just
-     * be safe.
-     */
-    bs->file->backing_hd = bs->backing_hd->backing_hd;
-
-    dcb->aios[0].aiocb = bdrv_aio_discard(bs->backing_hd, sector_num,
+    dcb->aios[0].aiocb = bdrv_aio_discard(source, sector_num,
                                           nb_sectors, blkmirror_aio_cb,
                                           &dcb->aios[0]);
     dcb->aios[1].aiocb = bdrv_aio_discard(bs->file, sector_num,
@@ -244,6 +264,36 @@ static BlockDriverAIOCB *blkmirror_aio_discard(BlockDriverState *bs,
     return &dcb->common;
 }
 
+static int blkmirror_change_backing_file(BlockDriverState *bs,
+    const char *backing_file, const char *backing_fmt)
+{
+    BlockDriverState *source = bs->opaque;
+    int ret;
+
+    /* Our backing file has changed, change the source and the target's too.  */
+    source->backing_hd = bs->backing_hd;
+    bs->file->backing_hd = source->backing_hd;
+
+    /* First change the backing file on the target.  If the change will
+     * fail on the source, the target will anyway be discarded.  If we
+     * did it in the other order, we could end up with a changed source
+     * even after reporting an error.
+     */
+    ret = bdrv_change_backing_file(bs->file, backing_file, backing_fmt);
+    if (ret < 0) {
+        return ret;
+    }
+
+    ret = bdrv_change_backing_file(source, backing_file, backing_fmt);
+    if (ret < 0) {
+        return ret;
+    }
+
+    pstrcpy(bs->backing_file, sizeof(bs->backing_file), backing_file ?: "");
+    pstrcpy(bs->backing_format, sizeof(bs->backing_format), backing_fmt ?: "");
+    return 0;
+}
+
 
 static BlockDriver bdrv_blkmirror = {
     .format_name        = "blkmirror",
@@ -251,6 +301,9 @@ static BlockDriver bdrv_blkmirror = {
     .instance_size      = 0,
 
     .bdrv_getlength     = blkmirror_getlength,
+
+    .bdrv_rebind        = blkmirror_rebind,
+    .bdrv_change_backing_file   = blkmirror_change_backing_file,
 
     .bdrv_file_open     = blkmirror_open,
     .bdrv_close         = blkmirror_close,
