@@ -21,6 +21,11 @@
 # Usage: Run from root of qemu tree
 # ./scripts/refresh-pxe-roms.sh
 
+# sanitize the shell
+unset BASH_ENV; unset ENV; unset MAIL; unset MAILPATH; unset CDPATH
+LC_ALL=C; export LC_ALL
+LANGUAGE=C; export LANGUAGE
+
 QEMU_DIR=$PWD
 ROM_DIR="pc-bios"
 BUILD_DIR="roms/ipxe"

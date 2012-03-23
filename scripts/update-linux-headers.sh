@@ -10,6 +10,11 @@
 # This work is licensed under the terms of the GNU GPL version 2.
 # See the COPYING file in the top-level directory.
 
+# sanitize the shell
+unset BASH_ENV; unset ENV; unset MAIL; unset MAILPATH; unset CDPATH
+LC_ALL=C; export LC_ALL
+LANGUAGE=C; export LANGUAGE
+
 tmpdir=`mktemp -d`
 linux="$1"
 output="$2"

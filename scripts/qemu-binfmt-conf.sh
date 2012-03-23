@@ -1,6 +1,11 @@
 #!/bin/sh
 # enable automatic i386/ARM/M68K/MIPS/SPARC/PPC/s390 program execution by the kernel
 
+# sanitize the shell
+unset BASH_ENV; unset ENV; unset MAIL; unset MAILPATH; unset CDPATH
+LC_ALL=C; export LC_ALL
+LANGUAGE=C; export LANGUAGE
+
 # load the binfmt_misc module
 if [ ! -d /proc/sys/fs/binfmt_misc ]; then
   /sbin/modprobe binfmt_misc

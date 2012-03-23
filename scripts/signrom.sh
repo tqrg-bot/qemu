@@ -20,6 +20,11 @@
 #
 # Syntax: signrom.sh <input> <output>
 
+# sanitize the shell
+unset BASH_ENV; unset ENV; unset MAIL; unset MAILPATH; unset CDPATH
+LC_ALL=C; export LC_ALL
+LANGUAGE=C; export LANGUAGE
+
 # did we get proper arguments?
 test "$1" -a "$2" || exit 1
 

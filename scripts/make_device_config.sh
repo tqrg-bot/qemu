@@ -2,6 +2,11 @@
 # Construct a target device config file from a default, pulling in any
 # files from include directives.
 
+# sanitize the shell
+unset BASH_ENV; unset ENV; unset MAIL; unset MAILPATH; unset CDPATH
+LC_ALL=C; export LC_ALL
+LANGUAGE=C; export LANGUAGE
+
 dest=$1.tmp
 dep=$1.d
 src=$2

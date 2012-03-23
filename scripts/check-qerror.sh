@@ -2,6 +2,11 @@
 # This script verifies that qerror definitions and table entries are
 # alphabetically ordered.
 
+# sanitize the shell
+unset BASH_ENV; unset ENV; unset MAIL; unset MAILPATH; unset CDPATH
+LC_ALL=C; export LC_ALL
+LANGUAGE=C; export LANGUAGE
+
 check_order() {
   errmsg=$1
   shift
