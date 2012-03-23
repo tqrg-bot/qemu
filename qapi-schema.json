@@ -1250,6 +1250,7 @@
 #
 # Returns: nothing on success
 #          If @device is not a valid block device, DeviceNotFound
+#          If the block device has no medium inserted, DeviceHasNoMedium
 #          If @device is busy, DeviceInUse will be returned
 #          If @snapshot-file can't be created, OpenFileFailed
 #          If @snapshot-file can't be opened, OpenFileFailed
@@ -1282,6 +1283,9 @@
 #
 # Returns: nothing on success
 #          If @device is not a valid block device, DeviceNotFound
+#          If the block device has no medium inserted, DeviceHasNoMedium
+#          If @device is busy, DeviceInUse will be returned
+#          If @snapshot-file can't be created, OpenFileFailed
 #          If @snapshot-file can't be opened, OpenFileFailed
 #          If @format is invalid, InvalidBlockFormat
 #
