@@ -45,18 +45,6 @@ const VMStateDescription *qdev_get_vmsd(DeviceState *dev)
     return dc->vmsd;
 }
 
-BusInfo *qdev_get_bus_info(DeviceState *dev)
-{
-    DeviceClass *dc = DEVICE_GET_CLASS(dev);
-    return dc->bus_info;
-}
-
-Property *qdev_get_props(DeviceState *dev)
-{
-    DeviceClass *dc = DEVICE_GET_CLASS(dev);
-    return dc->props;
-}
-
 const char *qdev_fw_name(DeviceState *dev)
 {
     DeviceClass *dc = DEVICE_GET_CLASS(dev);
@@ -78,20 +66,12 @@ static void qdev_property_add_legacy(DeviceState *dev, Property *prop,
 
 void qdev_set_parent_bus(DeviceState *dev, BusState *bus)
 {
-    Property *prop;
-
     if (qdev_hotplug) {
         assert(bus->allow_hotplug);
     }
 
     dev->parent_bus = bus;
     QTAILQ_INSERT_HEAD(&bus->children, dev, sibling);
-
-    for (prop = qdev_get_bus_info(dev)->props; prop && prop->name; prop++) {
-        qdev_property_add_legacy(dev, prop, NULL);
-        qdev_property_add_static(dev, prop, NULL);
-    }
-    qdev_prop_set_defaults(dev, dev->parent_bus->info->props);
 }
 
 /* Create a new device.  This only initializes the device state structure
@@ -618,6 +598,7 @@ void qdev_property_add_static(DeviceState *dev, Property *prop,
 static void device_initfn(Object *obj)
 {
     DeviceState *dev = DEVICE(obj);
+    ObjectClass *class;
     Property *prop;
 
     if (qdev_hotplug) {
@@ -628,12 +609,15 @@ static void device_initfn(Object *obj)
     dev->instance_id_alias = -1;
     dev->state = DEV_STATE_CREATED;
 
-    for (prop = qdev_get_props(dev); prop && prop->name; prop++) {
-        qdev_property_add_legacy(dev, prop, NULL);
-        qdev_property_add_static(dev, prop, NULL);
-    }
-
-    qdev_prop_set_defaults(dev, qdev_get_props(dev));
+    class = object_get_class(OBJECT(dev));
+    do {
+        for (prop = DEVICE_CLASS(class)->props; prop && prop->name; prop++) {
+            qdev_property_add_legacy(dev, prop, NULL);
+            qdev_property_add_static(dev, prop, NULL);
+        }
+        qdev_prop_set_defaults(dev, DEVICE_CLASS(class)->props);
+        class = object_class_get_parent(class);
+    } while (class != object_class_by_name(TYPE_DEVICE));
 }
 
 /* Unlink device from bus and free the structure.  */
