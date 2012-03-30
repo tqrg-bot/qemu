@@ -246,6 +246,10 @@ struct ObjectClass
     /*< public >*/
     Property *props;
     const char *(*get_id)(Object *);
+    void (*realize)(Object *obj, struct Error **errp);
+    void (*realize_children)(Object *obj, struct Error **errp);
+    void (*unrealize)(Object *obj);
+    void (*unrealize_children)(Object *obj);
 };
 
 typedef enum ObjectState {
@@ -462,6 +466,22 @@ Object *object_new_with_type(Type type);
  * be paired with object_new() to free the resources associated with an object.
  */
 void object_delete(Object *obj);
+
+/**
+ * object_realize_children:
+ * @obj: The object whose children should be realized.
+ *
+ * The default implementation of realize_children.
+ */
+void object_realize_children(Object *obj, struct Error **errp);
+
+/**
+ * object_unrealize_children:
+ * @obj: The object whose children should be unrealize.
+ *
+ * The default implementation of unrealize_children.
+ */
+void object_unrealize_children(Object *obj);
 
 /**
  * object_initialize_with_type:
