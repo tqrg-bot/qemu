@@ -1945,7 +1945,7 @@ static void scsi_hd_class_initfn(ObjectClass *klass, void *data)
     dc->fw_name = "disk";
     dc->desc = "virtual SCSI disk";
     dc->reset = scsi_disk_reset;
-    dc->props = scsi_hd_properties;
+    klass->props = scsi_hd_properties;
     dc->vmsd  = &vmstate_scsi_disk_state;
 }
 
@@ -1973,7 +1973,7 @@ static void scsi_cd_class_initfn(ObjectClass *klass, void *data)
     dc->fw_name = "disk";
     dc->desc = "virtual SCSI CD-ROM";
     dc->reset = scsi_disk_reset;
-    dc->props = scsi_cd_properties;
+    klass->props = scsi_cd_properties;
     dc->vmsd  = &vmstate_scsi_disk_state;
 }
 
@@ -2001,7 +2001,7 @@ static void scsi_block_class_initfn(ObjectClass *klass, void *data)
     dc->fw_name = "disk";
     dc->desc = "SCSI block device passthrough";
     dc->reset = scsi_disk_reset;
-    dc->props = scsi_block_properties;
+    klass->props = scsi_block_properties;
     dc->vmsd  = &vmstate_scsi_disk_state;
 }
 
@@ -2034,7 +2034,7 @@ static void scsi_disk_class_initfn(ObjectClass *klass, void *data)
     dc->fw_name = "disk";
     dc->desc = "virtual SCSI disk or CD-ROM (legacy)";
     dc->reset = scsi_disk_reset;
-    dc->props = scsi_disk_properties;
+    klass->props = scsi_disk_properties;
     dc->vmsd  = &vmstate_scsi_disk_state;
 }
 
