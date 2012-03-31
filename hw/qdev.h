@@ -210,6 +210,10 @@ extern PropertyInfo qdev_prop_blocksize;
 #define DEFINE_PROP_BLOCKSIZE(_n, _s, _f, _d) \
     DEFINE_PROP_DEFAULT(_n, _s, _f, _d, qdev_prop_blocksize, uint16_t)
 
+#define DEFINE_PROP_HEX8 DEFINE_PROP_UINT8
+#define DEFINE_PROP_HEX32 DEFINE_PROP_UINT32
+#define DEFINE_PROP_HEX64 DEFINE_PROP_UINT64
+
 /* Set properties between creation and init.  */
 int qdev_prop_parse(DeviceState *dev, const char *name, const char *value);
 void qdev_prop_set_bit(DeviceState *dev, const char *name, bool value);
@@ -231,8 +235,6 @@ void qdev_prop_set_ptr(DeviceState *dev, const char *name, void *value);
 
 void qdev_prop_register_global_list(GlobalProperty *props);
 void qdev_prop_set_globals(DeviceState *dev);
-void error_set_from_prop_error(Error **errp, int ret, Object *obj,
-                               Property *prop, const char *value);
 
 char *qdev_get_fw_dev_path(DeviceState *dev);
 

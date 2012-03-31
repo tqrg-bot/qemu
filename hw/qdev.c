@@ -57,9 +57,6 @@ bool qdev_exists(const char *name)
     return !!object_class_by_name(name);
 }
 
-static void qdev_property_add_legacy(DeviceState *dev, Property *prop,
-                                     Error **errp);
-
 static void bus_remove_child(BusState *bus, DeviceState *child)
 {
     BusChild *kid;
@@ -572,85 +569,9 @@ char *qdev_get_dev_path(DeviceState *dev)
     return NULL;
 }
 
-/**
- * Legacy property handling
- */
-
-static void qdev_get_legacy_property(Object *obj, Visitor *v, void *opaque,
-                                     const char *name, Error **errp)
-{
-    Property *prop = opaque;
-
-    char buffer[1024];
-    char *ptr = buffer;
-
-    prop->info->print(obj, prop, buffer, sizeof(buffer));
-    visit_type_str(v, &ptr, name, errp);
-}
-
-static void qdev_set_legacy_property(Object *obj, Visitor *v, void *opaque,
-                                     const char *name, Error **errp)
-{
-    Property *prop = opaque;
-    Error *local_err = NULL;
-    char *ptr = NULL;
-    int ret;
-
-    if (object_is_realized(obj)) {
-        error_set(errp, QERR_PERMISSION_DENIED);
-        return;
-    }
-
-    visit_type_str(v, &ptr, name, &local_err);
-    if (local_err) {
-        error_propagate(errp, local_err);
-        return;
-    }
-
-    ret = prop->info->parse(obj, prop, ptr);
-    error_set_from_prop_error(errp, ret, obj, prop, ptr);
-    g_free(ptr);
-}
-
-/**
- * @qdev_add_legacy_property - adds a legacy property
- *
- * Do not use this is new code!  Properties added through this interface will
- * be given names and types in the "legacy" namespace.
- *
- * Legacy properties are string versions of other OOM properties.  The format
- * of the string depends on the property type.
- */
-void qdev_property_add_legacy(DeviceState *dev, Property *prop,
-                              Error **errp)
-{
-    gchar *name, *type;
-
-    /* Register pointer properties as legacy properties */
-    if (!prop->info->print && !prop->info->parse &&
-        (prop->info->set || prop->info->get)) {
-        return;
-    }
-
-    name = g_strdup_printf("legacy-%s", prop->name);
-    type = g_strdup_printf("legacy<%s>",
-                           prop->info->legacy_name ?: prop->info->name);
-
-    object_property_add(OBJECT(dev), name, type,
-                        prop->info->print ? qdev_get_legacy_property : prop->info->get,
-                        prop->info->parse ? qdev_set_legacy_property : prop->info->set,
-                        NULL,
-                        prop, errp);
-
-    g_free(type);
-    g_free(name);
-}
-
 static void device_initfn(Object *obj)
 {
     DeviceState *dev = DEVICE(obj);
-    ObjectClass *class;
-    Property *prop;
 
     if (qdev_hotplug) {
         dev->hotplugged = 1;
@@ -658,14 +579,6 @@ static void device_initfn(Object *obj)
     }
 
     dev->instance_id_alias = -1;
-
-    class = object_get_class(OBJECT(dev));
-    do {
-        for (prop = OBJECT_CLASS(class)->props; prop && prop->name; prop++) {
-            qdev_property_add_legacy(dev, prop, NULL);
-        }
-        class = object_class_get_parent(class);
-    } while (class != object_class_by_name(TYPE_DEVICE));
     qdev_prop_set_globals(dev);
 
     object_property_add_link(OBJECT(dev), "parent_bus", TYPE_BUS,

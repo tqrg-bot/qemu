@@ -1498,12 +1498,6 @@ static void bit_prop_set(Object *obj, Property *props, bool val)
 
 /* Bit */
 
-static int print_bit(Object *obj, Property *prop, char *dest, size_t len)
-{
-    uint32_t *p = object_get_prop_ptr(obj, prop);
-    return snprintf(dest, len, (*p & get_prop_mask(prop)) ? "on" : "off");
-}
-
 static void get_bit(Object *obj, Visitor *v, void *opaque,
                     const char *name, Error **errp)
 {
@@ -1538,7 +1532,6 @@ static void set_bit(Object *obj, Visitor *v, void *opaque,
 PropertyInfo qdev_prop_bit = {
     .name  = "boolean",
     .legacy_name  = "on/off",
-    .print = print_bit,
     .get   = get_bit,
     .set   = set_bit,
 };
@@ -1571,40 +1564,6 @@ static void set_uint8(Object *obj, Visitor *v, void *opaque,
 
 PropertyInfo qdev_prop_uint8 = {
     .name  = "uint8",
-    .get   = get_uint8,
-    .set   = set_uint8,
-};
-
-/* --- 8bit hex value --- */
-
-static int parse_hex8(Object *obj, Property *prop, const char *str)
-{
-    uint8_t *ptr = object_get_prop_ptr(obj, prop);
-    char *end;
-
-    if (str[0] != '0' || str[1] != 'x') {
-        return -EINVAL;
-    }
-
-    *ptr = strtoul(str, &end, 16);
-    if ((*end != '\0') || (end == str)) {
-        return -EINVAL;
-    }
-
-    return 0;
-}
-
-static int print_hex8(Object *obj, Property *prop, char *dest, size_t len)
-{
-    uint8_t *ptr = object_get_prop_ptr(obj, prop);
-    return snprintf(dest, len, "0x%" PRIx8, *ptr);
-}
-
-PropertyInfo qdev_prop_hex8 = {
-    .name  = "uint8",
-    .legacy_name  = "hex8",
-    .parse = parse_hex8,
-    .print = print_hex8,
     .get   = get_uint8,
     .set   = set_uint8,
 };
@@ -1703,40 +1662,6 @@ PropertyInfo qdev_prop_int32 = {
     .set   = set_int32,
 };
 
-/* --- 32bit hex value --- */
-
-static int parse_hex32(Object *obj, Property *prop, const char *str)
-{
-    uint32_t *ptr = object_get_prop_ptr(obj, prop);
-    char *end;
-
-    if (str[0] != '0' || str[1] != 'x') {
-        return -EINVAL;
-    }
-
-    *ptr = strtoul(str, &end, 16);
-    if ((*end != '\0') || (end == str)) {
-        return -EINVAL;
-    }
-
-    return 0;
-}
-
-static int print_hex32(Object *obj, Property *prop, char *dest, size_t len)
-{
-    uint32_t *ptr = object_get_prop_ptr(obj, prop);
-    return snprintf(dest, len, "0x%" PRIx32, *ptr);
-}
-
-PropertyInfo qdev_prop_hex32 = {
-    .name  = "uint32",
-    .legacy_name  = "hex32",
-    .parse = parse_hex32,
-    .print = print_hex32,
-    .get   = get_uint32,
-    .set   = set_uint32,
-};
-
 /* --- 64bit integer --- */
 
 static void get_uint64(Object *obj, Visitor *v, void *opaque,
@@ -1769,54 +1694,12 @@ PropertyInfo qdev_prop_uint64 = {
     .set   = set_uint64,
 };
 
-/* --- 64bit hex value --- */
-
-static int parse_hex64(Object *obj, Property *prop, const char *str)
-{
-    uint64_t *ptr = object_get_prop_ptr(obj, prop);
-    char *end;
-
-    if (str[0] != '0' || str[1] != 'x') {
-        return -EINVAL;
-    }
-
-    *ptr = strtoull(str, &end, 16);
-    if ((*end != '\0') || (end == str)) {
-        return -EINVAL;
-    }
-
-    return 0;
-}
-
-static int print_hex64(Object *obj, Property *prop, char *dest, size_t len)
-{
-    uint64_t *ptr = object_get_prop_ptr(obj, prop);
-    return snprintf(dest, len, "0x%" PRIx64, *ptr);
-}
-
-PropertyInfo qdev_prop_hex64 = {
-    .name  = "uint64",
-    .legacy_name  = "hex64",
-    .parse = parse_hex64,
-    .print = print_hex64,
-    .get   = get_uint64,
-    .set   = set_uint64,
-};
-
 /* --- string --- */
 
 static void release_string(Object *obj, const char *name, void *opaque)
 {
     Property *prop = opaque;
     g_free(*(char **)object_get_prop_ptr(obj, prop));
-}
-
-static int print_string(Object *obj, Property *prop, char *dest, size_t len)
-{
-    char **ptr = object_get_prop_ptr(obj, prop);
-    if (!*ptr)
-        return snprintf(dest, len, "<null>");
-    return snprintf(dest, len, "\"%s\"", *ptr);
 }
 
 static void get_string(Object *obj, Visitor *v, void *opaque,
@@ -1860,7 +1743,6 @@ static void set_string(Object *obj, Visitor *v, void *opaque,
 
 PropertyInfo qdev_prop_string = {
     .name  = "string",
-    .print = print_string,
     .release = release_string,
     .get   = get_string,
     .set   = set_string,

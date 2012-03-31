@@ -1068,8 +1068,6 @@ struct PropertyInfo {
     const char *name;
     const char *legacy_name;
     const char **enum_table;
-    int (*parse)(Object *obj, Property *prop, const char *str);
-    int (*print)(Object *obj, Property *prop, char *dest, size_t len);
     ObjectPropertyAccessor *get;
     ObjectPropertyAccessor *set;
     ObjectPropertyRelease *release;
@@ -1081,9 +1079,6 @@ extern PropertyInfo qdev_prop_uint16;
 extern PropertyInfo qdev_prop_uint32;
 extern PropertyInfo qdev_prop_int32;
 extern PropertyInfo qdev_prop_uint64;
-extern PropertyInfo qdev_prop_hex8;
-extern PropertyInfo qdev_prop_hex32;
-extern PropertyInfo qdev_prop_hex64;
 extern PropertyInfo qdev_prop_string;
 
 #define DEFINE_PROP(_name, _state, _field, _prop, _type) { \
@@ -1120,12 +1115,6 @@ extern PropertyInfo qdev_prop_string;
     DEFINE_PROP_DEFAULT(_n, _s, _f, _d, qdev_prop_int32, int32_t)
 #define DEFINE_PROP_UINT64(_n, _s, _f, _d)                      \
     DEFINE_PROP_DEFAULT(_n, _s, _f, _d, qdev_prop_uint64, uint64_t)
-#define DEFINE_PROP_HEX8(_n, _s, _f, _d)                       \
-    DEFINE_PROP_DEFAULT(_n, _s, _f, _d, qdev_prop_hex8, uint8_t)
-#define DEFINE_PROP_HEX32(_n, _s, _f, _d)                       \
-    DEFINE_PROP_DEFAULT(_n, _s, _f, _d, qdev_prop_hex32, uint32_t)
-#define DEFINE_PROP_HEX64(_n, _s, _f, _d)                       \
-    DEFINE_PROP_DEFAULT(_n, _s, _f, _d, qdev_prop_hex64, uint64_t)
 #define DEFINE_PROP_STRING(_n, _s, _f)             \
     DEFINE_PROP(_n, _s, _f, qdev_prop_string, char*)
 

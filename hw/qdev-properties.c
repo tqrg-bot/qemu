@@ -3,8 +3,8 @@
 #include "qerror.h"
 #include "blockdev.h"
 
-void error_set_from_prop_error(Error **errp, int ret, Object *obj,
-                               Property *prop, const char *value)
+static void error_set_from_prop_error(Error **errp, int ret, Object *obj,
+                                      Property *prop, const char *value)
 {
     switch (ret) {
     case -EEXIST:
