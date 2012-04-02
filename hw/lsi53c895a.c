@@ -1681,7 +1681,7 @@ static void lsi_reg_writeb(LSIState *s, int offset, uint8_t val)
 
                 QTAILQ_FOREACH(kid, &s->bus.qbus.children, sibling) {
                     DeviceState *dev = kid->child;
-                    device_reset(dev);
+                    object_reset(OBJECT(dev));
                 }
                 s->sstat0 |= LSI_SSTAT0_RST;
                 lsi_script_scsi_interrupt(s, LSI_SIST0_RST, 0);

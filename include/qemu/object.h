@@ -279,6 +279,8 @@ struct ObjectClass
     void (*realize_children)(Object *obj, struct Error **errp);
     void (*unrealize)(Object *obj);
     void (*unrealize_children)(Object *obj);
+    void (*reset)(Object *obj);
+    void (*reset_children)(Object *obj);
 };
 
 typedef enum ObjectState {
@@ -497,12 +499,28 @@ Object *object_new_with_type(Type type);
 void object_delete(Object *obj);
 
 /**
+ * object_reset:
+ * @obj: The object to be reset.
+ *
+ * Reset an object and all of its children.
+ */
+void object_reset(Object *obj);
+
+/**
  * object_realize_children:
  * @obj: The object whose children should be realized.
  *
  * The default implementation of realize_children.
  */
 void object_realize_children(Object *obj, struct Error **errp);
+
+/**
+ * object_reset_children:
+ * @obj: The object whose children should be reset.
+ *
+ * The default implementation of unrealize_children.
+ */
+void object_reset_children(Object *obj);
 
 /**
  * object_unrealize_children:

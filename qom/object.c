@@ -361,6 +361,29 @@ static void object_set_realized(Object *obj, Visitor *v, void *opaque,
     }
 }
 
+static int object_reset_1(Object *obj, void *unused)
+{
+    object_reset(obj);
+    return 0;
+}
+
+void object_reset_children(Object *obj)
+{
+    object_child_foreach(obj, object_reset_1, NULL);
+}
+
+void object_reset(Object *obj)
+{
+    ObjectClass *klass = object_get_class(obj);
+
+    if (klass->reset_children) {
+        klass->reset_children(obj);
+    }
+    if (klass->reset) {
+        klass->reset(obj);
+    }
+}
+
 static void object_init_with_type(Object *obj, TypeImpl *ti)
 {
     int i;
@@ -1423,6 +1446,7 @@ static void object_class_init(ObjectClass *klass, void *class_data)
     klass->missing_property = _object_missing_property;
     klass->realize_children = object_realize_children;
     klass->unrealize_children = object_unrealize_children;
+    klass->reset_children = object_reset_children;
 }
 
 static void register_types(void)

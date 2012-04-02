@@ -191,7 +191,7 @@ static void device_realize_children(Object *obj, Error **errp)
         return;
     }
     if (dev->hotplugged) {
-        device_reset(dev);
+        object_reset(OBJECT(dev));
     }
 }
 
@@ -200,6 +200,16 @@ int qdev_init(DeviceState *dev)
     Error *err = NULL;
     object_property_set_bool(OBJECT(dev), true, "realized", &err);
     return err ? -EINVAL : 0;
+}
+
+static void device_reset(Object *obj)
+{
+    DeviceState *dev = DEVICE(obj);
+    DeviceClass *klass = DEVICE_GET_CLASS(obj);
+
+    if (klass->reset) {
+        klass->reset(dev);
+    }
 }
 
 void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
@@ -230,7 +240,7 @@ void qdev_unplug(DeviceState *dev, Error **errp)
 
 static int qdev_reset_one(DeviceState *dev, void *opaque)
 {
-    device_reset(dev);
+    object_reset(OBJECT(dev));
 
     return 0;
 }
@@ -725,6 +735,8 @@ static void device_class_init(ObjectClass *class, void *data)
     class->get_id = qdev_get_id;
     class->realize = device_realize;
     class->realize_children = device_realize_children;
+    class->unrealize = device_unrealize;
+    class->reset = device_reset;
     class->unrealize = device_unrealize;
 }
 
