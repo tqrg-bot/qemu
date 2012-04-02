@@ -1249,9 +1249,15 @@ static char *qdev_get_type(Object *obj, Error **errp)
     return g_strdup(object_get_typename(obj));
 }
 
+bool object_is_realized(Object *obj)
+{
+    return obj->state == OBJECT_STATE_REALIZED;
+}
+
 static void object_instance_init(Object *obj)
 {
     object_property_add_str(obj, "type", qdev_get_type, NULL, NULL);
+    obj->state = OBJECT_STATE_CREATED;
 }
 
 static void object_class_init(ObjectClass *klass, void *class_data)
