@@ -196,14 +196,9 @@ retry:
         }
 
         s->common.busy = true;
-        if (base) {
-            ret = is_allocated_base(bs, base, sector_num,
-                                    STREAM_BUFFER_SIZE / BDRV_SECTOR_SIZE, &n);
-        } else {
-            ret = bdrv_co_is_allocated(bs, sector_num,
-                                       STREAM_BUFFER_SIZE / BDRV_SECTOR_SIZE,
-                                       &n);
-        }
+        ret = is_allocated_base(bs, base, sector_num,
+                                STREAM_BUFFER_SIZE / BDRV_SECTOR_SIZE, &n);
+
         trace_stream_one_iteration(s, sector_num, n, ret);
         if (ret == 0) {
             if (s->common.speed) {
