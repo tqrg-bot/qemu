@@ -240,12 +240,15 @@ retry:
     }
 
     if (!block_job_is_cancelled(&s->common) && sector_num == end && ret == 0) {
-        const char *base_id = NULL;
+        const char *base_id = NULL, *base_fmt = NULL;
         if (base) {
             base_id = s->backing_file_id;
+            if (base->drv) {
+                base_fmt = base->drv->format_name;
+            }
         }
         close_unused_images(bs, base, base_id);
-        ret = bdrv_change_backing_file(bs, base_id, NULL);
+        ret = bdrv_change_backing_file(bs, base_id, base_fmt);
     }
 
     qemu_vfree(buf);
