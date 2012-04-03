@@ -1412,7 +1412,18 @@ int bdrv_change_backing_file(BlockDriverState *bs,
     if (drv->bdrv_change_backing_file != NULL) {
         ret = drv->bdrv_change_backing_file(bs, backing_file, backing_fmt);
     } else {
-        ret = -ENOTSUP;
+        if (!backing_file) {
+            backing_file = "";
+        }
+        if (!backing_fmt) {
+            backing_fmt = "";
+        }
+        if (!strcmp(backing_file, bs->backing_file) &&
+            !strcmp(backing_fmt, bs->backing_format)) {
+            ret = 0;
+        } else {
+            ret = -ENOTSUP;
+        }
     }
 
     if (ret == 0) {
