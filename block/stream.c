@@ -130,19 +130,15 @@ static int coroutine_fn is_allocated_base(BlockDriverState *top,
      */
     intermediate = top->backing_hd;
 
-    while (intermediate) {
+    while (intermediate != base) {
         int pnum_inter;
 
-        /* reached base */
-        if (intermediate == base) {
-            *pnum = n;
-            return 1;
-        }
         ret = bdrv_co_is_allocated(intermediate, sector_num, nb_sectors,
                                    &pnum_inter);
         if (ret < 0) {
             return ret;
         } else if (ret) {
+            /* allocated on intermediate images, need to copy to top.  */
             *pnum = pnum_inter;
             return 0;
         }
@@ -160,6 +156,8 @@ static int coroutine_fn is_allocated_base(BlockDriverState *top,
         intermediate = intermediate->backing_hd;
     }
 
+    /* unallocated all the way to the base, do not copy */
+    *pnum = n;
     return 1;
 }
 
