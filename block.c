@@ -973,6 +973,13 @@ void bdrv_append(BlockDriverState *bs_new, BlockDriverState *bs_top)
     bs_new->slice_time        = 0;
     bs_new->slice_start       = 0;
     bs_new->slice_end         = 0;
+
+    if (bs_new->drv && bs_new->drv->bdrv_rebind) {
+        bs_top->drv->bdrv_rebind(bs_new);
+    }
+    if (bs_top->drv && bs_top->drv->bdrv_rebind) {
+        bs_top->drv->bdrv_rebind(bs_top);
+    }
 }
 
 void bdrv_delete(BlockDriverState *bs)
