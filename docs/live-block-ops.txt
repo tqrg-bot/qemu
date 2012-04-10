@@ -1,8 +1,7 @@
 LIVE BLOCK OPERATIONS
 =====================
 
-High level description of live block operations. Note these are not
-supported for use with the raw format at the moment.
+High level description of live block operations.
 
 Snapshot live merge
 ===================
@@ -44,6 +43,31 @@ In the example above, the command would be:
 (qemu) block_stream virtio0 A
 
 
+Live block migration
+====================
+
+Migrating an in use image to another destination in the filesystem
+is done through image mirroring.  The idea is to execute
+'drive_mirror virtio0 /new-path/disk.img qcow2' while the guest
+is running.  The topmost image ([D] in the example above) will
+be copied to the given path, and the two can be kept in sync.
+
+Progress can be monitored using 'info block-jobs'.  Once this command
+reports something like
+
+  Type mirror, device virtio0: Completed 1048576000 of 1048576000 bytes
+
+Right now there is no command to start writing to the destination
+only.  However, the following commands are guaranteed to leave the
+source and target synchronized:
+
+- quit
+- migrate
+- block-job-cancel (of course the source may get out of sync immediately after)
+- block-job-complete
+- device_del
+
+
 Live block copy
 ===============
 
@@ -55,4 +79,16 @@ into that image. Example:
 
 (qemu) block_stream ide0-hd0
 
+Note that if one image in the chain is in raw format, the
+resulting copy might not be thin-provisioned anymore, depending on
+the underlying file system.
+
+You can also use mirroring with the -f option:
+
+(qemu) drive_mirror -f virtio0 /new-path/disk.img qcow2
+
+In this case it is also possible to use raw as the format of the
+destination image.  Converting an image to raw will properly support
+thin provisioning.  However, be aware that right now mirroring cannot
+be stopped except by terminating QEMU or unplugging the device.
 
