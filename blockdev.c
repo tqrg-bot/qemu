@@ -692,146 +692,114 @@ void qmp_blockdev_snapshot_sync(const char *device, const char *snapshot_file,
 
 /* New and old BlockDriverState structs for group snapshots */
 typedef struct BlkTransactionStates {
+    enum BlockdevActionKind kind;
     BlockDriverState *old_bs;
     BlockDriverState *new_bs;
     QSIMPLEQ_ENTRY(BlkTransactionStates) entry;
 } BlkTransactionStates;
 
-/*
- * 'Atomic' group snapshots.  The snapshots are taken as a set, and if any fail
- *  then we do not pivot any of the devices in the group, and abandon the
- *  snapshots
- */
-void qmp_transaction(BlockdevActionList *dev_list, Error **errp)
+static void qmp_snapshot_prepare(BlockdevAction *dev_info,
+                                 BlkTransactionStates *state, Error **errp)
 {
-    int ret = 0;
-    BlockdevActionList *dev_entry = dev_list;
-    BlkTransactionStates *states, *next;
+    BlockDriverState *source;
+    BlockDriver *proto_drv;
+    BlockDriver *drv = NULL;
+    int flags, ret;
+    enum NewImageMode mode = NEW_IMAGE_MODE_ABSOLUTE_PATHS;
+    const char *new_image_file = dev_info->blockdev_snapshot_sync->snapshot_file;
+    const char *device = dev_info->blockdev_snapshot_sync->device;
+    const char *format = NULL;
 
-    QSIMPLEQ_HEAD(snap_bdrv_states, BlkTransactionStates) snap_bdrv_states;
-    QSIMPLEQ_INIT(&snap_bdrv_states);
+    assert(dev_info->kind == BLOCKDEV_ACTION_KIND_BLOCKDEV_SNAPSHOT_SYNC);
+    if (dev_info->blockdev_snapshot_sync->has_mode) {
+        mode = dev_info->blockdev_snapshot_sync->mode;
+    }
+    if (dev_info->blockdev_snapshot_sync->has_format) {
+        format = dev_info->blockdev_snapshot_sync->format;
+    }
 
-    /* drain all i/o before any snapshots */
-    bdrv_drain_all();
-
-    /* We don't do anything in this loop that commits us to the snapshot */
-    while (NULL != dev_entry) {
-        BlockdevAction *dev_info = NULL;
-        BlockDriver *proto_drv;
-        BlockDriver *drv;
-        int flags;
-        enum NewImageMode mode;
-        const char *new_image_file;
-        const char *device;
-        const char *format = "qcow2";
-
-        dev_info = dev_entry->value;
-        dev_entry = dev_entry->next;
-
-        states = g_malloc0(sizeof(BlkTransactionStates));
-        QSIMPLEQ_INSERT_TAIL(&snap_bdrv_states, states, entry);
-
-        switch (dev_info->kind) {
-        case BLOCKDEV_ACTION_KIND_BLOCKDEV_SNAPSHOT_SYNC:
-            device = dev_info->blockdev_snapshot_sync->device;
-            if (!dev_info->blockdev_snapshot_sync->has_mode) {
-                dev_info->blockdev_snapshot_sync->mode = NEW_IMAGE_MODE_ABSOLUTE_PATHS;
-            }
-            new_image_file = dev_info->blockdev_snapshot_sync->snapshot_file;
-            if (dev_info->blockdev_snapshot_sync->has_format) {
-                format = dev_info->blockdev_snapshot_sync->format;
-            }
-            mode = dev_info->blockdev_snapshot_sync->mode;
-            break;
-        default:
-            abort();
-        }
-
+    if (!format && mode != NEW_IMAGE_MODE_EXISTING) {
+        format = "qcow2";
+    }
+    if (format) {
         drv = bdrv_find_format(format);
         if (!drv) {
             error_set(errp, QERR_INVALID_BLOCK_FORMAT, format);
-            goto delete_and_fail;
-        }
-
-        states->old_bs = bdrv_find(device);
-        if (!states->old_bs) {
-            error_set(errp, QERR_DEVICE_NOT_FOUND, device);
-            goto delete_and_fail;
-        }
-
-        if (!bdrv_is_inserted(states->old_bs)) {
-            error_set(errp, QERR_DEVICE_HAS_NO_MEDIUM, device);
-            goto delete_and_fail;
-        }
-
-        if (bdrv_in_use(states->old_bs)) {
-            error_set(errp, QERR_DEVICE_IN_USE, device);
-            goto delete_and_fail;
-        }
-
-        if (!bdrv_is_read_only(states->old_bs)) {
-            if (bdrv_flush(states->old_bs)) {
-                error_set(errp, QERR_IO_ERROR);
-                goto delete_and_fail;
-            }
-        }
-
-        flags = states->old_bs->open_flags;
-
-        proto_drv = bdrv_find_protocol(new_image_file);
-        if (!proto_drv) {
-            error_set(errp, QERR_INVALID_BLOCK_FORMAT, format);
-            goto delete_and_fail;
-        }
-
-        /* create new image w/backing file */
-        if (mode != NEW_IMAGE_MODE_EXISTING) {
-            ret = bdrv_img_create(new_image_file, format,
-                                  states->old_bs->filename,
-                                  states->old_bs->drv->format_name,
-                                  NULL, -1, flags);
-            if (ret) {
-                error_set(errp, QERR_OPEN_FILE_FAILED, new_image_file);
-                goto delete_and_fail;
-            }
-        }
-
-        /* We will manually add the backing_hd field to the bs later */
-        states->new_bs = bdrv_new("");
-        ret = bdrv_open(states->new_bs, new_image_file,
-                        flags | BDRV_O_NO_BACKING, drv);
-        if (ret != 0) {
-            error_set(errp, QERR_OPEN_FILE_FAILED, new_image_file);
-            goto delete_and_fail;
+            return;
         }
     }
 
-
-    /* Now we are going to do the actual pivot.  Everything up to this point
-     * is reversible, but we are committed at this point */
-    QSIMPLEQ_FOREACH(states, &snap_bdrv_states, entry) {
-        /* This removes our old bs from the bdrv_states, and adds the new bs */
-        bdrv_append(states->new_bs, states->old_bs);
+    state->old_bs = bdrv_find(device);
+    if (!state->old_bs) {
+        error_set(errp, QERR_DEVICE_NOT_FOUND, device);
+        return;
     }
 
-    /* success */
-    goto exit;
+    if (!bdrv_is_inserted(state->old_bs)) {
+        error_set(errp, QERR_DEVICE_HAS_NO_MEDIUM, device);
+        return;
+    }
 
-delete_and_fail:
-    /*
-    * failure, and it is all-or-none; abandon each new bs, and keep using
-    * the original bs for all images
-    */
-    QSIMPLEQ_FOREACH(states, &snap_bdrv_states, entry) {
-        if (states->new_bs) {
-             bdrv_delete(states->new_bs);
+    if (bdrv_in_use(state->old_bs)) {
+        error_set(errp, QERR_DEVICE_IN_USE, device);
+        return;
+    }
+
+    if (!bdrv_is_read_only(state->old_bs)) {
+        if (bdrv_flush(state->old_bs)) {
+            error_set(errp, QERR_IO_ERROR);
+            return;
         }
     }
-exit:
-    QSIMPLEQ_FOREACH_SAFE(states, &snap_bdrv_states, entry, next) {
-        g_free(states);
+
+    source = state->old_bs;
+    flags = state->old_bs->open_flags;
+
+    proto_drv = bdrv_find_protocol(new_image_file);
+    if (!proto_drv) {
+        error_set(errp, QERR_INVALID_BLOCK_FORMAT, format);
+        return;
     }
-    return;
+
+    /* create new image w/backing file */
+    switch (mode) {
+    case NEW_IMAGE_MODE_EXISTING:
+        ret = 0;
+        break;
+    case NEW_IMAGE_MODE_ABSOLUTE_PATHS:
+        ret = bdrv_img_create(new_image_file, format,
+                              source->filename,
+                              source->drv->format_name,
+                              NULL, -1, flags);
+        break;
+    default:
+        abort();
+    }
+
+    if (ret) {
+        error_set(errp, QERR_OPEN_FILE_FAILED, new_image_file);
+        return;
+    }
+
+    /* We will manually add the backing_hd field to the bs later */
+    state->new_bs = bdrv_new("");
+    ret = bdrv_open(state->new_bs, new_image_file,
+                    flags | BDRV_O_NO_BACKING, drv);
+
+    if (ret != 0) {
+        error_set(errp, QERR_OPEN_FILE_FAILED, new_image_file);
+    }
+}
+
+static void qmp_snapshot_commit(BlkTransactionStates *state)
+{
+    /* Now we do the actual pivot.  */
+    bdrv_append(state->new_bs, state->old_bs);
+}
+
+static void qmp_snapshot_abort(BlkTransactionStates *state)
+{
+    bdrv_delete(state->new_bs);
 }
 
 void qmp_drive_mirror(const char *device, const char *target,
@@ -951,6 +919,68 @@ void qmp_drive_mirror(const char *device, const char *target,
     drive_get_ref(drive_get_by_blockdev(bs));
 }
 
+struct {
+    void (*prepare)(BlockdevAction *info, BlkTransactionStates *state,
+                    Error **errp);
+    void (*commit)(BlkTransactionStates *state);
+    void (*abort)(BlkTransactionStates *state);
+} transaction_ops[BLOCKDEV_ACTION_KIND_MAX] = {
+    [BLOCKDEV_ACTION_KIND_BLOCKDEV_SNAPSHOT_SYNC] = {
+        qmp_snapshot_prepare, qmp_snapshot_commit, qmp_snapshot_abort
+    }
+};
+
+/*
+ * 'Atomic' group snapshots.  The snapshots are taken as a set, and if any fail
+ *  then we do not pivot any of the devices in the group, and abandon the
+ *  snapshots
+ */
+void qmp_transaction(BlockdevActionList *dev_list, Error **errp)
+{
+    BlockdevActionList *dev_entry = dev_list;
+    BlkTransactionStates *states, *next;
+    Error *local_err = NULL;
+
+    QSIMPLEQ_HEAD(snap_bdrv_states, BlkTransactionStates) snap_bdrv_states;
+    QSIMPLEQ_INIT(&snap_bdrv_states);
+
+    /* drain all i/o before any snapshots */
+    bdrv_drain_all();
+
+    /* We don't do anything in this loop that commits us to the snapshot */
+    while (NULL != dev_entry) {
+        BlockdevAction *dev_info = NULL;
+
+        states = g_malloc0(sizeof(BlkTransactionStates));
+        QSIMPLEQ_INSERT_TAIL(&snap_bdrv_states, states, entry);
+
+        dev_info = dev_entry->value;
+        dev_entry = dev_entry->next;
+
+        states->kind = dev_info->kind;
+        transaction_ops[states->kind].prepare(dev_info, states, &local_err);
+        if (local_err) {
+            error_propagate(errp, local_err);
+            break;
+        }
+    }
+
+    QSIMPLEQ_FOREACH_SAFE(states, &snap_bdrv_states, entry, next) {
+        if (!states->new_bs) {
+            continue;
+        }
+
+        if (local_err) {
+            transaction_ops[states->kind].abort(states);
+        } else {
+            transaction_ops[states->kind].commit(states);
+        }
+    }
+
+    QSIMPLEQ_FOREACH_SAFE(states, &snap_bdrv_states, entry, next) {
+        g_free(states);
+    }
+}
 
 
 static void eject_device(BlockDriverState *bs, int force, Error **errp)
