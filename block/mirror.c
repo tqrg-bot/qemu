@@ -211,9 +211,7 @@ void mirror_start(BlockDriverState *bs, BlockDriverState *target,
 {
     MirrorBlockJob *s;
 
-    s = block_job_create(&mirror_job_type, bs, speed,
-                         BLOCKDEV_ON_ERROR_REPORT, BLOCKDEV_ON_ERROR_REPORT,
-                         cb, opaque, errp);
+    s = block_job_create(&mirror_job_type, bs, speed, cb, opaque, errp);
     if (!s) {
         return;
     }
