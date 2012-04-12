@@ -301,9 +301,24 @@ static void object_realize(Object *obj, Error **errp)
 {
     ObjectClass *klass = object_get_class(obj);
 
-    if (obj->state != OBJECT_STATE_REALIZED && klass->realize) {
-        klass->realize(obj, errp);
+    if (obj->state != OBJECT_STATE_REALIZED) {
+        /* Force factory invocation for children that are not yet there.  */
+        ObjectClass *k = klass;
+        ChildObject *child;
+        do {
+            for (child = OBJECT_CLASS(k)->children; child && child->name; child++) {
+               if (object_property_find(obj, child->name, errp) == NULL) {
+                    return;
+                }
+            }
+            k = object_class_get_parent(k);
+        } while (k != object_class_by_name(TYPE_OBJECT));
+
+        if (klass->realize) {
+            klass->realize(obj, errp);
+        }
     }
+
     obj->state = OBJECT_STATE_REALIZED;
     if (klass->realize_children) {
         klass->realize_children(obj, errp);
@@ -773,18 +788,40 @@ ObjectProperty *object_property_find(Object *obj, const char *name, Error **errp
     Error *err = NULL;
     bool retry = false;
     ObjectProperty *prop;
+    ObjectClass *klass;
+    ChildObject *child;
 
+retry:
+    QTAILQ_FOREACH(prop, &obj->properties, node) {
+        if (strcmp(prop->name, name) == 0) {
+            return prop;
+        }
+    }
+
+    assert(!retry);
+    retry = true;
+
+    klass = object_get_class(obj);
     do {
-        QTAILQ_FOREACH(prop, &obj->properties, node) {
-            if (strcmp(prop->name, name) == 0) {
-                return prop;
+        for (child = OBJECT_CLASS(klass)->children; child && child->name; child++) {
+            if (strcmp(child->name, name) == 0) {
+                child->func(obj, name, child->opaque, &err);
+                if (err) {
+                    goto fail;
+                } else {
+                    goto retry;
+                }
             }
         }
+        klass = object_class_get_parent(klass);
+    } while (klass != object_class_by_name(TYPE_OBJECT));
 
-        assert(!retry);
-        retry = true;
-        obj->class->missing_property(obj, name, &err);
-    } while (err == NULL);
+    obj->class->missing_property(obj, name, &err);
+    if (!err) {
+        goto retry;
+    }
+
+fail:
     error_propagate(errp, err);
     return NULL;
 }
@@ -1357,6 +1394,7 @@ static void object_class_base_init(ObjectClass *klass, void *data)
      * so do not propagate them to the subclasses.
      */
     klass->props = NULL;
+    klass->children = NULL;
 }
 
 static void object_instance_init(Object *obj)

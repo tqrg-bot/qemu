@@ -36,6 +36,8 @@ typedef struct InterfaceInfo InterfaceInfo;
 typedef struct Property Property;
 typedef struct PropertyInfo PropertyInfo;
 
+typedef struct ChildObject ChildObject;
+
 #define TYPE_OBJECT "object"
 
 /**
@@ -233,6 +235,31 @@ typedef struct ObjectProperty
 } ObjectProperty;
 
 /**
+ * ChildFactory:
+ * @obj: the object to add the property to
+ * @name: the name of the children to be added
+ * @errp: if an error occurs, a pointer to an area to store the error
+ *
+ * Called in order to create an object's child when it is first
+ * accessed, or at most at realize time.
+ */
+typedef void (ChildFactory)(Object *obj, const char *name, void *opaque,
+                            struct Error **errp);
+
+/**
+ * ChildObject:
+ *
+ * A description of a child object and how to create it.  The object
+ * will be instantiated at the time of its first access, or at most
+ * before realizing the object that defines them.
+ */
+struct ChildObject {
+    const char *name;
+    ChildFactory *func;
+    void *opaque;
+};
+
+/**
  * ObjectClass:
  *
  * The base for all classes.  The only thing that #ObjectClass contains is an
@@ -245,6 +272,7 @@ struct ObjectClass
 
     /*< public >*/
     Property *props;
+    ChildObject *children;
     const char *(*get_id)(Object *);
     void (*missing_property)(Object *obj, const char *name, struct Error **errp);
     void (*realize)(Object *obj, struct Error **errp);
