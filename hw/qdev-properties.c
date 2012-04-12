@@ -76,7 +76,8 @@ static void set_pointer(Object *obj, Visitor *v, Property *prop,
     int ret;
 
     if (object_is_realized(obj)) {
-        error_set(errp, QERR_PERMISSION_DENIED);
+        error_set(errp, QERR_PROPERTY_SET_AFTER_REALIZE,
+                  object_get_id(obj), name);
         return;
     }
 
@@ -242,7 +243,8 @@ static void set_vlan(Object *obj, Visitor *v, void *opaque,
     VLANState *vlan;
 
     if (object_is_realized(obj)) {
-        error_set(errp, QERR_PERMISSION_DENIED);
+        error_set(errp, QERR_PROPERTY_SET_AFTER_REALIZE,
+                  object_get_id(obj), name);
         return;
     }
 
@@ -303,7 +305,8 @@ static void set_mac(Object *obj, Visitor *v, void *opaque,
     char *str, *p;
 
     if (object_is_realized(obj)) {
-        error_set(errp, QERR_PERMISSION_DENIED);
+        error_set(errp, QERR_PROPERTY_SET_AFTER_REALIZE,
+                  object_get_id(obj), name);
         return;
     }
 
@@ -389,7 +392,8 @@ static void set_pci_devfn(Object *obj, Visitor *v, void *opaque,
     char *str = (char *)"";
 
     if (object_is_realized(obj)) {
-        error_set(errp, QERR_PERMISSION_DENIED);
+        error_set(errp, QERR_PROPERTY_SET_AFTER_REALIZE,
+                  object_get_id(obj), name);
         return;
     }
 
@@ -463,7 +467,8 @@ static void set_blocksize(Object *obj, Visitor *v, void *opaque,
     Error *local_err = NULL;
 
     if (object_is_realized(obj)) {
-        error_set(errp, QERR_PERMISSION_DENIED);
+        error_set(errp, QERR_PROPERTY_SET_AFTER_REALIZE,
+                  object_get_id(obj), name);
         return;
     }
 
