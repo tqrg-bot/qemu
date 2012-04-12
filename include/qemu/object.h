@@ -246,6 +246,7 @@ struct ObjectClass
     /*< public >*/
     Property *props;
     const char *(*get_id)(Object *);
+    void (*missing_property)(Object *obj, const char *name, struct Error **errp);
     void (*realize)(Object *obj, struct Error **errp);
     void (*realize_children)(Object *obj, struct Error **errp);
     void (*unrealize)(Object *obj);

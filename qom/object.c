@@ -763,17 +763,29 @@ void object_property_add(Object *obj, const char *name, const char *type,
     QTAILQ_INSERT_TAIL(&obj->properties, prop, node);
 }
 
+static void _object_missing_property(Object *obj, const char *name, Error **errp)
+{
+    error_set(errp, QERR_PROPERTY_NOT_FOUND, object_get_id(obj), name);
+}
+
 ObjectProperty *object_property_find(Object *obj, const char *name, Error **errp)
 {
+    Error *err = NULL;
+    bool retry = false;
     ObjectProperty *prop;
 
-    QTAILQ_FOREACH(prop, &obj->properties, node) {
-        if (strcmp(prop->name, name) == 0) {
-            return prop;
+    do {
+        QTAILQ_FOREACH(prop, &obj->properties, node) {
+            if (strcmp(prop->name, name) == 0) {
+                return prop;
+            }
         }
-    }
 
-    error_set(errp, QERR_PROPERTY_NOT_FOUND, object_get_id(obj), name);
+        assert(!retry);
+        retry = true;
+        obj->class->missing_property(obj, name, &err);
+    } while (err == NULL);
+    error_propagate(errp, err);
     return NULL;
 }
 
@@ -1370,6 +1382,7 @@ static void object_instance_init(Object *obj)
 static void object_class_init(ObjectClass *klass, void *class_data)
 {
     klass->get_id = _object_get_id;
+    klass->missing_property = _object_missing_property;
     klass->realize_children = object_realize_children;
     klass->unrealize_children = object_unrealize_children;
 }
