@@ -293,6 +293,13 @@ void qdev_machine_creation_done(void)
      * ok, initial machine setup is done, starting from now we can
      * only create hotpluggable devices
      */
+    Error *err = NULL;
+    object_property_set_bool(qdev_get_machine(), true, "realized", &err);
+    if (error_is_set(&err)) {
+        qerror_report_err(err);
+        exit(1);
+    }
+
     qdev_hotplug = 1;
 }
 
