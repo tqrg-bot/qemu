@@ -239,6 +239,9 @@ struct ObjectClass
 {
     /*< private >*/
     Type type;
+
+    /*< public >*/
+    const char *(*get_id)(Object *);
 };
 
 /**
@@ -499,6 +502,14 @@ Object *object_dynamic_cast(Object *obj, const char *typename);
  * instead of returning #NULL on failure.
  */
 Object *object_dynamic_cast_assert(Object *obj, const char *typename);
+
+/**
+ * object_get_id:
+ * @obj: A derivative of #Object
+ *
+ * Returns: A string that can be used to refer to @obj.
+ */
+const char *object_get_id(Object *obj);
 
 /**
  * object_get_class:

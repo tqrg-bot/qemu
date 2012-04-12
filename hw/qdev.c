@@ -259,7 +259,7 @@ void qdev_init_nofail(DeviceState *dev)
 {
     if (qdev_init(dev) < 0) {
         error_report("Initialization of device %s failed",
-                     object_get_typename(OBJECT(dev)));
+                     object_get_id(OBJECT(dev)));
         exit(1);
     }
 }
@@ -714,6 +714,13 @@ static void device_finalize(Object *obj)
     }
 }
 
+static const char *qdev_get_id(Object *obj)
+{
+    DeviceState *dev = DEVICE(obj);
+
+    return dev->id?:object_get_typename(obj);
+}
+
 static void device_class_base_init(ObjectClass *class, void *data)
 {
     DeviceClass *klass = DEVICE_CLASS(class);
@@ -744,6 +751,11 @@ Object *qdev_get_machine(void)
     return dev;
 }
 
+static void device_class_init(ObjectClass *class, void *data)
+{
+    class->get_id = qdev_get_id;
+}
+
 static TypeInfo device_type_info = {
     .name = TYPE_DEVICE,
     .parent = TYPE_OBJECT,
@@ -751,6 +763,7 @@ static TypeInfo device_type_info = {
     .instance_init = device_initfn,
     .instance_finalize = device_finalize,
     .class_base_init = device_class_base_init,
+    .class_init = device_class_init,
     .abstract = true,
     .class_size = sizeof(DeviceClass),
 };

@@ -334,6 +334,24 @@ static void object_property_del_child(Object *obj, Object *child, Error **errp)
     }
 }
 
+static const char *_object_get_id(Object *obj)
+{
+    ObjectProperty *prop;
+
+    QTAILQ_FOREACH(prop, &obj->properties, node) {
+        if (strstart(prop->type, "child<", NULL) && prop->opaque == obj) {
+            return prop->name;
+        }
+    }
+
+    return "";
+}
+
+const char *object_get_id(Object *obj)
+{
+    return obj->class->get_id(obj);
+}
+
 void object_unparent(Object *obj)
 {
     if (obj->parent) {
@@ -672,7 +690,7 @@ ObjectProperty *object_property_find(Object *obj, const char *name, Error **errp
         }
     }
 
-    error_set(errp, QERR_PROPERTY_NOT_FOUND, "", name);
+    error_set(errp, QERR_PROPERTY_NOT_FOUND, object_get_id(obj), name);
     return NULL;
 }
 
@@ -1236,6 +1254,11 @@ static void object_instance_init(Object *obj)
     object_property_add_str(obj, "type", qdev_get_type, NULL, NULL);
 }
 
+static void object_class_init(ObjectClass *klass, void *class_data)
+{
+    klass->get_id = _object_get_id;
+}
+
 static void register_types(void)
 {
     static TypeInfo interface_info = {
@@ -1248,6 +1271,7 @@ static void register_types(void)
         .name = TYPE_OBJECT,
         .instance_size = sizeof(Object),
         .instance_init = object_instance_init,
+        .class_init = object_class_init,
         .abstract = true,
     };
 

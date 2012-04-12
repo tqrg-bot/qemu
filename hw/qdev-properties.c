@@ -931,16 +931,16 @@ void error_set_from_qdev_prop_error(Error **errp, int ret, DeviceState *dev,
     switch (ret) {
     case -EEXIST:
         error_set(errp, QERR_PROPERTY_VALUE_IN_USE,
-                  object_get_typename(OBJECT(dev)), prop->name, value);
+                  object_get_id(OBJECT(dev)), prop->name, value);
         break;
     default:
     case -EINVAL:
         error_set(errp, QERR_PROPERTY_VALUE_BAD,
-                  object_get_typename(OBJECT(dev)), prop->name, value);
+                  object_get_id(OBJECT(dev)), prop->name, value);
         break;
     case -ENOENT:
         error_set(errp, QERR_PROPERTY_VALUE_NOT_FOUND,
-                  object_get_typename(OBJECT(dev)), prop->name, value);
+                  object_get_id(OBJECT(dev)), prop->name, value);
         break;
     case 0:
         break;
