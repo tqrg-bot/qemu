@@ -37,6 +37,7 @@
 #include "blockdev.h"
 #include "sysemu.h"
 #include "qemu-log.h"
+#include "trace.h"
 
 /********************************************************/
 /* debug Floppy devices */
@@ -1155,8 +1156,7 @@ static void fdctrl_stop_transfer(FDCtrl *fdctrl, uint8_t status0,
     fdctrl->status0 = status0 | FD_SR0_SEEK | (cur_drv->head << 2) |
                       GET_CUR_DRV(fdctrl);
 
-    FLOPPY_DPRINTF("transfer status: %02x %02x %02x (%02x)\n",
-                   status0, status1, status2, fdctrl->status0);
+    trace_fdctrl_stop_transfer(cur_drv, status0, status1, status2);
     fdctrl->fifo[0] = fdctrl->status0;
     fdctrl->fifo[1] = status1;
     fdctrl->fifo[2] = status2;
@@ -1185,10 +1185,10 @@ static void fdctrl_start_transfer(FDCtrl *fdctrl, int direction)
     kt = fdctrl->fifo[2];
     kh = fdctrl->fifo[3];
     ks = fdctrl->fifo[4];
-    FLOPPY_DPRINTF("Start transfer at %d %d %02x %02x (%d)\n",
-                   GET_CUR_DRV(fdctrl), kh, kt, ks,
-                   fd_sector_calc(kh, kt, ks, cur_drv->last_sect,
-                                  NUM_SIDES(cur_drv)));
+    trace_fdctrl_start_transfer(cur_drv, direction, kh, kt, ks, 
+                                fd_sector_calc(kh, kt, ks, cur_drv->last_sect,
+                                               NUM_SIDES(cur_drv)));
+
     switch (fd_seek(cur_drv, kh, kt, ks, fdctrl->config & FD_CONFIG_EIS)) {
     case 2:
         /* sect too big */
@@ -1311,6 +1311,10 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
     uint8_t status0 = 0x00, status1 = 0x00, status2 = 0x00;
 
     fdctrl = opaque;
+
+    assert(fdctrl->dma_chann == nchan);
+    trace_fdctrl_transfer_handler(cur_drv, dma_pos, dma_len);
+
     if (fdctrl->msr & FD_MSR_RQM) {
         FLOPPY_DPRINTF("Not in DMA transfer mode !\n");
         return 0;

@@ -978,3 +978,8 @@ spapr_pci_rtas_ibm_change_msi(unsigned func, unsigned req) "func %u, requested %
 spapr_pci_rtas_ibm_query_interrupt_source_number(unsigned ioa, unsigned intr) "queries for #%u, IRQ%u"
 spapr_pci_msi_write(uint64_t addr, uint64_t data, uint32_t dt_irq) "@%"PRIx64"<=%"PRIx64" IRQ %u"
 spapr_pci_lsi_set(const char *busname, int pin, uint32_t irq) "%s PIN%d IRQ %u"
+
+# hw/fdc.c
+fdctrl_stop_transfer(void *cur_drv, int status0, int status1, int status2) "drive=%p status=%02x/%02x/%02x"
+fdctrl_start_transfer(void *cur_drv, int direction, int kh, int kt, int ks, int sector) "drive=%p dir=%d h%d/t%d/s%d (sector %d)"
+fdctrl_transfer_handler(void *cur_drv, int dma_pos, int dma_len) "drive=%p pos=%d/%d"
