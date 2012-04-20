@@ -359,7 +359,6 @@ void qemu_fd_register(int fd);
 void qemu_iohandler_fill(int *pnfds, fd_set *readfds, fd_set *writefds, fd_set *xfds);
 void qemu_iohandler_poll(fd_set *readfds, fd_set *writefds, fd_set *xfds, int rc);
 
-void qemu_bh_schedule_idle(QEMUBH *bh);
 int qemu_bh_poll(void);
 void qemu_bh_update_timeout(uint32_t *timeout);
 
