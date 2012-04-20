@@ -431,15 +431,6 @@ static const MemoryRegionOps PPC_prep_io_ops = {
 
 #define NVRAM_SIZE        0x2000
 
-static void cpu_request_exit(void *opaque, int irq, int level)
-{
-    CPUPPCState *env = cpu_single_env;
-
-    if (env && level) {
-        cpu_exit(env);
-    }
-}
-
 static void ppc_prep_reset(void *opaque)
 {
     PowerPCCPU *cpu = opaque;
@@ -476,7 +467,6 @@ static void ppc_prep_init (ram_addr_t ram_size,
     PCIBus *pci_bus;
     PCIDevice *pci;
     ISABus *isa_bus;
-    qemu_irq *cpu_exit_irq;
     int ppc_boot_device;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *fd[MAX_FD];
@@ -597,10 +587,8 @@ static void ppc_prep_init (ram_addr_t ram_size,
 
     /* PCI -> ISA bridge */
     pci = pci_create_simple(pci_bus, PCI_DEVFN(1, 0), "i82378");
-    cpu_exit_irq = qemu_allocate_irqs(cpu_request_exit, NULL, 1);
     qdev_connect_gpio_out(&pci->qdev, 0,
                           first_cpu->irq_inputs[PPC6xx_INPUT_INT]);
-    qdev_connect_gpio_out(&pci->qdev, 1, *cpu_exit_irq);
     sysbus_connect_irq(&pcihost->busdev, 0, qdev_get_gpio_in(&pci->qdev, 9));
     sysbus_connect_irq(&pcihost->busdev, 1, qdev_get_gpio_in(&pci->qdev, 11));
     sysbus_connect_irq(&pcihost->busdev, 2, qdev_get_gpio_in(&pci->qdev, 9));

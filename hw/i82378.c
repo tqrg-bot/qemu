@@ -183,7 +183,7 @@ static void i82378_init(DeviceState *dev, I82378State *s)
        All devices accept byte access only, except timer
      */
 
-    qdev_init_gpio_out(dev, s->out, 2);
+    qdev_init_gpio_out(dev, s->out, 1);
     qdev_init_gpio_in(dev, i82378_request_pic_irq, 16);
 
     /* Workaround the fact that i8259 is not qdev'ified... */
