@@ -134,7 +134,6 @@ static const VMStateDescription pci_bridge_dev_vmstate = {
     .name = "pci_bridge",
     .fields = (VMStateField[]) {
         VMSTATE_PCI_DEVICE(bridge.dev, PCIBridgeDev),
-        SHPC_VMSTATE(bridge.dev.shpc, PCIBridgeDev),
         VMSTATE_END_OF_LIST()
     }
 };

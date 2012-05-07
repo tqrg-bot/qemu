@@ -421,6 +421,21 @@ static VMStateInfo vmstate_info_pci_irq_state = {
     .put  = put_pci_irq_state,
 };
 
+static bool shpc_state_needed(void *opaque)
+{
+    PCIDevice *s = opaque;
+
+    return s->shpc;
+}
+
+static const VMStateDescription pci_device_shpc_state = {
+    .name = "shpc",
+    .fields = (VMStateField[]) {
+        SHPC_VMSTATE(shpc, PCIDevice),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 const VMStateDescription vmstate_pci_device = {
     .name = "PCIDevice",
     .version_id = 2,
@@ -435,6 +450,12 @@ const VMStateDescription vmstate_pci_device = {
 				   vmstate_info_pci_irq_state,
 				   PCI_NUM_PINS * sizeof(int32_t)),
         VMSTATE_END_OF_LIST()
+    },
+    .subsection = (VMStateSubsection []) {
+        {
+            .vmsd = &pci_device_shpc_state,
+            .needed = shpc_state_needed,
+        },
     }
 };
 
@@ -452,6 +473,12 @@ const VMStateDescription vmstate_pcie_device = {
 				   vmstate_info_pci_irq_state,
 				   PCI_NUM_PINS * sizeof(int32_t)),
         VMSTATE_END_OF_LIST()
+    },
+    .subsection = (VMStateSubsection []) {
+        {
+            .vmsd = &vmstate_shpc_state,
+            .needed = shpc_state_needed,
+        },
     }
 };
 
