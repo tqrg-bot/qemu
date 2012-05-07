@@ -200,10 +200,10 @@ static void pcie_cap_slot_event(PCIDevice *dev, PCIExpressHotPlugEvent event)
     hotplug_event_notify(dev);
 }
 
-static int pcie_cap_slot_hotplug(DeviceState *qdev,
+static int pcie_cap_slot_hotplug(void *opaque,
                                  PCIDevice *pci_dev, PCIHotplugState state)
 {
-    PCIDevice *d = PCI_DEVICE(qdev);
+    PCIDevice *d = PCI_DEVICE(opaque);
     uint8_t *exp_cap = d->config + d->exp.exp_cap;
     uint16_t sltsta = pci_get_word(exp_cap + PCI_EXP_SLTSTA);
 
@@ -290,7 +290,7 @@ void pcie_cap_slot_init(PCIDevice *dev, uint16_t slot)
     dev->exp.hpev_notified = false;
 
     pci_bus_hotplug(pci_bridge_get_sec_bus(DO_UPCAST(PCIBridge, dev, dev)),
-                    pcie_cap_slot_hotplug, &dev->qdev);
+                    pcie_cap_slot_hotplug, dev);
 }
 
 void pcie_cap_slot_reset(PCIDevice *dev)

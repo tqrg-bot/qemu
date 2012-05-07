@@ -490,13 +490,13 @@ static const MemoryRegionOps shpc_mmio_ops = {
     },
 };
 
-static int shpc_device_hotplug(DeviceState *qdev, PCIDevice *affected_dev,
+static int shpc_device_hotplug(void *opaque, PCIDevice *affected_dev,
                                PCIHotplugState hotplug_state)
 {
     int pci_slot = PCI_SLOT(affected_dev->devfn);
     uint8_t state;
     uint8_t led;
-    PCIDevice *d = DO_UPCAST(PCIDevice, qdev, qdev);
+    PCIDevice *d = PCI_DEVICE(opaque);
     SHPCDevice *shpc = d->shpc;
     int slot = SHPC_PCI_TO_IDX(pci_slot);
     if (pci_slot < SHPC_IDX_TO_PCI(0) || slot >= shpc->nslots) {
@@ -615,7 +615,7 @@ int shpc_init(PCIDevice *d, PCIBus *sec_bus, MemoryRegion *bar, unsigned offset)
                           SHPC_SIZEOF(d));
     shpc_cap_update_dword(d);
     memory_region_add_subregion(bar, offset, &shpc->mmio);
-    pci_bus_hotplug(sec_bus, shpc_device_hotplug, &d->qdev);
+    pci_bus_hotplug(sec_bus, shpc_device_hotplug, d);
 
     d->cap_present |= QEMU_PCI_CAP_SHPC;
     return 0;

@@ -302,11 +302,11 @@ void pci_bus_irqs(PCIBus *bus, pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
     bus->irq_count = g_malloc0(nirq * sizeof(bus->irq_count[0]));
 }
 
-void pci_bus_hotplug(PCIBus *bus, pci_hotplug_fn hotplug, DeviceState *qdev)
+void pci_bus_hotplug(PCIBus *bus, pci_hotplug_fn hotplug, void *opaque)
 {
     bus->qbus.allow_hotplug = 1;
     bus->hotplug = hotplug;
-    bus->hotplug_qdev = qdev;
+    bus->hotplug_opaque = opaque;
 }
 
 PCIBus *pci_register_bus(DeviceState *parent, const char *name,
@@ -1506,7 +1506,7 @@ static int pci_qdev_init(DeviceState *qdev)
     if (bus->hotplug) {
         /* Let buses differentiate between hotplug and when device is
          * enabled during qemu machine creation. */
-        rc = bus->hotplug(bus->hotplug_qdev, pci_dev,
+        rc = bus->hotplug(bus->hotplug_opaque, pci_dev,
                           qdev->hotplugged ? PCI_HOTPLUG_ENABLED:
                           PCI_COLDPLUG_ENABLED);
         if (rc != 0) {
@@ -1528,7 +1528,7 @@ static int pci_unplug_device(DeviceState *qdev)
         return -1;
     }
     object_unparent(OBJECT(dev));
-    return dev->bus->hotplug(dev->bus->hotplug_qdev, dev,
+    return dev->bus->hotplug(dev->bus->hotplug_opaque, dev,
                              PCI_HOTPLUG_DISABLED);
 }
 

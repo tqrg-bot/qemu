@@ -275,7 +275,7 @@ typedef enum {
     PCI_COLDPLUG_ENABLED,
 } PCIHotplugState;
 
-typedef int (*pci_hotplug_fn)(DeviceState *qdev, PCIDevice *pci_dev,
+typedef int (*pci_hotplug_fn)(void *opaque, PCIDevice *pci_dev,
                               PCIHotplugState state);
 void pci_bus_new_inplace(PCIBus *bus, DeviceState *parent,
                          const char *name,
@@ -289,7 +289,7 @@ PCIBus *pci_bus_new(DeviceState *parent, const char *name,
 void pci_bus_irqs(PCIBus *bus, pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
                   void *irq_opaque, int nirq);
 int pci_bus_get_irq_level(PCIBus *bus, int irq_num);
-void pci_bus_hotplug(PCIBus *bus, pci_hotplug_fn hotplug, DeviceState *dev);
+void pci_bus_hotplug(PCIBus *bus, pci_hotplug_fn hotplug, void *opaque);
 PCIBus *pci_register_bus(DeviceState *parent, const char *name,
                          pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
                          void *irq_opaque,

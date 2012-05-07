@@ -20,7 +20,7 @@ struct PCIBus {
     pci_set_irq_fn set_irq;
     pci_map_irq_fn map_irq;
     pci_hotplug_fn hotplug;
-    DeviceState *hotplug_qdev;
+    DeviceState *hotplug_opaque;
     void *irq_opaque;
     PCIDevice *devices[PCI_SLOT_MAX * PCI_FUNC_MAX];
     PCIDevice *parent_dev;

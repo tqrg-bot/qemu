@@ -539,7 +539,7 @@ static uint32_t pcirmv_read(void *opaque, uint32_t addr)
     return s->pci0_hotplug_enable;
 }
 
-static int piix4_device_hotplug(DeviceState *qdev, PCIDevice *dev,
+static int piix4_device_hotplug(void *opaque, PCIDevice *dev,
                                 PCIHotplugState state);
 
 static void piix4_acpi_system_hot_add_init(PCIBus *bus, PIIX4PMState *s)
@@ -557,7 +557,7 @@ static void piix4_acpi_system_hot_add_init(PCIBus *bus, PIIX4PMState *s)
 
     register_ioport_read(PCI_RMV_BASE, 4, 4,  pcirmv_read, s);
 
-    pci_bus_hotplug(bus, piix4_device_hotplug, &s->dev.qdev);
+    pci_bus_hotplug(bus, piix4_device_hotplug, s);
 }
 
 static void enable_device(PIIX4PMState *s, int slot)
@@ -572,12 +572,11 @@ static void disable_device(PIIX4PMState *s, int slot)
     s->pci0_status.down |= (1U << slot);
 }
 
-static int piix4_device_hotplug(DeviceState *qdev, PCIDevice *dev,
+static int piix4_device_hotplug(void *opaque, PCIDevice *dev,
 				PCIHotplugState state)
 {
     int slot = PCI_SLOT(dev->devfn);
-    PIIX4PMState *s = DO_UPCAST(PIIX4PMState, dev,
-                                PCI_DEVICE(qdev));
+    PIIX4PMState *s = opaque;
 
     /* Don't send event when device is enabled during qemu machine creation:
      * it is present on boot, no hotplug event is necessary. We do send an
