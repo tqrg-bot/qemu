@@ -147,7 +147,7 @@ static void shpc_set_status(SHPCDevice *shpc,
 
 static void shpc_interrupt_update(SHPCDevice *shpc)
 {
-    PCIDevice *d = shpc->parent;
+    PCIDevice *d = PCI_DEVICE(shpc->obj.parent);
     int slot;
     int level = 0;
     uint32_t serr_int;
@@ -431,14 +431,14 @@ static uint64_t shpc_read(SHPCDevice *shpc, unsigned addr, int l)
 
 static uint8_t shpc_cap_dword(SHPCDevice *shpc)
 {
-    PCIDevice *d = shpc->parent;
+    PCIDevice *d = PCI_DEVICE(shpc->obj.parent);
     return pci_get_byte(d->config + shpc->cap + SHPC_CAP_DWORD_SELECT);
 }
 
 /* Update dword data capability register */
 static void shpc_cap_update_dword(SHPCDevice *shpc)
 {
-    PCIDevice *d = shpc->parent;
+    PCIDevice *d = PCI_DEVICE(shpc->obj.parent);
     unsigned data;
     data = shpc_read(shpc, shpc_cap_dword(shpc) * 4, 4);
     pci_set_long(d->config  + shpc->cap + SHPC_CAP_DWORD_DATA, data);
@@ -447,7 +447,7 @@ static void shpc_cap_update_dword(SHPCDevice *shpc)
 /* Add SHPC capability to the config space for the device. */
 static int shpc_cap_add_config(SHPCDevice *shpc)
 {
-    PCIDevice *d = shpc->parent;
+    PCIDevice *d = PCI_DEVICE(shpc->obj.parent);
     uint8_t *config;
     int config_offset;
     config_offset = pci_add_capability(d, PCI_CAP_ID_SHPC, 0, SHPC_CAP_LENGTH);
@@ -549,13 +549,27 @@ static int shpc_device_hotplug(void *opaque, PCIDevice *affected_dev,
     return 0;
 }
 
+static void shpc_instance_init(Object *obj)
+{
+    SHPCDevice *shpc = DO_UPCAST(SHPCDevice, obj, obj);
+
+    object_property_add_link(OBJECT(shpc), "sec_bus", TYPE_PCI_BUS,
+                             (Object **) &shpc->sec_bus, NULL);
+}
+
 /* Initialize the SHPC structure in bridge's BAR. */
 int shpc_init(SHPCDevice *shpc, PCIDevice *d, PCIBus *sec_bus,
               MemoryRegion *bar, unsigned offset)
 {
     int i, ret;
     int nslots = SHPC_MAX_SLOTS; /* TODO: qdev property? */
-    shpc->parent = d;
+
+    object_initialize(shpc, TYPE_SHPC_DEVICE);
+    object_property_add_child(OBJECT(d), "shpc", OBJECT(shpc), NULL);
+
+    /* TODO: set sec_bus/bar/offset as properties, and
+     * move the following into the realize member.
+     */
     shpc->sec_bus = sec_bus;
     ret = shpc_cap_add_config(shpc);
     if (ret) {
@@ -610,9 +624,9 @@ int shpc_init(SHPCDevice *shpc, PCIDevice *d, PCIBus *sec_bus,
     }
 
     /* TODO: init cmask */
+    shpc_cap_update_dword(shpc);
     memory_region_init_io(&shpc->mmio, &shpc_mmio_ops, d, "shpc-mmio",
                           SHPC_SIZEOF(shpc));
-    shpc_cap_update_dword(shpc);
     memory_region_add_subregion(bar, offset, &shpc->mmio);
     pci_bus_hotplug(sec_bus, shpc_device_hotplug, shpc);
 
@@ -627,7 +641,7 @@ int shpc_bar_size(PCIDevice *d)
 
 void shpc_cleanup(SHPCDevice *shpc, MemoryRegion *bar)
 {
-    PCIDevice *d = shpc->parent;
+    PCIDevice *d = PCI_DEVICE(shpc->obj.parent);
     d->cap_present &= ~QEMU_PCI_CAP_SHPC;
     memory_region_del_subregion(bar, &shpc->mmio);
     /* TODO: cleanup config space changes? */
@@ -677,3 +691,17 @@ VMStateInfo shpc_vmstate_info = {
     .get  = shpc_load,
     .put  = shpc_save,
 };
+
+static TypeInfo shpc_type_info = {
+    .name = TYPE_SHPC_DEVICE,
+    .parent = TYPE_OBJECT,
+    .instance_size = sizeof(SHPCDevice),
+    .instance_init = shpc_instance_init,
+};
+
+static void shpc_type_register(void)
+{
+    type_register_static(&shpc_type_info);
+}
+
+type_init(shpc_type_register);

@@ -2,12 +2,14 @@
 #define SHPC_H
 
 #include "qemu-common.h"
+#include "qemu/object.h"
 #include "memory.h"
 #include "vmstate.h"
 
+#define TYPE_SHPC_DEVICE    "shpc"
+
 struct SHPCDevice {
-    /* PCI device hosting the SHPC */
-    PCIDevice *parent;
+    Object obj;
 
     /* Capability offset in device's config space */
     int cap;
