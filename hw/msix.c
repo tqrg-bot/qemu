@@ -552,3 +552,21 @@ void msix_unset_vector_notifiers(PCIDevice *dev)
     dev->msix_vector_use_notifier = NULL;
     dev->msix_vector_release_notifier = NULL;
 }
+
+static void msix_vmstate_save(QEMUFile *f, void *pv, size_t size)
+{
+    PCIDevice *d = pv;
+    msix_save(d, f);
+}
+
+static int msix_vmstate_load(QEMUFile *f, void *pv, size_t size)
+{
+    PCIDevice *d = pv;
+    return msix_load(d, f);
+}
+
+VMStateInfo msix_vmstate_info = {
+    .name = "msix",
+    .get  = msix_vmstate_load,
+    .put  = msix_vmstate_save,
+};

@@ -38,4 +38,9 @@ int msix_set_vector_notifiers(PCIDevice *dev,
                               MSIVectorUseNotifier use_notifier,
                               MSIVectorReleaseNotifier release_notifier);
 void msix_unset_vector_notifiers(PCIDevice *dev);
+
+extern VMStateInfo msix_vmstate_info;
+#define MSIX_VMSTATE(_field, _type) \
+    VMSTATE_BUFFER_UNSAFE_INFO(_field, _type, 0, msix_vmstate_info, 0)
+
 #endif

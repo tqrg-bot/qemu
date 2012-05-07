@@ -436,6 +436,23 @@ static const VMStateDescription pci_device_shpc_state = {
     }
 };
 
+static bool msix_state_needed(void *opaque)
+{
+    PCIDevice *s = opaque;
+    DeviceClass *dc = DEVICE_CLASS(s);
+
+    /* Do not include subsection when saving through pci_device_save.  */
+    return dc->vmsd && msix_present(s);
+}
+
+static const VMStateDescription pci_device_msix_state = {
+    .name = "msix",
+    .fields = (VMStateField[]) {
+        MSIX_VMSTATE(msix, PCIDevice),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 const VMStateDescription vmstate_pci_device = {
     .name = "PCIDevice",
     .version_id = 2,
@@ -452,6 +469,10 @@ const VMStateDescription vmstate_pci_device = {
         VMSTATE_END_OF_LIST()
     },
     .subsection = (VMStateSubsection []) {
+        {
+            .vmsd = &pci_device_msix_state,
+            .needed = msix_state_needed,
+        },
         {
             .vmsd = &pci_device_shpc_state,
             .needed = shpc_state_needed,
