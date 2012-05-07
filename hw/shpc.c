@@ -94,7 +94,7 @@
  /* 1 byte */
 #define SHPC_SLOT_EVENT_LATCH(s)        (0x2 + SHPC_SLOT_REG(s))
  /* 1 byte */
-#define SHPC_SLOT_EVENT_SERR_INT_DIS(d, s) (0x3 + SHPC_SLOT_REG(s))
+#define SHPC_SLOT_EVENT_SERR_INT_DIS(s) (0x3 + SHPC_SLOT_REG(s))
 #define SHPC_SLOT_EVENT_PRESENCE        0x01
 #define SHPC_SLOT_EVENT_ISOLATED_FAULT  0x02
 #define SHPC_SLOT_EVENT_BUTTON          0x04
@@ -156,7 +156,7 @@ static void shpc_interrupt_update(PCIDevice *d)
     /* Update interrupt locator register */
     for (slot = 0; slot < shpc->nslots; ++slot) {
         uint8_t event = shpc->config[SHPC_SLOT_EVENT_LATCH(slot)];
-        uint8_t disable = shpc->config[SHPC_SLOT_EVENT_SERR_INT_DIS(d, slot)];
+        uint8_t disable = shpc->config[SHPC_SLOT_EVENT_SERR_INT_DIS(slot)];
         uint32_t mask = 1 << SHPC_IDX_TO_LOGICAL(slot);
         if (event & ~disable) {
             int_locator |= mask;
@@ -210,7 +210,7 @@ void shpc_reset(PCIDevice *d)
     pci_set_byte(shpc->config + SHPC_PROG_IFC, SHPC_PROG_IFC_1_0);
     pci_set_word(shpc->config + SHPC_SEC_BUS, SHPC_SEC_BUS_33);
     for (i = 0; i < shpc->nslots; ++i) {
-        pci_set_byte(shpc->config + SHPC_SLOT_EVENT_SERR_INT_DIS(d, i),
+        pci_set_byte(shpc->config + SHPC_SLOT_EVENT_SERR_INT_DIS(i),
                      SHPC_SLOT_EVENT_PRESENCE |
                      SHPC_SLOT_EVENT_ISOLATED_FAULT |
                      SHPC_SLOT_EVENT_BUTTON |
@@ -593,7 +593,7 @@ int shpc_init(PCIDevice *d, PCIBus *sec_bus, MemoryRegion *bar, unsigned offset)
                  SHPC_ARB_DETECTED);
     for (i = 0; i < nslots; ++i) {
         pci_set_byte(shpc->wmask +
-                     SHPC_SLOT_EVENT_SERR_INT_DIS(d, i),
+                     SHPC_SLOT_EVENT_SERR_INT_DIS(i),
                      SHPC_SLOT_EVENT_PRESENCE |
                      SHPC_SLOT_EVENT_ISOLATED_FAULT |
                      SHPC_SLOT_EVENT_BUTTON |
