@@ -106,7 +106,7 @@
 
 #define SHPC_MIN_SLOTS        1
 #define SHPC_MAX_SLOTS        31
-#define SHPC_SIZEOF(d)    SHPC_SLOT_REG((d)->shpc->nslots)
+#define SHPC_SIZEOF(shpc)     SHPC_SLOT_REG((shpc)->nslots)
 
 /* SHPC Slot identifiers */
 
@@ -145,9 +145,9 @@ static void shpc_set_status(SHPCDevice *shpc,
     pci_word_test_and_set_mask(status, value << (ffs(msk) - 1));
 }
 
-static void shpc_interrupt_update(PCIDevice *d)
+static void shpc_interrupt_update(SHPCDevice *shpc)
 {
-    SHPCDevice *shpc = d->shpc;
+    PCIDevice *d = shpc->parent;
     int slot;
     int level = 0;
     uint32_t serr_int;
@@ -188,12 +188,11 @@ static void shpc_set_sec_bus_speed(SHPCDevice *shpc, uint8_t speed)
     }
 }
 
-void shpc_reset(PCIDevice *d)
+void shpc_reset(SHPCDevice *shpc)
 {
-    SHPCDevice *shpc = d->shpc;
     int nslots = shpc->nslots;
     int i;
-    memset(shpc->config, 0, SHPC_SIZEOF(d));
+    memset(shpc->config, 0, SHPC_SIZEOF(shpc));
     pci_set_byte(shpc->config + SHPC_NSLOTS, nslots);
     pci_set_long(shpc->config + SHPC_SLOTS_33, nslots);
     pci_set_long(shpc->config + SHPC_SLOTS_66, 0);
@@ -235,7 +234,7 @@ void shpc_reset(PCIDevice *d)
     }
     shpc_set_sec_bus_speed(shpc, SHPC_SEC_BUS_33);
     shpc->msi_requested = 0;
-    shpc_interrupt_update(d);
+    shpc_interrupt_update(shpc);
 }
 
 static void shpc_invalid_command(SHPCDevice *shpc)
@@ -388,14 +387,13 @@ done:
     pci_long_test_and_set_mask(shpc->config + SHPC_SERR_INT, SHPC_CMD_DETECTED);
 }
 
-static void shpc_write(PCIDevice *d, unsigned addr, uint64_t val, int l)
+static void shpc_write(SHPCDevice *shpc, unsigned addr, uint64_t val, int l)
 {
-    SHPCDevice *shpc = d->shpc;
     int i;
-    if (addr >= SHPC_SIZEOF(d)) {
+    if (addr >= SHPC_SIZEOF(shpc)) {
         return;
     }
-    l = MIN(l, SHPC_SIZEOF(d) - addr);
+    l = MIN(l, SHPC_SIZEOF(shpc) - addr);
 
     /* TODO: code duplicated from pci.c */
     for (i = 0; i < l; val >>= 8, ++i) {
@@ -409,16 +407,17 @@ static void shpc_write(PCIDevice *d, unsigned addr, uint64_t val, int l)
     if (ranges_overlap(addr, l, SHPC_CMD_CODE, 2)) {
         shpc_command(shpc);
     }
-    shpc_interrupt_update(d);
+    shpc_interrupt_update(shpc);
 }
 
-static uint64_t shpc_read(PCIDevice *d, unsigned addr, int l)
+static uint64_t shpc_read(SHPCDevice *shpc, unsigned addr, int l)
 {
+    PCIDevice *d = shpc->parent;
     uint64_t val = 0x0;
-    if (addr >= SHPC_SIZEOF(d)) {
+    if (addr >= SHPC_SIZEOF(shpc)) {
         return val;
     }
-    l = MIN(l, SHPC_SIZEOF(d) - addr);
+    l = MIN(l, SHPC_SIZEOF(shpc) - addr);
     memcpy(&val, d->shpc->config + addr, l);
     return val;
 }
@@ -431,26 +430,28 @@ static uint64_t shpc_read(PCIDevice *d, unsigned addr, int l)
 #define SHPC_CAP_CSP_MASK 0x4
 #define SHPC_CAP_CIP_MASK 0x8
 
-static uint8_t shpc_cap_dword(PCIDevice *d)
+static uint8_t shpc_cap_dword(SHPCDevice *shpc)
 {
+    PCIDevice *d = shpc->parent;
     return pci_get_byte(d->config + d->shpc->cap + SHPC_CAP_DWORD_SELECT);
 }
 
 /* Update dword data capability register */
-static void shpc_cap_update_dword(PCIDevice *d)
+static void shpc_cap_update_dword(SHPCDevice *shpc)
 {
+    PCIDevice *d = shpc->parent;
     unsigned data;
-    data = shpc_read(d, shpc_cap_dword(d) * 4, 4);
+    data = shpc_read(shpc, shpc_cap_dword(shpc) * 4, 4);
     pci_set_long(d->config  + d->shpc->cap + SHPC_CAP_DWORD_DATA, data);
 }
 
 /* Add SHPC capability to the config space for the device. */
-static int shpc_cap_add_config(PCIDevice *d)
+static int shpc_cap_add_config(SHPCDevice *shpc)
 {
+    PCIDevice *d = shpc->parent;
     uint8_t *config;
     int config_offset;
-    config_offset = pci_add_capability(d, PCI_CAP_ID_SHPC,
-                                       0, SHPC_CAP_LENGTH);
+    config_offset = pci_add_capability(d, PCI_CAP_ID_SHPC, 0, SHPC_CAP_LENGTH);
     if (config_offset < 0) {
         return config_offset;
     }
@@ -496,8 +497,7 @@ static int shpc_device_hotplug(void *opaque, PCIDevice *affected_dev,
     int pci_slot = PCI_SLOT(affected_dev->devfn);
     uint8_t state;
     uint8_t led;
-    PCIDevice *d = PCI_DEVICE(opaque);
-    SHPCDevice *shpc = d->shpc;
+    SHPCDevice *shpc = opaque;
     int slot = SHPC_PCI_TO_IDX(pci_slot);
     if (pci_slot < SHPC_IDX_TO_PCI(0) || slot >= shpc->nslots) {
         error_report("Unsupported PCI slot %d for standard hotplug "
@@ -546,20 +546,22 @@ static int shpc_device_hotplug(void *opaque, PCIDevice *affected_dev,
         }
     }
     shpc_set_status(shpc, slot, 0, SHPC_SLOT_STATUS_66);
-    shpc_interrupt_update(d);
+    shpc_interrupt_update(shpc);
     return 0;
 }
 
 /* Initialize the SHPC structure in bridge's BAR. */
-int shpc_init(PCIDevice *d, PCIBus *sec_bus, MemoryRegion *bar, unsigned offset)
+int shpc_init(SHPCDevice **p_shpc, PCIDevice *d, PCIBus *sec_bus,
+              MemoryRegion *bar, unsigned offset)
 {
     int i, ret;
     int nslots = SHPC_MAX_SLOTS; /* TODO: qdev property? */
-    SHPCDevice *shpc = d->shpc = g_malloc0(sizeof(*d->shpc));
+    SHPCDevice *shpc = *p_shpc = g_malloc0(sizeof(*p_shpc));
+    shpc->parent = d;
     shpc->sec_bus = sec_bus;
-    ret = shpc_cap_add_config(d);
+    ret = shpc_cap_add_config(shpc);
     if (ret) {
-        g_free(d->shpc);
+        g_free(shpc);
         return ret;
     }
     if (nslots < SHPC_MIN_SLOTS) {
@@ -571,12 +573,12 @@ int shpc_init(PCIDevice *d, PCIBus *sec_bus, MemoryRegion *bar, unsigned offset)
         return -EINVAL;
     }
     shpc->nslots = nslots;
-    shpc->config = g_malloc0(SHPC_SIZEOF(d));
-    shpc->cmask = g_malloc0(SHPC_SIZEOF(d));
-    shpc->wmask = g_malloc0(SHPC_SIZEOF(d));
-    shpc->w1cmask = g_malloc0(SHPC_SIZEOF(d));
+    shpc->config = g_malloc0(SHPC_SIZEOF(shpc));
+    shpc->cmask = g_malloc0(SHPC_SIZEOF(shpc));
+    shpc->wmask = g_malloc0(SHPC_SIZEOF(shpc));
+    shpc->w1cmask = g_malloc0(SHPC_SIZEOF(shpc));
 
-    shpc_reset(d);
+    shpc_reset(shpc);
 
     pci_set_long(shpc->config + SHPC_BASE_OFFSET, offset);
 
@@ -612,10 +614,10 @@ int shpc_init(PCIDevice *d, PCIBus *sec_bus, MemoryRegion *bar, unsigned offset)
 
     /* TODO: init cmask */
     memory_region_init_io(&shpc->mmio, &shpc_mmio_ops, d, "shpc-mmio",
-                          SHPC_SIZEOF(d));
-    shpc_cap_update_dword(d);
+                          SHPC_SIZEOF(shpc));
+    shpc_cap_update_dword(shpc);
     memory_region_add_subregion(bar, offset, &shpc->mmio);
-    pci_bus_hotplug(sec_bus, shpc_device_hotplug, d);
+    pci_bus_hotplug(sec_bus, shpc_device_hotplug, shpc);
 
     d->cap_present |= QEMU_PCI_CAP_SHPC;
     return 0;
@@ -626,9 +628,9 @@ int shpc_bar_size(PCIDevice *d)
     return roundup_pow_of_two(SHPC_SLOT_REG(SHPC_MAX_SLOTS));
 }
 
-void shpc_cleanup(PCIDevice *d, MemoryRegion *bar)
+void shpc_cleanup(SHPCDevice *shpc, MemoryRegion *bar)
 {
-    SHPCDevice *shpc = d->shpc;
+    PCIDevice *d = shpc->parent;
     d->cap_present &= ~QEMU_PCI_CAP_SHPC;
     memory_region_del_subregion(bar, &shpc->mmio);
     /* TODO: cleanup config space changes? */
@@ -640,8 +642,9 @@ void shpc_cleanup(PCIDevice *d, MemoryRegion *bar)
     g_free(shpc);
 }
 
-void shpc_cap_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
+void shpc_cap_write_config(SHPCDevice *shpc, uint32_t addr, uint32_t val, int l)
 {
+    PCIDevice *d = shpc->parent;
     if (!ranges_overlap(addr, l, d->shpc->cap, SHPC_CAP_LENGTH)) {
         return;
     }
@@ -649,28 +652,28 @@ void shpc_cap_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
         unsigned dword_data;
         dword_data = pci_get_long(d->shpc->config + d->shpc->cap
                                   + SHPC_CAP_DWORD_DATA);
-        shpc_write(d, shpc_cap_dword(d) * 4, dword_data, 4);
+        shpc_write(shpc, shpc_cap_dword(shpc) * 4, dword_data, 4);
     }
     /* Update cap dword data in case guest is going to read it. */
-    shpc_cap_update_dword(d);
+    shpc_cap_update_dword(shpc);
 }
 
 static void shpc_save(QEMUFile *f, void *pv, size_t size)
 {
     PCIDevice *d = container_of(pv, PCIDevice, shpc);
-    qemu_put_buffer(f, d->shpc->config, SHPC_SIZEOF(d));
+    qemu_put_buffer(f, d->shpc->config, SHPC_SIZEOF(d->shpc));
 }
 
 static int shpc_load(QEMUFile *f, void *pv, size_t size)
 {
     PCIDevice *d = container_of(pv, PCIDevice, shpc);
-    int ret = qemu_get_buffer(f, d->shpc->config, SHPC_SIZEOF(d));
-    if (ret != SHPC_SIZEOF(d)) {
+    int ret = qemu_get_buffer(f, d->shpc->config, SHPC_SIZEOF(d->shpc));
+    if (ret != SHPC_SIZEOF(d->shpc)) {
         return -EINVAL;
     }
     /* Make sure we don't lose notifications. An extra interrupt is harmless. */
     d->shpc->msi_requested = 0;
-    shpc_interrupt_update(d);
+    shpc_interrupt_update(d->shpc);
     return 0;
 }
 

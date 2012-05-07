@@ -59,7 +59,7 @@ static int pci_bridge_dev_initfn(PCIDevice *dev)
         goto bridge_error;
     }
     memory_region_init(&bridge_dev->bar, "shpc-bar", shpc_bar_size(dev));
-    err = shpc_init(dev, &br->sec_bus, &bridge_dev->bar, 0);
+    err = shpc_init(&dev->shpc, dev, &br->sec_bus, &bridge_dev->bar, 0);
     if (err) {
         goto shpc_error;
     }
@@ -83,7 +83,7 @@ static int pci_bridge_dev_initfn(PCIDevice *dev)
 msi_error:
     slotid_cap_cleanup(dev);
 slotid_error:
-    shpc_cleanup(dev, &bridge_dev->bar);
+    shpc_cleanup(dev->shpc, &bridge_dev->bar);
 shpc_error:
     memory_region_destroy(&bridge_dev->bar);
 bridge_error:
@@ -99,7 +99,7 @@ static int pci_bridge_dev_exitfn(PCIDevice *dev)
         msi_uninit(dev);
     }
     slotid_cap_cleanup(dev);
-    shpc_cleanup(dev, &bridge_dev->bar);
+    shpc_cleanup(dev->shpc, &bridge_dev->bar);
     memory_region_destroy(&bridge_dev->bar);
     ret = pci_bridge_exitfn(dev);
     assert(!ret);
@@ -113,7 +113,7 @@ static void pci_bridge_dev_write_config(PCIDevice *d,
     if (msi_present(d)) {
         msi_write_config(d, address, val, len);
     }
-    shpc_cap_write_config(d, address, val, len);
+    shpc_cap_write_config(d->shpc, address, val, len);
 }
 
 static void qdev_pci_bridge_dev_reset(DeviceState *qdev)
@@ -123,7 +123,7 @@ static void qdev_pci_bridge_dev_reset(DeviceState *qdev)
     if (msi_present(dev)) {
         msi_reset(dev);
     }
-    shpc_reset(dev);
+    shpc_reset(dev->shpc);
 }
 
 static Property pci_bridge_dev_properties[] = {

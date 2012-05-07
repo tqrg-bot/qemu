@@ -6,6 +6,9 @@
 #include "vmstate.h"
 
 struct SHPCDevice {
+    /* PCI device hosting the SHPC */
+    PCIDevice *parent;
+
     /* Capability offset in device's config space */
     int cap;
 
@@ -35,11 +38,14 @@ struct SHPCDevice {
     int msi_requested;
 };
 
-void shpc_reset(PCIDevice *d);
 int shpc_bar_size(PCIDevice *dev);
-int shpc_init(PCIDevice *dev, PCIBus *sec_bus, MemoryRegion *bar, unsigned off);
-void shpc_cleanup(PCIDevice *dev, MemoryRegion *bar);
-void shpc_cap_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int len);
+
+void shpc_reset(SHPCDevice *shpc);
+int shpc_init(SHPCDevice **p_shpc, PCIDevice *d, PCIBus *sec_bus,
+              MemoryRegion *bar, unsigned off);
+void shpc_cleanup(SHPCDevice *shpc, MemoryRegion *bar);
+void shpc_cap_write_config(SHPCDevice *shpc, uint32_t addr,
+                           uint32_t val, int len);
 
 extern VMStateInfo shpc_vmstate_info;
 #define SHPC_VMSTATE(_field, _type) \
