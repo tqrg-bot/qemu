@@ -41,7 +41,7 @@ struct SHPCDevice {
 int shpc_bar_size(PCIDevice *dev);
 
 void shpc_reset(SHPCDevice *shpc);
-int shpc_init(SHPCDevice **p_shpc, PCIDevice *d, PCIBus *sec_bus,
+int shpc_init(SHPCDevice *shpc, PCIDevice *dev, PCIBus *sec_bus,
               MemoryRegion *bar, unsigned off);
 void shpc_cleanup(SHPCDevice *shpc, MemoryRegion *bar);
 void shpc_cap_write_config(SHPCDevice *shpc, uint32_t addr,

@@ -235,9 +235,6 @@ struct PCIDevice {
     /* PCI Express */
     PCIExpressDevice exp;
 
-    /* SHPC */
-    SHPCDevice *shpc;
-
     /* Location of option rom */
     char *romfile;
     bool has_rom;

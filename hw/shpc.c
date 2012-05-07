@@ -550,17 +550,15 @@ static int shpc_device_hotplug(void *opaque, PCIDevice *affected_dev,
 }
 
 /* Initialize the SHPC structure in bridge's BAR. */
-int shpc_init(SHPCDevice **p_shpc, PCIDevice *d, PCIBus *sec_bus,
+int shpc_init(SHPCDevice *shpc, PCIDevice *d, PCIBus *sec_bus,
               MemoryRegion *bar, unsigned offset)
 {
     int i, ret;
     int nslots = SHPC_MAX_SLOTS; /* TODO: qdev property? */
-    SHPCDevice *shpc = *p_shpc = g_malloc0(sizeof(*p_shpc));
     shpc->parent = d;
     shpc->sec_bus = sec_bus;
     ret = shpc_cap_add_config(shpc);
     if (ret) {
-        g_free(shpc);
         return ret;
     }
     if (nslots < SHPC_MIN_SLOTS) {
@@ -638,7 +636,6 @@ void shpc_cleanup(SHPCDevice *shpc, MemoryRegion *bar)
     g_free(shpc->wmask);
     g_free(shpc->w1cmask);
     memory_region_destroy(&shpc->mmio);
-    g_free(shpc);
 }
 
 void shpc_cap_write_config(SHPCDevice *shpc, uint32_t addr, uint32_t val, int l)
@@ -658,20 +655,20 @@ void shpc_cap_write_config(SHPCDevice *shpc, uint32_t addr, uint32_t val, int l)
 
 static void shpc_save(QEMUFile *f, void *pv, size_t size)
 {
-    PCIDevice *d = container_of(pv, PCIDevice, shpc);
-    qemu_put_buffer(f, d->shpc->config, SHPC_SIZEOF(d->shpc));
+    SHPCDevice *shpc = pv;
+    qemu_put_buffer(f, shpc->config, SHPC_SIZEOF(shpc));
 }
 
 static int shpc_load(QEMUFile *f, void *pv, size_t size)
 {
-    PCIDevice *d = container_of(pv, PCIDevice, shpc);
-    int ret = qemu_get_buffer(f, d->shpc->config, SHPC_SIZEOF(d->shpc));
-    if (ret != SHPC_SIZEOF(d->shpc)) {
+    SHPCDevice *shpc = pv;
+    int ret = qemu_get_buffer(f, shpc->config, SHPC_SIZEOF(shpc));
+    if (ret != SHPC_SIZEOF(shpc)) {
         return -EINVAL;
     }
     /* Make sure we don't lose notifications. An extra interrupt is harmless. */
-    d->shpc->msi_requested = 0;
-    shpc_interrupt_update(d->shpc);
+    shpc->msi_requested = 0;
+    shpc_interrupt_update(shpc);
     return 0;
 }
 

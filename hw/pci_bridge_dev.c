@@ -34,6 +34,7 @@
 struct PCIBridgeDev {
     PCIBridge bridge;
     MemoryRegion bar;
+    SHPCDevice shpc;
     uint8_t chassis_nr;
 #define PCI_BRIDGE_DEV_F_MSI_REQ 0
     uint32_t flags;
@@ -59,7 +60,7 @@ static int pci_bridge_dev_initfn(PCIDevice *dev)
         goto bridge_error;
     }
     memory_region_init(&bridge_dev->bar, "shpc-bar", shpc_bar_size(dev));
-    err = shpc_init(&dev->shpc, dev, &br->sec_bus, &bridge_dev->bar, 0);
+    err = shpc_init(&bridge_dev->shpc, dev, &br->sec_bus, &bridge_dev->bar, 0);
     if (err) {
         goto shpc_error;
     }
@@ -83,7 +84,7 @@ static int pci_bridge_dev_initfn(PCIDevice *dev)
 msi_error:
     slotid_cap_cleanup(dev);
 slotid_error:
-    shpc_cleanup(dev->shpc, &bridge_dev->bar);
+    shpc_cleanup(&bridge_dev->shpc, &bridge_dev->bar);
 shpc_error:
     memory_region_destroy(&bridge_dev->bar);
 bridge_error:
@@ -99,7 +100,7 @@ static int pci_bridge_dev_exitfn(PCIDevice *dev)
         msi_uninit(dev);
     }
     slotid_cap_cleanup(dev);
-    shpc_cleanup(dev->shpc, &bridge_dev->bar);
+    shpc_cleanup(&bridge_dev->shpc, &bridge_dev->bar);
     memory_region_destroy(&bridge_dev->bar);
     ret = pci_bridge_exitfn(dev);
     assert(!ret);
@@ -109,21 +110,25 @@ static int pci_bridge_dev_exitfn(PCIDevice *dev)
 static void pci_bridge_dev_write_config(PCIDevice *d,
                                         uint32_t address, uint32_t val, int len)
 {
+    PCIBridge *br = DO_UPCAST(PCIBridge, dev, d);
+    PCIBridgeDev *bridge_dev = DO_UPCAST(PCIBridgeDev, bridge, br);
     pci_bridge_write_config(d, address, val, len);
     if (msi_present(d)) {
         msi_write_config(d, address, val, len);
     }
-    shpc_cap_write_config(d->shpc, address, val, len);
+    shpc_cap_write_config(&bridge_dev->shpc, address, val, len);
 }
 
 static void qdev_pci_bridge_dev_reset(DeviceState *qdev)
 {
     PCIDevice *dev = DO_UPCAST(PCIDevice, qdev, qdev);
+    PCIBridge *br = DO_UPCAST(PCIBridge, dev, dev);
+    PCIBridgeDev *bridge_dev = DO_UPCAST(PCIBridgeDev, bridge, br);
     pci_bridge_reset(qdev);
     if (msi_present(dev)) {
         msi_reset(dev);
     }
-    shpc_reset(dev->shpc);
+    shpc_reset(&bridge_dev->shpc);
 }
 
 static Property pci_bridge_dev_properties[] = {
@@ -137,7 +142,7 @@ static const VMStateDescription pci_bridge_dev_vmstate = {
     .name = "pci_bridge",
     .fields = (VMStateField[]) {
         VMSTATE_PCI_DEVICE(bridge.dev, PCIBridgeDev),
-        SHPC_VMSTATE(bridge.dev.shpc, PCIBridgeDev),
+        SHPC_VMSTATE(shpc, PCIBridgeDev),
         VMSTATE_END_OF_LIST()
     }
 };
