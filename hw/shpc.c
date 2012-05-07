@@ -412,13 +412,12 @@ static void shpc_write(SHPCDevice *shpc, unsigned addr, uint64_t val, int l)
 
 static uint64_t shpc_read(SHPCDevice *shpc, unsigned addr, int l)
 {
-    PCIDevice *d = shpc->parent;
     uint64_t val = 0x0;
     if (addr >= SHPC_SIZEOF(shpc)) {
         return val;
     }
     l = MIN(l, SHPC_SIZEOF(shpc) - addr);
-    memcpy(&val, d->shpc->config + addr, l);
+    memcpy(&val, shpc->config + addr, l);
     return val;
 }
 
@@ -433,7 +432,7 @@ static uint64_t shpc_read(SHPCDevice *shpc, unsigned addr, int l)
 static uint8_t shpc_cap_dword(SHPCDevice *shpc)
 {
     PCIDevice *d = shpc->parent;
-    return pci_get_byte(d->config + d->shpc->cap + SHPC_CAP_DWORD_SELECT);
+    return pci_get_byte(d->config + shpc->cap + SHPC_CAP_DWORD_SELECT);
 }
 
 /* Update dword data capability register */
@@ -442,7 +441,7 @@ static void shpc_cap_update_dword(SHPCDevice *shpc)
     PCIDevice *d = shpc->parent;
     unsigned data;
     data = shpc_read(shpc, shpc_cap_dword(shpc) * 4, 4);
-    pci_set_long(d->config  + d->shpc->cap + SHPC_CAP_DWORD_DATA, data);
+    pci_set_long(d->config  + shpc->cap + SHPC_CAP_DWORD_DATA, data);
 }
 
 /* Add SHPC capability to the config space for the device. */
@@ -460,7 +459,7 @@ static int shpc_cap_add_config(SHPCDevice *shpc)
     pci_set_byte(config + SHPC_CAP_DWORD_SELECT, 0);
     pci_set_byte(config + SHPC_CAP_CxP, 0);
     pci_set_long(config + SHPC_CAP_DWORD_DATA, 0);
-    d->shpc->cap = config_offset;
+    shpc->cap = config_offset;
     /* Make dword select and data writeable. */
     pci_set_byte(d->wmask + config_offset + SHPC_CAP_DWORD_SELECT, 0xff);
     pci_set_long(d->wmask + config_offset + SHPC_CAP_DWORD_DATA, 0xffffffff);
@@ -644,13 +643,12 @@ void shpc_cleanup(SHPCDevice *shpc, MemoryRegion *bar)
 
 void shpc_cap_write_config(SHPCDevice *shpc, uint32_t addr, uint32_t val, int l)
 {
-    PCIDevice *d = shpc->parent;
-    if (!ranges_overlap(addr, l, d->shpc->cap, SHPC_CAP_LENGTH)) {
+    if (!ranges_overlap(addr, l, shpc->cap, SHPC_CAP_LENGTH)) {
         return;
     }
-    if (ranges_overlap(addr, l, d->shpc->cap + SHPC_CAP_DWORD_DATA, 4)) {
+    if (ranges_overlap(addr, l, shpc->cap + SHPC_CAP_DWORD_DATA, 4)) {
         unsigned dword_data;
-        dword_data = pci_get_long(d->shpc->config + d->shpc->cap
+        dword_data = pci_get_long(shpc->config + shpc->cap
                                   + SHPC_CAP_DWORD_DATA);
         shpc_write(shpc, shpc_cap_dword(shpc) * 4, dword_data, 4);
     }
