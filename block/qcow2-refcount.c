@@ -1122,7 +1122,8 @@ fail:
  * Returns 0 if no errors are found, the number of errors in case the image is
  * detected as corrupted, and -errno when an internal error occurred.
  */
-int qcow2_check_refcounts(BlockDriverState *bs, BdrvCheckResult *res)
+int qcow2_check_refcounts(BlockDriverState *bs, BdrvCheckResult *res,
+                          BdrvCheckMode fix)
 {
     BDRVQcowState *s = bs->opaque;
     int64_t size;
@@ -1205,9 +1206,31 @@ int qcow2_check_refcounts(BlockDriverState *bs, BdrvCheckResult *res)
 
         refcount2 = refcount_table[i];
         if (refcount1 != refcount2) {
+
+            /* Check if we're allowed to fix the mismatch */
+            int *num_fixed = NULL;
+            if (refcount1 > refcount2 && (fix & BDRV_FIX_LEAKS)) {
+                num_fixed = &res->leaks_fixed;
+            } else if (refcount1 < refcount2 && (fix & BDRV_FIX_ERRORS)) {
+                num_fixed = &res->corruptions_fixed;
+            }
+
             fprintf(stderr, "%s cluster %d refcount=%d reference=%d\n",
-                   refcount1 < refcount2 ? "ERROR" : "Leaked",
+                   num_fixed != NULL     ? "Repairing" :
+                   refcount1 < refcount2 ? "ERROR" :
+                                           "Leaked",
                    i, refcount1, refcount2);
+
+            if (num_fixed) {
+                ret = update_refcount(bs, i << s->cluster_bits, 1,
+                                      refcount2 - refcount1);
+                if (ret >= 0) {
+                    (*num_fixed)++;
+                    continue;
+                }
+            }
+
+            /* And if we couldn't, print an error */
             if (refcount1 < refcount2) {
                 res->corruptions++;
             } else {
