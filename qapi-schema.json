@@ -1628,6 +1628,8 @@
 #
 # @speed:  #optional the maximum speed, in bytes per second
 #
+# @on_error: #optional the action to take on an error (default report)
+#
 # Returns: Nothing on success
 #          If streaming is already active on this device, DeviceInUse
 #          If @device does not exist, DeviceNotFound
@@ -1635,10 +1637,11 @@
 #          If @base does not exist, BaseNotFound
 #          If @speed is invalid, InvalidParameter
 #
-# Since: 1.1
+# Since: 1.1, on_error since 1.2
 ##
-{ 'command': 'block-stream', 'data': { 'device': 'str', '*base': 'str',
-                                       '*speed': 'int' } }
+{ 'command': 'block-stream',
+  'data': { 'device': 'str', '*base': 'str', '*speed': 'int',
+            '*on_error': 'BlockdevOnError' } }
 
 ##
 # @block-job-set-speed:
