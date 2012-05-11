@@ -64,6 +64,10 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "No active block job on device '%(name)'",
     },
     {
+        .error_fmt = QERR_BLOCK_JOB_NOT_READY,
+        .desc      = "The active block job for device '%(name)' cannot be completed",
+    },
+    {
         .error_fmt = QERR_BLOCK_FORMAT_FEATURE_NOT_SUPPORTED,
         .desc      = "Block format '%(format)' used by device '%(name)' does not support feature '%(feature)'",
     },
