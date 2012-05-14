@@ -32,6 +32,10 @@ typedef struct MirrorBlockJob {
     RateLimit limit;
     BlockDriverState *target;
     BlockdevOnError on_source_error, on_target_error;
+    uint64_t writes_flushed;
+    uint64_t flush_request;
+    CoQueue flush_queue;
+    int flush_error;
     bool full;
     bool synced;
     bool complete;
@@ -79,11 +83,40 @@ static int coroutine_fn mirror_populate(MirrorBlockJob *s,
     return 0;
 }
 
+static int coroutine_fn mirror_do_flush(MirrorBlockJob *s,
+                                        BlockErrorAction *p_action)
+{
+    int ret = bdrv_flush(s->target);
+    if (ret < 0) {
+        *p_action = mirror_error_action(&s->common, false, -ret);
+
+        /* For a stop action, make sure an error will also stop the VM
+         * sooner or later.  This will also cause a retry of the flush (at
+         * least for werror=stop on the source, which is the only case that
+         * makes sense with on_dest_error=stop on the job).
+         *
+         * In other cases, we cannot guarantee consistency anymore and we
+         * do not have a way to reset the flush_error, so just leave steady
+         * state.
+         */
+        if (*p_action == BDRV_ACTION_STOP) {
+            s->flush_error = -ret;
+        } else {
+            s->synced = false;
+        }
+    } else {
+        s->writes_flushed = writes_mirrored;
+        qemu_co_queue_restart_all(&s->flush_queue);
+    }
+    return ret;
+}
+
 static void coroutine_fn mirror_run(void *opaque)
 {
     MirrorBlockJob *s = opaque;
     BlockDriverState *bs = s->common.bs;
     BlockDriverState *base;
+    uint64_t writes_mirrored = 0;
     int64_t sector_num, end;
     int ret = 0;
     int n;
@@ -149,13 +182,34 @@ static void coroutine_fn mirror_run(void *opaque)
         }
 
         if (bdrv_get_dirty_count(bs) == 0) {
-            /* We're out of the streaming phase.  From now on, if the
-             * job is cancelled we will actually complete all pending
-             * I/O and report completion, so that drive-reopen can be
-             * used to pivot to the mirroring target.
-             */
-            s->synced = true;
-            s->common.offset = end * BDRV_SECTOR_SIZE;
+            writes_mirrored = bs->writes_completed;
+            if (!s->synced) {
+                ret = mirror_do_flush(s, &action);
+                if (ret < 0) {
+                    if (action == BDRV_ACTION_REPORT) {
+                        break;
+                    }
+                } else {
+                    /* We're out of the streaming phase.  From now on, if the
+                     * job is cancelled we will actually complete all pending
+                     * I/O and report completion, so that drive-reopen can be
+                     * used to pivot to the mirroring target.
+                     *
+                     * Force a flush of the destination.
+                     */
+                    s->synced = true;
+                    s->common.offset = end * BDRV_SECTOR_SIZE;
+                }
+            }
+        }
+
+        if (s->flush_request > s->writes_flushed &&
+            s->flush_request <= writes_mirrored) {
+            assert(s->synced);
+            ret = mirror_do_flush(s, &action);
+            if (ret < 0 && action == BDRV_ACTION_REPORT) {
+                break;
+            }
         }
 
         should_complete =
@@ -176,7 +230,8 @@ static void coroutine_fn mirror_run(void *opaque)
         ret = 0;
         cnt = bdrv_get_dirty_count(bs);
         if (synced) {
-            if (!should_complete) {
+            /* Do not sleep if the guest is waiting for us to sync & flush.  */
+            if (!should_complete && s->flush_request <= writes_mirrored) {
                 delay_ns = (cnt == 0 ? SLICE_TIME : 0);
                 block_job_sleep_ns(&s->common, rt_clock, delay_ns);
                 continue;
@@ -219,6 +274,11 @@ immediate_exit:
         bdrv_close(s->target);
     }
     bdrv_delete(s->target);
+
+    s->flush_error = 0;
+    s->writes_flushed = ~0;
+    qemu_co_queue_restart_all(&s->flush_queue);
+
     block_job_completed(&s->common, ret);
 }
 
@@ -233,10 +293,51 @@ static void mirror_set_speed(BlockJob *job, int64_t speed, Error **errp)
     ratelimit_set_speed(&s->limit, speed / BDRV_SECTOR_SIZE, SLICE_TIME);
 }
 
+static int mirror_flush(BlockJob *job)
+{
+    MirrorBlockJob *s = container_of(job, MirrorBlockJob, common);
+    uint64_t writes_completed = job->bs->writes_completed;
+    int ret;
+
+    if (!s->synced || job->paused) {
+        return 0;
+    }
+
+    /* If we are in the second phase, wait until the job coroutine
+     * has ensured that data reached the disk too.  Request it to
+     * flush if no one else has done it yet.
+     */
+    while (s->flush_error == 0 && s->writes_flushed < writes_completed) {
+        /* If a flush request is pending, and it is for a previous
+         * generation than writes_completed, it could complete before
+         * us.  Leave it untouched and reassess the situation after
+         * it is complete.
+         *
+         * If a flush request is pending, and it is for a later
+         * generation than writes_completed, our request could complete
+         * before it, so override it.
+         */
+        if (s->flush_request <= s->writes_flushed ||
+            s->flush_request >= writes_completed) {
+            s->flush_request = writes_completed;
+        }
+        if (s->common.busy) {
+            qemu_co_queue_wait(&s->flush_queue);
+        } else {
+            block_job_resume(&s->common);
+        }
+    }
+    return s->flush_error;
+}
+
 static void mirror_iostatus_reset(BlockJob *job)
 {
     MirrorBlockJob *s = container_of(job, MirrorBlockJob, common);
 
+    if (s->flush_error != 0) {
+        s->flush_error = 0;
+        s->writes_flushed = 0;
+    }
     bdrv_iostatus_reset(s->target);
 }
 
@@ -278,6 +379,7 @@ static BlockJobType mirror_job_type = {
     .iostatus_reset= mirror_iostatus_reset,
     .query         = mirror_query,
     .complete      = mirror_complete,
+    .flush         = mirror_flush,
 };
 
 void mirror_start(BlockDriverState *bs, BlockDriverState *target,
@@ -294,6 +396,7 @@ void mirror_start(BlockDriverState *bs, BlockDriverState *target,
         return;
     }
 
+    qemu_co_queue_init(&s->flush_queue);
     s->on_source_error = on_source_error;
     s->on_target_error = on_target_error;
     s->target = target;

@@ -902,6 +902,7 @@ void bdrv_close(BlockDriverState *bs)
         bs->valid_key = 0;
         bs->sg = 0;
         bs->growable = 0;
+        bs->writes_completed = 0;
 
         if (bs->file != NULL) {
             bdrv_delete(bs->file);
@@ -2017,12 +2018,13 @@ static int coroutine_fn bdrv_co_do_writev(BlockDriverState *bs,
         ret = drv->bdrv_co_writev(bs, sector_num, nb_sectors, qiov);
     }
 
-    if (ret == 0 && !bs->enable_write_cache) {
-        ret = bdrv_co_flush(bs);
-    }
-
+    bs->writes_completed++;
     if (bs->dirty_bitmap) {
         bdrv_set_dirty(bs, sector_num, nb_sectors);
+    }
+
+    if (ret == 0 && !bs->enable_write_cache) {
+        ret = bdrv_co_flush(bs);
     }
 
     if (bs->wr_highest_sector < sector_num + nb_sectors - 1) {
