@@ -3768,9 +3768,18 @@ static int coroutine_fn bdrv_co_writev_em(BlockDriverState *bs,
 
 static void coroutine_fn bdrv_flush_co_entry(void *opaque)
 {
+    BlockDriverState *bs = rwco->bs;
     RwCo *rwco = opaque;
+    int ret = 0;
 
-    rwco->ret = bdrv_co_flush(rwco->bs);
+    if (bs->job) {
+        ret = block_job_flush(bs->job);
+    }
+    if (ret == 0) {
+        ret = bdrv_co_flush(rwco->bs);
+    }
+
+    rwco->ret = ret;
 }
 
 int coroutine_fn bdrv_co_flush(BlockDriverState *bs)

@@ -230,6 +230,15 @@ void block_job_resume(BlockJob *job);
 bool block_job_is_paused(BlockJob *job);
 
 /**
+ * block_job_flush:
+ * @job: The job being queried.
+ *
+ * Flush to disk all I/O from the job on BlockDriverState objects used
+ * by @job, other than job->bs.
+ */
+bool block_job_flush(BlockJob *job);
+
+/**
  * block_job_cancel_sync:
  * @job: The job to be canceled.
  *

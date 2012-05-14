@@ -146,6 +146,13 @@ void block_job_iostatus_reset(BlockJob *job)
     }
 }
 
+int block_job_flush(BlockJob *job)
+{
+    if (job->job_type->flush) {
+        job->job_type->flush(job);
+    }
+}
+
 struct BlockCancelData {
     BlockJob *job;
     BlockDriverCompletionFunc *cb;
