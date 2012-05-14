@@ -31,12 +31,26 @@ typedef struct MirrorBlockJob {
     BlockJob common;
     RateLimit limit;
     BlockDriverState *target;
+    BlockdevOnError on_source_error, on_target_error;
     bool full;
+    bool synced;
 } MirrorBlockJob;
+
+static int coroutine_fn mirror_error_action(MirrorBlockJob *s, int on_source,
+                                            int error)
+{
+    if (on_source) {
+        return block_job_error_action(&s->common, source,
+                                      s->on_source_error, true, error);
+    } else {
+        return block_job_error_action(&s->common, target,
+                                      s->on_target_error, false, error);
+    }
+}
 
 static int coroutine_fn mirror_populate(MirrorBlockJob *s,
                                         int64_t sector_num, int nb_sectors,
-                                        void *buf)
+                                        void *buf, BlockErrorAction *p_action)
 {
     BlockDriverState *source = s->common.bs;
     BlockDriverState *target = s->target;
@@ -52,9 +66,16 @@ static int coroutine_fn mirror_populate(MirrorBlockJob *s,
     /* Copy the dirty cluster.  */
     ret = bdrv_co_readv(source, sector_num, nb_sectors, &qiov);
     if (ret < 0) {
+        *p_action = mirror_error_action(&s->common, true, -ret);
         return ret;
     }
-    return bdrv_co_writev(target, sector_num, nb_sectors, &qiov);
+    ret = bdrv_co_writev(target, sector_num, nb_sectors, &qiov);
+    if (ret < 0) {
+        *p_action = mirror_error_action(&s->common, false, -ret);
+        s->synced = false;
+        return ret;
+    }
+    return 0;
 }
 
 static void coroutine_fn mirror_run(void *opaque)
@@ -65,7 +86,6 @@ static void coroutine_fn mirror_run(void *opaque)
     int64_t sector_num, end;
     int ret = 0;
     int n;
-    bool synced = false;
     void *buf;
 
     if (block_job_is_cancelled(&s->common)) {
@@ -110,13 +130,20 @@ static void coroutine_fn mirror_run(void *opaque)
 
         if (bdrv_get_dirty_count(bs) != 0) {
             int nb_sectors;
+            BlockErrorAction action = BDRV_ACTION_REPORT;
+
             sector_num = bdrv_get_next_dirty(bs, sector_num);
             nb_sectors = MIN(BDRV_SECTORS_PER_DIRTY_CHUNK, end - sector_num);
             trace_mirror_one_iteration(s, sector_num);
             bdrv_reset_dirty(bs, sector_num, BDRV_SECTORS_PER_DIRTY_CHUNK);
-            ret = mirror_populate(s, sector_num, nb_sectors, buf);
+            ret = mirror_populate(s, sector_num, nb_sectors, buf, &action);
             if (ret < 0) {
-                break;
+                if (action == BDRV_ACTION_REPORT) {
+                    break;
+                }
+
+                /* Try again later.  */
+                bdrv_set_dirty(bs, sector_num, BDRV_SECTORS_PER_DIRTY_CHUNK);
             }
         }
 
@@ -126,11 +153,11 @@ static void coroutine_fn mirror_run(void *opaque)
              * I/O and report completion, so that drive-reopen can be
              * used to pivot to the mirroring target.
              */
-            synced = true;
+            s->synced = true;
             s->common.offset = end * BDRV_SECTOR_SIZE;
         }
 
-        should_complete = synced && block_job_is_cancelled(&s->common);
+        should_complete = s->synced && block_job_is_cancelled(&s->common);
         if (should_complete) {
             /* The dirty bitmap is not updated while operations are pending.
              * If we're about to exit, wait for pending operations before
@@ -198,6 +225,13 @@ static void mirror_set_speed(BlockJob *job, int64_t speed, Error **errp)
     ratelimit_set_speed(&s->limit, speed / BDRV_SECTOR_SIZE, SLICE_TIME);
 }
 
+static void mirror_iostatus_reset(BlockJob *job)
+{
+    MirrorBlockJob *s = container_of(job, MirrorBlockJob, common);
+
+    bdrv_iostatus_reset(s->target);
+}
+
 static void mirror_query(BlockJob *job, BlockJobInfo *info)
 {
     MirrorBlockJob *s = container_of(job, MirrorBlockJob, common);
@@ -212,11 +246,14 @@ static BlockJobType mirror_job_type = {
     .instance_size = sizeof(MirrorBlockJob),
     .job_type      = "mirror",
     .set_speed     = mirror_set_speed,
+    .iostatus_reset= mirror_iostatus_reset,
     .query         = mirror_query,
 };
 
 void mirror_start(BlockDriverState *bs, BlockDriverState *target,
                   int64_t speed, bool full,
+                  BlockdevOnError on_source_error,
+                  BlockdevOnError on_target_error,
                   BlockDriverCompletionFunc *cb,
                   void *opaque, Error **errp)
 {
@@ -227,6 +264,8 @@ void mirror_start(BlockDriverState *bs, BlockDriverState *target,
         return;
     }
 
+    s->on_source_error = on_source_error;
+    s->on_target_error = on_target_error;
     s->target = target;
     s->full = full;
     bdrv_set_dirty_tracking(bs, true);

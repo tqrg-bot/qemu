@@ -1348,7 +1348,9 @@
 ##
 { 'command': 'drive-mirror',
   'data': { 'device': 'str', 'target': 'str', '*format': 'str',
-            'full': 'bool', '*mode': 'NewImageMode', '*speed': 'int' } }
+            'full': 'bool', '*mode': 'NewImageMode', '*speed': 'int',
+            '*on-source-error': 'BlockdevOnError',
+            '*on-target-error': 'BlockdevOnError' } }
 
 ##
 # @migrate_cancel

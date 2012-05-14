@@ -837,7 +837,10 @@ exit:
 void qmp_drive_mirror(const char *device, const char *target,
                       bool has_format, const char *format, bool full,
                       bool has_mode, enum NewImageMode mode,
-                      bool has_speed, int64_t speed, Error **errp)
+                      bool has_speed, int64_t speed,
+                      bool has_on_source_error, BlockdevOnError on_source_error,
+                      bool has_on_target_error, BlockdevOnError on_target_error,
+                      Error **errp)
 {
     BlockDriverState *bs;
     BlockDriverState *source, *target_bs;
@@ -847,6 +850,12 @@ void qmp_drive_mirror(const char *device, const char *target,
     uint64_t size;
     int ret;
 
+    if (!has_on_source_error) {
+        on_source_error = BLOCKDEV_ON_ERROR_REPORT;
+    }
+    if (!has_on_target_error) {
+        on_target_error = BLOCKDEV_ON_ERROR_REPORT;
+    }
     if (!has_mode) {
         mode = NEW_IMAGE_MODE_ABSOLUTE_PATHS;
     }
@@ -929,7 +938,8 @@ void qmp_drive_mirror(const char *device, const char *target,
         return;
     }
 
-    mirror_start(bs, target_bs, speed, full, block_job_cb, bs, errp);
+    mirror_start(bs, target_bs, speed, full, on_source_error, on_target_error,
+                 block_job_cb, bs, errp);
     if (error_is_set(&local_err)) {
         error_propagate(errp, local_err);
         return;
