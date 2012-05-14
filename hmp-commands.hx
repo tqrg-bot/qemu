@@ -112,6 +112,34 @@ Stop an active block streaming operation.
 ETEXI
 
     {
+        .name       = "block_job_pause",
+        .args_type  = "device:B",
+        .params     = "device",
+        .help       = "pause an active background block operation",
+        .mhandler.cmd = hmp_block_job_pause,
+    },
+
+STEXI
+@item block_job_pause
+@findex block_job_pause
+Pause an active block streaming operation.
+ETEXI
+
+    {
+        .name       = "block_job_resume",
+        .args_type  = "device:B",
+        .params     = "device",
+        .help       = "resume a paused background block operation",
+        .mhandler.cmd = hmp_block_job_resume,
+    },
+
+STEXI
+@item block_job_resume
+@findex block_job_resume
+Resume a paused block streaming operation.
+ETEXI
+
+    {
         .name       = "eject",
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",
