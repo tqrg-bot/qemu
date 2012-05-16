@@ -538,7 +538,7 @@ static int virtio_blk_load(QEMUFile *f, void *opaque, int version_id)
     if (version_id != 2)
         return -EINVAL;
 
-    ret = virtio_load(&s->vdev, f);
+    ret = virtio_load_allow_features(&s->vdev, f, VIRTIO_BLK_F_SCSI);
     if (ret) {
         return ret;
     }
