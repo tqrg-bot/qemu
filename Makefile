@@ -44,16 +44,11 @@ tools-$(CONFIG_VIRTFS) += fsdev/virtfs-proxy-helper$(EXESUF)
 tools-$(CONFIG_POSIX) += qemu-nbd$(EXESUF)
 tools-$(CONFIG_GUEST_AGENT) += qemu-ga$(EXESUF)
 helpers-$(CONFIG_LINUX) = qemu-bridge-helper$(EXESUF)
+docs-y += qemu.1 qemu-img.1 qemu-nbd.8 QMP/qmp-commands.txt
+docs-$(CONFIG_VIRTFS) += fsdev/virtfs-proxy-helper.1
 endif
 
-ifdef BUILD_DOCS
-DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1 qemu-nbd.8 QMP/qmp-commands.txt
-ifdef CONFIG_VIRTFS
-DOCS+=fsdev/virtfs-proxy-helper.1
-endif
-else
-DOCS=
-endif
+docs-y += qemu-doc.html qemu-tech.html
 
 SUBDIR_MAKEFLAGS=$(if $(V),,--no-print-directory) BUILD_DIR=$(BUILD_DIR)
 SUBDIR_DEVICES_MAK=$(patsubst %, %/config-devices.mak, $(TARGET_DIRS))
@@ -89,7 +84,12 @@ defconfig:
 
 -include config-all-devices.mak
 
-build-all: $(DOCS) $(tools-y) $(helpers-y) recurse-all
+build-all: $(tools-y) $(helpers-y) recurse-all
+
+ifdef BUILD_DOCS
+build-all: $(docs-y)
+install: install-doc
+endif
 
 config-host.h: config-host.h-timestamp
 config-host.h-timestamp: config-host.mak
@@ -241,7 +241,8 @@ clean:
         done
 
 distclean: clean
-	rm -f config-host.mak config-host.h* config-host.ld $(DOCS) qemu-options.texi qemu-img-cmds.texi qemu-monitor.texi
+	rm -f config-host.mak config-host.h* config-host.ld $(docs-y)
+	rm -f qemu-options.texi qemu-img-cmds.texi qemu-monitor.texi
 	rm -f config-all-devices.mak
 	rm -f roms/seabios/config.mak roms/vgabios/config.mak
 	rm -f qemu-doc.info qemu-doc.aux qemu-doc.cp qemu-doc.cps qemu-doc.dvi
@@ -276,7 +277,7 @@ else
 BLOBS=
 endif
 
-install-doc: $(DOCS)
+install-doc: $(docs-y)
 	$(INSTALL_DIR) "$(DESTDIR)$(qemu_docdir)"
 	$(INSTALL_DATA) qemu-doc.html  qemu-tech.html "$(DESTDIR)$(qemu_docdir)"
 	$(INSTALL_DATA) QMP/qmp-commands.txt "$(DESTDIR)$(qemu_docdir)"
@@ -301,7 +302,7 @@ install-sysconfig: install-datadir install-confdir
 	$(INSTALL_DATA) $(SRC_PATH)/sysconfigs/target/target-x86_64.conf "$(DESTDIR)$(qemu_confdir)"
 	$(INSTALL_DATA) $(SRC_PATH)/sysconfigs/target/cpus-x86_64.conf "$(DESTDIR)$(qemu_datadir)"
 
-install: all $(if $(BUILD_DOCS),install-doc) install-sysconfig install-datadir
+install: all install-sysconfig install-datadir
 	$(INSTALL_DIR) "$(DESTDIR)$(bindir)"
 ifneq ($(tools-y),)
 	$(INSTALL_PROG) $(STRIP_OPT) $(tools-y) "$(DESTDIR)$(bindir)"
