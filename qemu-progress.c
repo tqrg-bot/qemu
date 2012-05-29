@@ -24,7 +24,6 @@
 
 #include "qemu-common.h"
 #include "osdep.h"
-#include "sysemu.h"
 #include <stdio.h>
 
 struct progress_state {
