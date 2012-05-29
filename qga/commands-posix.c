@@ -16,7 +16,7 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include "qga/guest-agent-core.h"
-#include "qga-qmp-commands.h"
+#include "qga/qmp-commands.h"
 #include "qerror.h"
 #include "qemu-queue.h"
 #include "host-utils.h"

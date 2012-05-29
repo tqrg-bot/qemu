@@ -12,7 +12,7 @@
 
 #include <glib.h>
 #include "qga/guest-agent-core.h"
-#include "qga-qmp-commands.h"
+#include "qga/qmp-commands.h"
 #include "qerror.h"
 
 /* Note: in some situations, like with the fsfreeze, logging may be

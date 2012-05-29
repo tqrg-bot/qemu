@@ -15,7 +15,7 @@
 #include <wtypes.h>
 #include <powrprof.h>
 #include "qga/guest-agent-core.h"
-#include "qga-qmp-commands.h"
+#include "qga/qmp-commands.h"
 #include "qerror.h"
 
 #ifndef SHTDN_REASON_FLAG_PLANNED

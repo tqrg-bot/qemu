@@ -212,7 +212,8 @@ common-obj-$(CONFIG_SMARTCARD_NSS) += $(libcacard-y)
 
 qapi-obj-y = qapi/
 
-common-obj-y += qmp-marshal.o qapi-visit.o qapi-types.o
+common-obj-y += qapi-generated/qmp-marshal.o qapi-generated/qapi-visit.o
+common-obj-y += qapi-generated/qapi-types.o
 common-obj-y += qmp.o hmp.o
 
 universal-obj-y += $(qapi-obj-y)

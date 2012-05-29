@@ -22,8 +22,7 @@ GENERATED_HEADERS = config-host.h trace.h qemu-options.def
 ifeq ($(TRACE_BACKEND),dtrace)
 GENERATED_HEADERS += trace-dtrace.h
 endif
-GENERATED_HEADERS += qmp-commands.h qapi-types.h qapi-visit.h
-GENERATED_SOURCES += qmp-marshal.c qapi-types.c qapi-visit.c trace.c
+GENERATED_SOURCES += trace.c
 
 # Don't try to regenerate Makefile or configure
 # We don't generate any of them
@@ -124,6 +123,8 @@ audio/audio.o audio/fmodaudio.o: QEMU_CFLAGS += $(FMOD_CFLAGS)
 QEMU_CFLAGS+=$(CURL_CFLAGS)
 
 QEMU_CFLAGS += -I$(SRC_PATH)/include
+qemu-img.o qemu-io.o $(block-obj-y) $(common-obj-y): \
+	QEMU_CFLAGS += -Iqapi-generated
 
 ui/cocoa.o: ui/cocoa.m
 
@@ -180,40 +181,31 @@ qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -h < $< > $@,"  GEN   $@")
 
 qemu-ga$(EXESUF): LIBS = $(LIBS_QGA)
-qemu-ga$(EXESUF): QEMU_CFLAGS += -I qapi-generated
+qemu-ga$(EXESUF): QEMU_CFLAGS += -Iqga
 
 gen-out-type = $(subst .,-,$(suffix $@))
+
+define qapi-rules
+$1qapi-types.c $1qapi-types.h: $2 $(SRC_PATH)/scripts/qapi-types.py
+	$$(call quiet-command,$$(PYTHON) $$(SRC_PATH)/scripts/qapi-types.py $$(gen-out-type) -o "$(dir $1)" -p "$(notdir $1)" < $$<, "  GEN   $$@")
+$1qapi-visit.c $1qapi-visit.h: $2 $(SRC_PATH)/scripts/qapi-visit.py
+	$$(call quiet-command,$$(PYTHON) $$(SRC_PATH)/scripts/qapi-visit.py $$(gen-out-type) -o "$(dir $1)" -p "$(notdir $1)" < $$<, "  GEN   $$@")
+$1qmp-commands.h $1qmp-marshal.c: $2 $(SRC_PATH)/scripts/qapi-commands.py
+	$$(call quiet-command,$$(PYTHON) $$(SRC_PATH)/scripts/qapi-commands.py $$(gen-out-type) $3 -o "$(dir $1)" -p "$(notdir $1)" < $$<, "  GEN   $$@")
+
+GENERATED_HEADERS += $1qapi-types.h $1qapi-visit.h $1qmp-commands.h
+GENERATED_SOURCES += $1qmp-marshal.c $1qapi-types.c $1qapi-visit.c
+$1qapi-types.o $1qapi-visit.o $1qmp-marshal.o: \
+	$1qapi-types.h $1qapi-visit.h $1qmp-commands.h
+endef
+
+$(eval $(call qapi-rules,qga/,$(SRC_PATH)/qapi-schema-guest.json))
+$(eval $(call qapi-rules,qapi-generated/,$(SRC_PATH)/qapi-schema.json, -m))
+qemu-ga$(EXESUF): qemu-ga.o $(qga-obj-y) $(tools-obj-y) $(qapi-obj-y) $(qobject-obj-y) $(version-obj-y)
 
 ifneq ($(wildcard config-host.mak),)
 include $(SRC_PATH)/tests/Makefile
 endif
-
-qapi-generated/qga-qapi-types.c qapi-generated/qga-qapi-types.h :\
-$(SRC_PATH)/qapi-schema-guest.json $(SRC_PATH)/scripts/qapi-types.py
-	$(call quiet-command,$(PYTHON) $(SRC_PATH)/scripts/qapi-types.py $(gen-out-type) -o qapi-generated -p "qga-" < $<, "  GEN   $@")
-qapi-generated/qga-qapi-visit.c qapi-generated/qga-qapi-visit.h :\
-$(SRC_PATH)/qapi-schema-guest.json $(SRC_PATH)/scripts/qapi-visit.py
-	$(call quiet-command,$(PYTHON) $(SRC_PATH)/scripts/qapi-visit.py $(gen-out-type) -o qapi-generated -p "qga-" < $<, "  GEN   $@")
-qapi-generated/qga-qmp-commands.h qapi-generated/qga-qmp-marshal.c :\
-$(SRC_PATH)/qapi-schema-guest.json $(SRC_PATH)/scripts/qapi-commands.py
-	$(call quiet-command,$(PYTHON) $(SRC_PATH)/scripts/qapi-commands.py $(gen-out-type) -o qapi-generated -p "qga-" < $<, "  GEN   $@")
-
-qapi-types.c qapi-types.h :\
-$(SRC_PATH)/qapi-schema.json $(SRC_PATH)/scripts/qapi-types.py
-	$(call quiet-command,$(PYTHON) $(SRC_PATH)/scripts/qapi-types.py $(gen-out-type) -o "." < $<, "  GEN   $@")
-qapi-visit.c qapi-visit.h :\
-$(SRC_PATH)/qapi-schema.json $(SRC_PATH)/scripts/qapi-visit.py
-	$(call quiet-command,$(PYTHON) $(SRC_PATH)/scripts/qapi-visit.py $(gen-out-type) -o "."  < $<, "  GEN   $@")
-qmp-commands.h qmp-marshal.c :\
-$(SRC_PATH)/qapi-schema.json $(SRC_PATH)/scripts/qapi-commands.py
-	$(call quiet-command,$(PYTHON) $(SRC_PATH)/scripts/qapi-commands.py $(gen-out-type) -m -o "." < $<, "  GEN   $@")
-
-QGALIB_OBJ=$(addprefix qapi-generated/, qga-qapi-types.o qga-qapi-visit.o qga-qmp-marshal.o)
-QGALIB_GEN=$(addprefix qapi-generated/, qga-qapi-types.h qga-qapi-visit.h qga-qmp-commands.h)
-$(QGALIB_OBJ): $(QGALIB_GEN)
-$(qga-obj-y) qemu-ga.o: $(QGALIB_GEN)
-
-qemu-ga$(EXESUF): qemu-ga.o $(qga-obj-y) $(tools-obj-y) $(qapi-obj-y) $(qobject-obj-y) $(version-obj-y)
 
 QEMULIBS=libhw32 libhw64 libuser libdis libdis-user
 

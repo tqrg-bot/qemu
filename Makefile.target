@@ -121,6 +121,8 @@ CONFIG_NO_XEN = $(if $(subst n,,$(CONFIG_XEN)),n,y)
 CONFIG_NO_GET_MEMORY_MAPPING = $(if $(subst n,,$(CONFIG_HAVE_GET_MEMORY_MAPPING)),n,y)
 CONFIG_NO_CORE_DUMP = $(if $(subst n,,$(CONFIG_HAVE_CORE_DUMP)),n,y)
 
+QEMU_CFLAGS+=-I../qapi-generated
+
 obj-y += arch_init.o cpus.o monitor.o gdbstub.o balloon.o ioport.o
 obj-y += hw/
 obj-$(CONFIG_KVM) += kvm-all.o
