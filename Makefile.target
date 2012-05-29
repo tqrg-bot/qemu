@@ -95,6 +95,8 @@ ifdef CONFIG_LINUX_USER
 
 QEMU_CFLAGS+=-I$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR) -I$(SRC_PATH)/linux-user
 
+main.o: QEMU_CFLAGS+=$(GPROF_CFLAGS)
+
 obj-y += linux-user/
 obj-y += gdbstub.o thunk.o user-exec.o $(oslib-obj-y)
 
@@ -134,11 +136,6 @@ obj-$(CONFIG_NO_GET_MEMORY_MAPPING) += memory_mapping-stub.o
 obj-$(CONFIG_NO_CORE_DUMP) += dump-stub.o
 LIBS+=-lz
 
-QEMU_CFLAGS += $(VNC_TLS_CFLAGS)
-QEMU_CFLAGS += $(VNC_SASL_CFLAGS)
-QEMU_CFLAGS += $(VNC_JPEG_CFLAGS)
-QEMU_CFLAGS += $(VNC_PNG_CFLAGS)
-
 # xen support
 obj-$(CONFIG_XEN) += xen-all.o xen-mapcache.o
 obj-$(CONFIG_NO_XEN) += xen-stub.o
@@ -149,8 +146,6 @@ obj-y += hw/sparc64/
 else
 obj-y += hw/$(TARGET_BASE_ARCH)/
 endif
-
-main.o: QEMU_CFLAGS+=$(GPROF_CFLAGS)
 
 GENERATED_HEADERS += hmp-commands.h qmp-commands-old.h
 
