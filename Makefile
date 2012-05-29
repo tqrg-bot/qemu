@@ -102,8 +102,6 @@ ifneq ($(wildcard config-host.mak),)
 include $(SRC_PATH)/Makefile.objs
 endif
 
-subdir-libcacard: $(oslib-obj-y) $(trace-obj-y) qemu-timer-common.o
-
 $(filter %-softmmu,$(SUBDIR_RULES)): $(universal-obj-y) $(trace-obj-y) $(common-obj-y) $(extra-obj-y) subdir-libdis
 
 $(filter %-user,$(SUBDIR_RULES)): $(universal-obj-y) $(trace-obj-y) subdir-libdis-user subdir-libuser
@@ -112,9 +110,11 @@ ROMSUBDIR_RULES=$(patsubst %,romsubdir-%, $(ROMS))
 romsubdir-%:
 	$(call quiet-command,$(MAKE) $(SUBDIR_MAKEFLAGS) -C pc-bios/$* V="$(V)" TARGET_DIR="$*/",)
 
-ALL_SUBDIRS=$(TARGET_DIRS) $(patsubst %,pc-bios/%, $(ROMS))
+QEMULIBS=libhw32 libhw64 libuser libdis libdis-user
+ALL_SUBDIRS=$(TARGET_DIRS) $(patsubst %,pc-bios/%, $(ROMS)) \
+	$(QEMULIBS) libcacard tests/tcg
 
-recurse-all: $(SUBDIR_RULES) $(ROMSUBDIR_RULES)
+recurse-all: $(SUBDIR_RULES) $(ROMSUBDIR_RULES) subdir-libcacard
 
 %.def: %.hx
 	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -h < $< > $@,"  GEN   $@")
@@ -207,8 +207,6 @@ ifneq ($(wildcard config-host.mak),)
 include $(SRC_PATH)/tests/Makefile
 endif
 
-QEMULIBS=libhw32 libhw64 libuser libdis libdis-user
-
 clean:
 	rm -f $(addsuffix *.o, $(sort $(dir $(common-obj-y))))
 	rm -f $(addsuffix *.d, $(sort $(dir $(common-obj-y))))
@@ -227,8 +225,7 @@ clean:
 	rm -f $(foreach f,$(GENERATED_HEADERS),$(f) $(f)-timestamp)
 	rm -f $(foreach f,$(GENERATED_SOURCES),$(f) $(f)-timestamp)
 	rm -rf qapi-generated
-	$(MAKE) -C tests/tcg clean
-	for d in $(ALL_SUBDIRS) $(QEMULIBS) libcacard; do \
+	for d in $(ALL_SUBDIRS); do \
 	if test -d $$d; then $(MAKE) -C $$d $@ || exit 1; fi; \
         done
 
