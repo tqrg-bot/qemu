@@ -3463,10 +3463,7 @@ if test -f ${config_host_ld}~ ; then
   fi
 fi
 
-for d in libdis libdis-user; do
-    symlink "$source_path/Makefile.dis" "$d/Makefile"
-    echo > $d/config.mak
-done
+symlink "$source_path/Makefile.dis" "libdis/Makefile"
 
 # use included Linux headers
 if test "$linux" = "yes" ; then
@@ -3811,79 +3808,73 @@ if test "$linux" = "yes" ; then
   includes="-I\$(SRC_PATH)/linux-headers $includes"
 fi
 
-if test "$target_user_only" = "yes" ; then
-    libdis_config_mak=libdis-user/config.mak
-else
-    libdis_config_mak=libdis/config.mak
-fi
-
 for i in $ARCH $TARGET_BASE_ARCH ; do
   case "$i" in
   alpha)
     echo "CONFIG_ALPHA_DIS=y"  >> $config_target_mak
-    echo "CONFIG_ALPHA_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_ALPHA_DIS=y"  >> libdis/config.mak
   ;;
   arm)
     echo "CONFIG_ARM_DIS=y"  >> $config_target_mak
-    echo "CONFIG_ARM_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_ARM_DIS=y"  >> libdis/config.mak
   ;;
   cris)
     echo "CONFIG_CRIS_DIS=y"  >> $config_target_mak
-    echo "CONFIG_CRIS_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_CRIS_DIS=y"  >> libdis/config.mak
   ;;
   hppa)
     echo "CONFIG_HPPA_DIS=y"  >> $config_target_mak
-    echo "CONFIG_HPPA_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_HPPA_DIS=y"  >> libdis/config.mak
   ;;
   i386|x86_64)
     echo "CONFIG_I386_DIS=y"  >> $config_target_mak
-    echo "CONFIG_I386_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_I386_DIS=y"  >> libdis/config.mak
   ;;
   ia64*)
     echo "CONFIG_IA64_DIS=y"  >> $config_target_mak
-    echo "CONFIG_IA64_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_IA64_DIS=y"  >> libdis/config.mak
   ;;
   lm32)
     echo "CONFIG_LM32_DIS=y"  >> $config_target_mak
-    echo "CONFIG_LM32_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_LM32_DIS=y"  >> libdis/config.mak
   ;;
   m68k)
     echo "CONFIG_M68K_DIS=y"  >> $config_target_mak
-    echo "CONFIG_M68K_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_M68K_DIS=y"  >> libdis/config.mak
   ;;
   microblaze*)
     echo "CONFIG_MICROBLAZE_DIS=y"  >> $config_target_mak
-    echo "CONFIG_MICROBLAZE_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_MICROBLAZE_DIS=y"  >> libdis/config.mak
   ;;
   mips*)
     echo "CONFIG_MIPS_DIS=y"  >> $config_target_mak
-    echo "CONFIG_MIPS_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_MIPS_DIS=y"  >> libdis/config.mak
   ;;
   ppc*)
     echo "CONFIG_PPC_DIS=y"  >> $config_target_mak
-    echo "CONFIG_PPC_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_PPC_DIS=y"  >> libdis/config.mak
   ;;
   s390*)
     echo "CONFIG_S390_DIS=y"  >> $config_target_mak
-    echo "CONFIG_S390_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_S390_DIS=y"  >> libdis/config.mak
   ;;
   sh4)
     echo "CONFIG_SH4_DIS=y"  >> $config_target_mak
-    echo "CONFIG_SH4_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_SH4_DIS=y"  >> libdis/config.mak
   ;;
   sparc*)
     echo "CONFIG_SPARC_DIS=y"  >> $config_target_mak
-    echo "CONFIG_SPARC_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_SPARC_DIS=y"  >> libdis/config.mak
   ;;
   xtensa*)
     echo "CONFIG_XTENSA_DIS=y"  >> $config_target_mak
-    echo "CONFIG_XTENSA_DIS=y"  >> $libdis_config_mak
+    echo "CONFIG_XTENSA_DIS=y"  >> libdis/config.mak
   ;;
   esac
 done
 if test "$tcg_interpreter" = "yes" ; then
   echo "CONFIG_TCI_DIS=y"  >> $config_target_mak
-  echo "CONFIG_TCI_DIS=y"  >> $libdis_config_mak
+  echo "CONFIG_TCI_DIS=y"  >> libdis/config.mak
 fi
 
 case "$ARCH" in

@@ -158,15 +158,14 @@ include $(SRC_PATH)/Makefile.objs
 
 all-obj-y = $(obj-y)
 all-obj-y += $(addprefix ../, $(universal-obj-y))
+all-obj-y += $(addprefix ../libdis/, $(libdis-y))
 
 ifdef CONFIG_SOFTMMU
 all-obj-y += $(addprefix ../, $(common-obj-y))
-all-obj-y += $(addprefix ../libdis/, $(libdis-y))
 all-obj-y += $(addprefix $(HWDIR)/, $(hw-obj-y))
 all-obj-y += $(addprefix ../, $(trace-obj-y))
 else
 all-obj-y += $(addprefix ../libuser/, $(user-obj-y))
-all-obj-y += $(addprefix ../libdis-user/, $(libdis-y))
 endif #CONFIG_LINUX_USER
 
 ifdef QEMU_PROGW
