@@ -43,11 +43,11 @@ tools-$(CONFIG_VIRTFS) += fsdev/virtfs-proxy-helper$(EXESUF)
 tools-$(CONFIG_POSIX) += qemu-nbd$(EXESUF)
 tools-$(CONFIG_GUEST_AGENT) += qemu-ga$(EXESUF)
 helpers-$(CONFIG_LINUX) = qemu-bridge-helper$(EXESUF)
-docs-y += qemu.1 qemu-img.1 qemu-nbd.8 QMP/qmp-commands.txt
+docs-y += qemu.1 qemu-img.1 qemu-nbd.8 docs/qmp-commands.txt
 docs-$(CONFIG_VIRTFS) += fsdev/virtfs-proxy-helper.1
 endif
 
-docs-y += qemu-doc.html qemu-tech.html
+docs-y += qemu.html qemu-tech.html
 
 SUBDIR_MAKEFLAGS=$(if $(V),,--no-print-directory) BUILD_DIR=$(BUILD_DIR)
 SUBDIR_DEVICES_MAK=$(patsubst %, %/config-devices.mak, $(TARGET_DIRS))
@@ -233,13 +233,13 @@ clean:
 
 distclean: clean
 	rm -f config-host.mak config-host.h* config-host.ld $(docs-y)
-	rm -f qemu-options.texi qemu-img-cmds.texi qemu-monitor.texi
+	rm -f qemu-options.texi qemu-img-cmds.texi hmp-commands.texi
 	rm -f config-all-devices.mak
 	rm -f roms/seabios/config.mak roms/vgabios/config.mak
-	rm -f qemu-doc.info qemu-doc.aux qemu-doc.cp qemu-doc.cps qemu-doc.dvi
-	rm -f qemu-doc.fn qemu-doc.fns qemu-doc.info qemu-doc.ky qemu-doc.kys
-	rm -f qemu-doc.log qemu-doc.pdf qemu-doc.pg qemu-doc.toc qemu-doc.tp
-	rm -f qemu-doc.vr
+	rm -f qemu.info qemu.aux qemu.cp qemu.cps qemu.dvi
+	rm -f qemu.fn qemu.fns qemu.info qemu.ky qemu.kys
+	rm -f qemu.log qemu.pdf qemu.pg qemu.toc qemu.tp
+	rm -f qemu.vr
 	rm -f config.log
 	rm -f linux-headers/asm
 	rm -f qemu-tech.info qemu-tech.aux qemu-tech.cp qemu-tech.dvi qemu-tech.fn qemu-tech.info qemu-tech.ky qemu-tech.log qemu-tech.pdf qemu-tech.pg qemu-tech.toc qemu-tech.tp qemu-tech.vr
@@ -270,7 +270,7 @@ endif
 
 install-doc: $(docs-y)
 	$(INSTALL_DIR) "$(DESTDIR)$(qemu_docdir)"
-	$(INSTALL_DATA) qemu-doc.html  qemu-tech.html "$(DESTDIR)$(qemu_docdir)"
+	$(INSTALL_DATA) qemu.html  qemu-tech.html "$(DESTDIR)$(qemu_docdir)"
 	$(INSTALL_DATA) QMP/qmp-commands.txt "$(DESTDIR)$(qemu_docdir)"
 ifdef CONFIG_POSIX
 	$(INSTALL_DIR) "$(DESTDIR)$(mandir)/man1"
@@ -345,50 +345,42 @@ TEXIFLAG=$(if $(V),,--quiet)
 %.pdf: %.texi
 	$(call quiet-command,texi2pdf $(TEXIFLAG) -I . $<,"  GEN   $@")
 
-qemu-options.texi: $(SRC_PATH)/qemu-options.hx
-	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -t < $< > $@,"  GEN   $@")
-
-qemu-monitor.texi: $(SRC_PATH)/hmp-commands.hx
-	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -t < $< > $@,"  GEN   $@")
-
-QMP/qmp-commands.txt: $(SRC_PATH)/qmp-commands.hx
+docs/%.txt: %.hx
 	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -q < $< > $@,"  GEN   $@")
 
-qemu-img-cmds.texi: $(SRC_PATH)/qemu-img-cmds.hx
+%.texi: %.hx
 	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -t < $< > $@,"  GEN   $@")
 
-qemu.1: qemu-doc.texi qemu-options.texi qemu-monitor.texi
+%.1: %.texi
 	$(call quiet-command, \
-	  perl -Ww -- $(SRC_PATH)/scripts/texi2pod.pl $< qemu.pod && \
-	  $(POD2MAN) --section=1 --center=" " --release=" " qemu.pod > $@, \
+	  perl -Ww -- $(SRC_PATH)/scripts/texi2pod.pl $< $*.pod && \
+	  $(POD2MAN) --section=1 --center=" " --release=" " $*.pod > $@, \
 	  "  GEN   $@")
 
+%.8: %.texi
+	$(call quiet-command, \
+	  perl -Ww -- $(SRC_PATH)/scripts/texi2pod.pl $< $*.pod && \
+	  $(POD2MAN) --section=1 --center=" " --release=" " $*.pod > $@, \
+	  "  GEN   $@")
+
+docs/qmp-commands.txt: $(SRC_PATH)/qmp-commands.hx
+qemu-options.texi: $(SRC_PATH)/qemu-options.hx
+hmp-commands.texi: $(SRC_PATH)/hmp-commands.hx
+qemu-img-cmds.texi: $(SRC_PATH)/qemu-img-cmds.hx
+
+qemu.1: qemu.texi qemu-options.texi hmp-commands.texi
 qemu-img.1: qemu-img.texi qemu-img-cmds.texi
-	$(call quiet-command, \
-	  perl -Ww -- $(SRC_PATH)/scripts/texi2pod.pl $< qemu-img.pod && \
-	  $(POD2MAN) --section=1 --center=" " --release=" " qemu-img.pod > $@, \
-	  "  GEN   $@")
-
 fsdev/virtfs-proxy-helper.1: fsdev/virtfs-proxy-helper.texi
-	$(call quiet-command, \
-	  perl -Ww -- $(SRC_PATH)/scripts/texi2pod.pl $< fsdev/virtfs-proxy-helper.pod && \
-	  $(POD2MAN) --section=1 --center=" " --release=" " fsdev/virtfs-proxy-helper.pod > $@, \
-	  "  GEN   $@")
-
 qemu-nbd.8: qemu-nbd.texi
-	$(call quiet-command, \
-	  perl -Ww -- $(SRC_PATH)/scripts/texi2pod.pl $< qemu-nbd.pod && \
-	  $(POD2MAN) --section=8 --center=" " --release=" " qemu-nbd.pod > $@, \
-	  "  GEN   $@")
 
-dvi: qemu-doc.dvi qemu-tech.dvi
-html: qemu-doc.html qemu-tech.html
-info: qemu-doc.info qemu-tech.info
-pdf: qemu-doc.pdf qemu-tech.pdf
+dvi: qemu.dvi qemu-tech.dvi
+html: qemu.html qemu-tech.html
+info: qemu.info qemu-tech.info
+pdf: qemu.pdf qemu-tech.pdf
 
-qemu-doc.dvi qemu-doc.html qemu-doc.info qemu-doc.pdf: \
+qemu.dvi qemu.html qemu.info qemu.pdf: \
 	qemu-img.texi qemu-nbd.texi qemu-options.texi \
-	qemu-monitor.texi qemu-img-cmds.texi
+	hmp-commands.texi qemu-img-cmds.texi
 
 VERSION ?= $(shell cat VERSION)
 FILE = qemu-$(VERSION)

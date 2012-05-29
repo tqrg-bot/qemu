@@ -393,7 +393,7 @@ from a disk file.
 
 The following commands are available:
 
-@include qemu-monitor.texi
+@include hmp-commands.texi
 
 @subsection Integer expressions
 
