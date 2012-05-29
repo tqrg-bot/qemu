@@ -37,7 +37,15 @@ $(call set-vpath, $(SRC_PATH))
 
 LIBS+=-lz $(LIBS_TOOLS)
 
+ifneq ($(filter %-softmmu, $(TARGET_DIRS)),)
+tools-y += qemu-io$(EXESUF) qemu-img$(EXESUF)
+tools-$(CONFIG_SMARTCARD_NSS) += vscclient$(EXESUF)
+tools-$(CONFIG_VIRTFS) += fsdev/virtfs-proxy-helper$(EXESUF)
+tools-$(CONFIG_POSIX) += qemu-nbd$(EXESUF)
+tools-$(CONFIG_GUEST_AGENT) += qemu-ga$(EXESUF)
+
 HELPERS-$(CONFIG_LINUX) = qemu-bridge-helper$(EXESUF)
+endif
 
 ifdef BUILD_DOCS
 DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1 qemu-nbd.8 QMP/qmp-commands.txt
@@ -82,7 +90,7 @@ defconfig:
 
 -include config-all-devices.mak
 
-build-all: $(DOCS) $(TOOLS) $(HELPERS-y) recurse-all
+build-all: $(DOCS) $(tools-y) $(HELPERS-y) recurse-all
 
 config-host.h: config-host.h-timestamp
 config-host.h-timestamp: config-host.mak
@@ -214,7 +222,7 @@ clean:
 # avoid old build problems by removing potentially incorrect old files
 	rm -f config.mak op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
 	rm -f qemu-options.def
-	rm -f *.o *.d *.a *.lo $(TOOLS) $(HELPERS-y) qemu-ga TAGS cscope.* *.pod *~ */*~
+	rm -f *.o *.d *.a *.lo $(tools-y) $(HELPERS-y) qemu-ga TAGS cscope.* *.pod *~ */*~
 	rm -Rf .libs
 	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d block/*.o block/*.d net/*.o net/*.d fsdev/*.o fsdev/*.d ui/*.o ui/*.d qapi/*.o qapi/*.d qga/*.o qga/*.d
 	rm -f qom/*.o qom/*.d
@@ -296,8 +304,8 @@ install-sysconfig: install-datadir install-confdir
 
 install: all $(if $(BUILD_DOCS),install-doc) install-sysconfig install-datadir
 	$(INSTALL_DIR) "$(DESTDIR)$(bindir)"
-ifneq ($(TOOLS),)
-	$(INSTALL_PROG) $(STRIP_OPT) $(TOOLS) "$(DESTDIR)$(bindir)"
+ifneq ($(tools-y),)
+	$(INSTALL_PROG) $(STRIP_OPT) $(tools-y) "$(DESTDIR)$(bindir)"
 endif
 ifneq ($(HELPERS-y),)
 	$(INSTALL_DIR) "$(DESTDIR)$(libexecdir)"

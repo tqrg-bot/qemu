@@ -2929,13 +2929,10 @@ fi
 qemu_confdir=$sysconfdir$confsuffix
 qemu_datadir=$datadir$confsuffix
 
-tools=
 if test "$softmmu" = yes ; then
-  tools="qemu-img\$(EXESUF) qemu-io\$(EXESUF) $tools"
   if test "$virtfs" != no ; then
     if test "$cap" = yes && test "$linux" = yes && test "$attr" = yes ; then
       virtfs=yes
-      tools="$tools fsdev/virtfs-proxy-helper\$(EXESUF)"
     else
       if test "$virtfs" = yes; then
         echo "VirtFS is supported only on Linux and requires libcap-devel and libattr-devel"
@@ -2944,15 +2941,6 @@ if test "$softmmu" = yes ; then
       virtfs=no
     fi
   fi
-  if [ "$linux" = "yes" -o "$bsd" = "yes" -o "$solaris" = "yes" ] ; then
-      tools="qemu-nbd\$(EXESUF) $tools"
-    if [ "$guest_agent" = "yes" ]; then
-      tools="qemu-ga\$(EXESUF) $tools"
-    fi
-  fi
-fi
-if test "$smartcard_nss" = "yes" ; then
-  tools="vscclient\$(EXESUF) $tools"
 fi
 
 # Mac OS X ships with a broken assembler
@@ -3351,6 +3339,9 @@ fi
 if test "$libiscsi" = "yes" ; then
   echo "CONFIG_LIBISCSI=y" >> $config_host_mak
 fi
+if test "$guest_agent" = "yes" ; then
+  echo "CONFIG_GUEST_AGENT=y" >> $config_host_mak
+fi
 
 # XXX: suppress that
 if [ "$bsd" = "yes" ] ; then
@@ -3427,7 +3418,6 @@ if test "$trace_default" = "yes"; then
   echo "CONFIG_TRACE_DEFAULT=y" >> $config_host_mak
 fi
 
-echo "TOOLS=$tools" >> $config_host_mak
 echo "ROMS=$roms" >> $config_host_mak
 echo "MAKE=$make" >> $config_host_mak
 echo "INSTALL=$install" >> $config_host_mak
