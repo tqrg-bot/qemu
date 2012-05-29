@@ -17,4 +17,5 @@ all: $(libdis-y)
 	@true
 
 clean:
-	rm -f *.o *.d *.a *~
+	rm -f $(addsuffix *.o, $(sort $(dir $(libdis-y))))
+	rm -f $(addsuffix *.d, $(sort $(dir $(libdis-y))))

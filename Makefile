@@ -218,16 +218,17 @@ qemu-ga$(EXESUF): qemu-ga.o $(qga-obj-y) $(tools-obj-y) $(qapi-obj-y) $(qobject-
 QEMULIBS=libhw32 libhw64 libuser libdis libdis-user
 
 clean:
-# avoid old build problems by removing potentially incorrect old files
-	rm -f config.mak op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
-	rm -f qemu-options.def
-	rm -f *.o *.d *.a *.lo $(tools-y) $(helpers-y) qemu-ga TAGS cscope.* *.pod *~ */*~
-	rm -Rf .libs
-	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d block/*.o block/*.d net/*.o net/*.d fsdev/*.o fsdev/*.d ui/*.o ui/*.d qapi/*.o qapi/*.d qga/*.o qga/*.d
-	rm -f qom/*.o qom/*.d
-	rm -f usb/*.o usb/*.d hw/*.o hw/*.d
-	rm -f qemu-img-cmds.h
-	rm -f trace/*.o trace/*.d
+	rm -f $(addsuffix *.o, $(sort $(dir $(common-obj-y))))
+	rm -f $(addsuffix *.d, $(sort $(dir $(common-obj-y))))
+	rm -f $(addsuffix *.o, $(sort $(dir $(universal-obj-y))))
+	rm -f $(addsuffix *.d, $(sort $(dir $(universal-obj-y))))
+	rm -f $(addsuffix *.o, $(sort $(dir $(trace-obj-y))))
+	rm -f $(addsuffix *.d, $(sort $(dir $(trace-obj-y))))
+	rm -f $(addsuffix *.o, $(sort $(dir $(qga-obj-y))))
+	rm -f $(addsuffix *.d, $(sort $(dir $(qga-obj-y))))
+	rm -f $(addsuffix *.o, $(sort $(dir $(qapi-obj-y))))
+	rm -f $(addsuffix *.d, $(sort $(dir $(qapi-obj-y))))
+	rm -f qemu-img-cmds.h qemu-options.def
 	rm -f trace-dtrace.dtrace trace-dtrace.dtrace-timestamp
 	@# May not be present in GENERATED_HEADERS
 	rm -f trace-dtrace.h trace-dtrace.h-timestamp
@@ -237,7 +238,6 @@ clean:
 	$(MAKE) -C tests/tcg clean
 	for d in $(ALL_SUBDIRS) $(QEMULIBS) libcacard; do \
 	if test -d $$d; then $(MAKE) -C $$d $@ || exit 1; fi; \
-	rm -f $$d/qemu-options.def; \
         done
 
 distclean: clean
