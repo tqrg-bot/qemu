@@ -57,7 +57,7 @@ static void help(void)
            "Command syntax:\n"
 #define DEF(option, callback, arg_string)        \
            "  " arg_string "\n"
-#include "qemu-img-cmds.h"
+#include "qemu-img-cmds.def"
 #undef DEF
 #undef GEN_DOCS
            "\n"
@@ -1677,7 +1677,7 @@ out:
 static const img_cmd_t img_cmds[] = {
 #define DEF(option, callback, arg_string)        \
     { option, callback },
-#include "qemu-img-cmds.h"
+#include "qemu-img-cmds.def"
 #undef DEF
 #undef GEN_DOCS
     { NULL, NULL, },

@@ -92,8 +92,6 @@ endif
 
 config-host.h: config-host.h-timestamp
 config-host.h-timestamp: config-host.mak
-qemu-options.def: $(SRC_PATH)/qemu-options.hx
-	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -h < $< > $@,"  GEN   $@")
 
 SUBDIR_RULES=$(patsubst %,subdir-%, $(TARGET_DIRS))
 
@@ -118,6 +116,9 @@ ALL_SUBDIRS=$(TARGET_DIRS) $(patsubst %,pc-bios/%, $(ROMS))
 
 recurse-all: $(SUBDIR_RULES) $(ROMSUBDIR_RULES)
 
+%.def: %.hx
+	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -h < $< > $@,"  GEN   $@")
+
 QEMU_CFLAGS += $(FMOD_CFLAGS)
 QEMU_CFLAGS += $(CURL_CFLAGS)
 QEMU_CFLAGS += $(VNC_TLS_CFLAGS)
@@ -130,6 +131,8 @@ QEMU_CFLAGS += $(SDL_CFLAGS)
 QEMU_CFLAGS += -I$(SRC_PATH)/include
 qemu-img.o qemu-io.o $(block-obj-y) $(common-obj-y): \
 	QEMU_CFLAGS += -Iqapi-generated
+
+qemu-options.def: $(SRC_PATH)/qemu-options.hx
 
 ui/cocoa.o: ui/cocoa.m
 
@@ -160,7 +163,8 @@ vscclient$(EXESUF): $(libcacard-y) $(oslib-obj-y) $(trace-obj-y) qemu-timer-comm
 
 ######################################################################
 
-qemu-img.o: qemu-img-cmds.h
+qemu-img.o: qemu-img-cmds.def
+qemu-img-cmds.def: $(SRC_PATH)/qemu-img-cmds.hx
 
 tools-obj-y = $(oslib-obj-y) $(trace-obj-y) qemu-tool.o qemu-timer.o \
 	qemu-timer-common.o main-loop.o notify.o \
@@ -175,9 +179,6 @@ qemu-bridge-helper$(EXESUF): qemu-bridge-helper.o
 
 fsdev/virtfs-proxy-helper$(EXESUF): fsdev/virtfs-proxy-helper.o fsdev/virtio-9p-marshal.o oslib-posix.o $(trace-obj-y)
 fsdev/virtfs-proxy-helper$(EXESUF): LIBS += -lcap
-
-qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
-	$(call quiet-command,sh $(SRC_PATH)/scripts/hxtool -h < $< > $@,"  GEN   $@")
 
 qemu-ga$(EXESUF): LIBS = $(LIBS_QGA)
 qemu-ga$(EXESUF): QEMU_CFLAGS += -Iqga
@@ -219,7 +220,7 @@ clean:
 	rm -f $(addsuffix *.d, $(sort $(dir $(qga-obj-y))))
 	rm -f $(addsuffix *.o, $(sort $(dir $(qapi-obj-y))))
 	rm -f $(addsuffix *.d, $(sort $(dir $(qapi-obj-y))))
-	rm -f qemu-img-cmds.h qemu-options.def
+	rm -f qemu-img-cmds.def qemu-options.def
 	rm -f trace-dtrace.dtrace trace-dtrace.dtrace-timestamp
 	@# May not be present in GENERATED_HEADERS
 	rm -f trace-dtrace.h trace-dtrace.h-timestamp
