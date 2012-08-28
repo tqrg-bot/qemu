@@ -1160,9 +1160,20 @@ static void qed_aio_write_alloc(QEDAIOCB *acb, size_t len)
         if (acb->find_cluster_ret == QED_CLUSTER_ZERO) {
             cb = qed_aio_next_io;
         } else {
+            /* For misaligned requests, do normal copy-on-write for the first
+             * and last cluster.
+             */
+            unsigned offset = qed_offset_into_cluster(s, acb->cur_pos);
+            if (offset != 0 || qed_offset_into_cluster(s, offset + len) != 0) {
+                acb->cur_nclusters = 1;
+                len = MIN(len, s->header.cluster_size - offset);
+                goto copy;
+            }
+
             cb = qed_aio_write_zero_cluster;
         }
     } else {
+copy:
         cb = qed_aio_write_prefill;
         acb->cur_cluster = qed_alloc_clusters(s, acb->cur_nclusters);
     }
