@@ -416,6 +416,62 @@ static void test_hbitmap_iter_granularity(TestHBitmapData *data,
     g_assert_cmpint(hbitmap_iter_next(&hbi), <, 0);
 }
 
+static void test_hbitmap_alloc_with_data(TestHBitmapData *data,
+                                         const void *unused)
+{
+    HBitmap *aux, *tmp;
+
+    hbitmap_test_init(data, L3, 0);
+    hbitmap_test_set(data, L1 * 3, L1 * 2);
+    hbitmap_test_set(data, L1 * 7, 4);
+
+    aux = hbitmap_alloc_with_data(L3, 0, data->bits);
+
+    /* Now we can operate on data->bits using the AUX bitmap.  However,
+     * first of all swap the two bitmaps, it tests correctness of the
+     * HBitmap's data structures after hbitmap_alloc_with_data.
+     */
+    tmp = data->hb;
+    data->hb = aux;
+    aux = tmp;
+    hbitmap_test_check(data, 0);
+
+    /* Do some operations on both bitmaps, and test the iteration on
+     * both bitmaps at every step.
+     */
+    hbitmap_reset(aux, L1 * 3, L1);
+    hbitmap_reset(data->hb, L1 * 3, L1);
+    hbitmap_test_check(data, 0);
+    tmp = data->hb;
+    data->hb = aux;
+    aux = tmp;
+    hbitmap_test_check(data, 0);
+
+    hbitmap_set(aux, L1 * 3 - 2, L1);
+    hbitmap_set(data->hb, L1 * 3 - 2, L1);
+    hbitmap_test_check(data, 0);
+    tmp = data->hb;
+    data->hb = aux;
+    aux = tmp;
+    hbitmap_test_check(data, 0);
+
+    hbitmap_reset(aux, L1 * 7 - 2, 4);
+    hbitmap_reset(data->hb, L1 * 7 - 2, 4);
+    hbitmap_test_check(data, 0);
+    tmp = data->hb;
+    data->hb = aux;
+    aux = tmp;
+    hbitmap_test_check(data, 0);
+
+    hbitmap_set(aux, L1 * 2, L1);
+    hbitmap_set(data->hb, L1 * 2, L1);
+    hbitmap_test_check(data, 0);
+    tmp = data->hb;
+    data->hb = aux;
+    aux = tmp;
+    hbitmap_test_check(data, 0);
+}
+
 static void hbitmap_test_add_with_id(const char *testpath,
                                      void (*test_func)(TestHBitmapData *data, const void *user_data),
                                      int id)
@@ -453,6 +509,7 @@ int main(int argc, char **argv)
     hbitmap_test_add("/hbitmap/reset/empty", test_hbitmap_reset_empty);
     hbitmap_test_add("/hbitmap/reset/general", test_hbitmap_reset);
     hbitmap_test_add("/hbitmap/granularity", test_hbitmap_granularity);
+    hbitmap_test_add("/hbitmap/alloc_with_data", test_hbitmap_alloc_with_data);
     hbitmap_test_add_with_id("/hbitmap/copy/0", test_hbitmap_copy, 0);
     hbitmap_test_add_with_id("/hbitmap/copy/1", test_hbitmap_copy, 1);
     hbitmap_test_add_with_id("/hbitmap/copy/2", test_hbitmap_copy, 2);

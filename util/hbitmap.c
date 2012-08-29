@@ -81,6 +81,9 @@ struct HBitmap {
      */
     int granularity;
 
+    /* True if the last level should be freed by hbitmap_free.  */
+    bool last_level_allocated;
+
     /* A number of progressively less coarse bitmaps (i.e. level 0 is the
      * coarsest).  Each bit in level N represents a word in level N+1 that
      * has a set bit, except the last level where each bit represents the
@@ -416,34 +419,90 @@ void hbitmap_copy(HBitmap *dst, HBitmap *src)
 
 void hbitmap_free(HBitmap *hb)
 {
-    unsigned i;
-    for (i = HBITMAP_LEVELS; i-- > 0; ) {
+    unsigned i = HBITMAP_LEVELS;
+
+    if (!hb->last_level_allocated) {
+        i--;
+    }
+
+    while (i-- > 0) {
         g_free(hb->levels[i]);
     }
     g_free(hb);
 }
 
-HBitmap *hbitmap_alloc(uint64_t size, int granularity)
+static uint64_t hbitmap_round_size(uint64_t size, int granularity)
+{
+    assert(granularity >= 0 && granularity < 64);
+
+    if (!size) {
+        size = 1;
+    }
+
+    size = (size + (1ULL << granularity) - 1) >> granularity;
+    assert(size <= ((uint64_t)1 << HBITMAP_LOG_MAX_SIZE));
+    return size;
+}
+
+size_t hbitmap_required_size(uint64_t size, int granularity)
+{
+    size_t longs;
+
+    size = hbitmap_round_size(size, granularity);
+    longs = (size + BITS_PER_LONG - 1) >> BITS_PER_LEVEL;
+    return longs * sizeof(unsigned long);
+}
+
+static HBitmap *hbitmap_alloc_internal(uint64_t size, int granularity, void *data)
 {
     HBitmap *hb = g_malloc0(sizeof (struct HBitmap));
     unsigned i;
 
-    assert(granularity >= 0 && granularity < 64);
-    size = (size + (1ULL << granularity) - 1) >> granularity;
-    assert(size <= ((uint64_t)1 << HBITMAP_LOG_MAX_SIZE));
-
-    hb->size = size;
+    hb->size = hbitmap_round_size(size, granularity);
     hb->granularity = granularity;
+    hb->last_level_allocated = (data == NULL);
+
     for (i = HBITMAP_LEVELS; i-- > 0; ) {
-        size = MAX((size + BITS_PER_LONG - 1) >> BITS_PER_LEVEL, 1);
-        hb->levels[i] = g_malloc0(size * sizeof(unsigned long));
+        if (data == NULL) {
+            data = g_malloc0(hbitmap_required_size(size, granularity));
+        }
+        hb->levels[i] = data;
+        data = NULL;
+        granularity += BITS_PER_LEVEL;
     }
 
     /* We necessarily have free bits in level 0 due to the definition
      * of HBITMAP_LEVELS, so use one for a sentinel.  This speeds up
      * hbitmap_iter_skip_words.
      */
-    assert(size == 1);
+    assert(hbitmap_required_size(size, granularity) == sizeof(unsigned long));
     hb->levels[0][0] |= 1UL << (BITS_PER_LONG - 1);
     return hb;
+}
+
+HBitmap *hbitmap_alloc_with_data(uint64_t size, int granularity, void *data)
+{
+    HBitmap *hb = hbitmap_alloc_internal(size, granularity, data);
+    size_t longs, pos;
+    unsigned long elem;
+    unsigned long count;
+
+    longs = hbitmap_required_size(size, granularity) / sizeof(unsigned long);
+    count = 0;
+
+    for (pos = 0; pos < longs; pos++) {
+        elem = hb->levels[HBITMAP_LEVELS - 1][pos];
+        if (elem) {
+            hb_set_between(hb, HBITMAP_LEVELS - 2, pos, pos);
+            count += popcountl(elem);
+        }
+    }
+
+    hb->count = count;
+    return hb;
+}
+
+HBitmap *hbitmap_alloc(uint64_t size, int granularity)
+{
+    return hbitmap_alloc_internal(size, granularity, NULL);
 }
