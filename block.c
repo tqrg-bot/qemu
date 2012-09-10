@@ -4303,22 +4303,22 @@ bool bdrv_qiov_is_aligned(BlockDriverState *bs, QEMUIOVector *qiov)
     return true;
 }
 
-void bdrv_set_dirty_tracking(BlockDriverState *bs, int granularity)
+void bdrv_enable_dirty_tracking(BlockDriverState *bs, int granularity)
 {
     int64_t bitmap_size;
 
     assert((granularity & (granularity - 1)) == 0);
+    granularity >>= BDRV_SECTOR_BITS;
+    assert(!bs->dirty_bitmap);
+    bitmap_size = (bdrv_getlength(bs) >> BDRV_SECTOR_BITS);
+    bs->dirty_bitmap = hbitmap_alloc(bitmap_size, ffs(granularity) - 1);
+}
 
-    if (granularity) {
-        granularity >>= BDRV_SECTOR_BITS;
-        assert(!bs->dirty_bitmap);
-        bitmap_size = (bdrv_getlength(bs) >> BDRV_SECTOR_BITS);
-        bs->dirty_bitmap = hbitmap_alloc(bitmap_size, ffs(granularity) - 1);
-    } else {
-        if (bs->dirty_bitmap) {
-            hbitmap_free(bs->dirty_bitmap);
-            bs->dirty_bitmap = NULL;
-        }
+void bdrv_disable_dirty_tracking(BlockDriverState *bs)
+{
+    if (bs->dirty_bitmap) {
+        hbitmap_free(bs->dirty_bitmap);
+        bs->dirty_bitmap = NULL;
     }
 }
 
