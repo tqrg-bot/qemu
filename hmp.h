@@ -84,5 +84,7 @@ void hmp_nbd_server_add(Monitor *mon, const QDict *qdict);
 void hmp_nbd_server_stop(Monitor *mon, const QDict *qdict);
 void hmp_chardev_add(Monitor *mon, const QDict *qdict);
 void hmp_chardev_remove(Monitor *mon, const QDict *qdict);
+void hmp_dirty_enable(Monitor *mon, const QDict *qdict);
+void hmp_dirty_disable(Monitor *mon, const QDict *qdict);
 
 #endif
