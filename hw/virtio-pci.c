@@ -280,12 +280,10 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
     case VIRTIO_PCI_QUEUE_PFN:
         pa = (hwaddr)val << VIRTIO_PCI_QUEUE_ADDR_SHIFT;
         if (pa == 0) {
-            virtio_reset(proxy->vdev);
-            virtio_pci_stop_ioeventfd(proxy);
-            msix_unuse_all_vectors(&proxy->pci_dev);
-        }
-        else
+            qdev_reset_all(&proxy->pci_dev.qdev);
+        } else {
             virtio_queue_set_addr(vdev, vdev->queue_sel, pa);
+        }
         break;
     case VIRTIO_PCI_QUEUE_SEL:
         if (val < VIRTIO_PCI_QUEUE_MAX)
@@ -297,22 +295,16 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         }
         break;
     case VIRTIO_PCI_STATUS:
-        if (vdev->status == 0) {
-            virtio_reset(proxy->vdev);
-        }
-
-        if (!(val & VIRTIO_CONFIG_S_DRIVER_OK)) {
-            virtio_pci_stop_ioeventfd(proxy);
-        }
-
         virtio_set_status(vdev, val & 0xFF);
 
-        if (val & VIRTIO_CONFIG_S_DRIVER_OK) {
-            virtio_pci_start_ioeventfd(proxy);
-        }
-
         if (vdev->status == 0) {
-            msix_unuse_all_vectors(&proxy->pci_dev);
+            qdev_reset_all(&proxy->pci_dev.qdev);
+        } else {
+            if (!(val & VIRTIO_CONFIG_S_DRIVER_OK)) {
+                virtio_pci_stop_ioeventfd(proxy);
+            } else {
+                virtio_pci_start_ioeventfd(proxy);
+            }
         }
 
         /* Linux before 2.6.34 sets the device as OK without enabling
