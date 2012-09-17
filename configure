@@ -2089,6 +2089,10 @@ EOF
   fi # sdl compile test
 fi
 
+if test "$sdl_too_old" = "yes"; then
+echo "-> Your SDL version is too old - please upgrade to have SDL support"
+fi
+
 if test "$sdl" = "yes" ; then
   cat > $TMPC <<EOF
 #include <SDL.h>
@@ -4059,135 +4063,6 @@ fi
 QEMU_CFLAGS="$QEMU_CFLAGS $pixman_cflags $fdt_cflags"
 libs_softmmu="$libs_softmmu $pixman_libs"
 
-echo "Install prefix    $prefix"
-echo "BIOS directory    `eval echo $qemu_datadir`"
-echo "binary directory  `eval echo $bindir`"
-echo "library directory `eval echo $libdir`"
-echo "module directory  `eval echo $qemu_moddir`"
-echo "libexec directory `eval echo $libexecdir`"
-echo "include directory `eval echo $includedir`"
-echo "config directory  `eval echo $sysconfdir`"
-if test "$mingw32" = "no" ; then
-echo "local state directory   `eval echo $local_statedir`"
-echo "Manual directory  `eval echo $mandir`"
-echo "ELF interp prefix $interp_prefix"
-else
-echo "local state directory   queried at runtime"
-echo "Windows SDK       $win_sdk"
-fi
-echo "Source path       $source_path"
-echo "C compiler        $cc"
-echo "Host C compiler   $host_cc"
-echo "C++ compiler      $cxx"
-echo "Objective-C compiler $objcc"
-echo "ARFLAGS           $ARFLAGS"
-echo "CFLAGS            $CFLAGS"
-echo "QEMU_CFLAGS       $QEMU_CFLAGS"
-echo "LDFLAGS           $LDFLAGS"
-echo "make              $make"
-echo "install           $install"
-echo "python            $python"
-if test "$slirp" = "yes" ; then
-    echo "smbd              $smbd"
-fi
-echo "module support    $modules"
-echo "host CPU          $cpu"
-echo "host big endian   $bigendian"
-echo "target list       $target_list"
-echo "tcg debug enabled $debug_tcg"
-echo "gprof enabled     $gprof"
-echo "sparse enabled    $sparse"
-echo "strip binaries    $strip_opt"
-echo "profiler          $profiler"
-echo "static build      $static"
-if test "$darwin" = "yes" ; then
-    echo "Cocoa support     $cocoa"
-fi
-echo "pixman            $pixman"
-echo "SDL support       $sdl"
-echo "GTK support       $gtk"
-echo "VTE support       $vte"
-echo "curses support    $curses"
-echo "curl support      $curl"
-echo "mingw32 support   $mingw32"
-echo "Audio drivers     $audio_drv_list"
-echo "Block whitelist (rw) $block_drv_rw_whitelist"
-echo "Block whitelist (ro) $block_drv_ro_whitelist"
-echo "VirtFS support    $virtfs"
-echo "VNC support       $vnc"
-if test "$vnc" = "yes" ; then
-    echo "VNC TLS support   $vnc_tls"
-    echo "VNC SASL support  $vnc_sasl"
-    echo "VNC JPEG support  $vnc_jpeg"
-    echo "VNC PNG support   $vnc_png"
-    echo "VNC WS support    $vnc_ws"
-fi
-if test -n "$sparc_cpu"; then
-    echo "Target Sparc Arch $sparc_cpu"
-fi
-echo "xen support       $xen"
-echo "brlapi support    $brlapi"
-echo "bluez  support    $bluez"
-echo "Documentation     $docs"
-echo "GUEST_BASE        $guest_base"
-echo "PIE               $pie"
-echo "vde support       $vde"
-echo "netmap support    $netmap"
-echo "Linux AIO support $linux_aio"
-echo "ATTR/XATTR support $attr"
-echo "Install blobs     $blobs"
-echo "KVM support       $kvm"
-echo "RDMA support      $rdma"
-echo "TCG interpreter   $tcg_interpreter"
-echo "fdt support       $fdt"
-echo "preadv support    $preadv"
-echo "fdatasync         $fdatasync"
-echo "madvise           $madvise"
-echo "posix_madvise     $posix_madvise"
-echo "sigev_thread_id   $sigev_thread_id"
-echo "uuid support      $uuid"
-echo "libcap-ng support $cap_ng"
-echo "vhost-net support $vhost_net"
-echo "vhost-scsi support $vhost_scsi"
-echo "Trace backend     $trace_backend"
-if test "$trace_backend" = "simple"; then
-echo "Trace output file $trace_file-<pid>"
-fi
-if test "$spice" = "yes"; then
-echo "spice support     $spice ($spice_protocol_version/$spice_server_version)"
-else
-echo "spice support     $spice"
-fi
-echo "rbd support       $rbd"
-echo "xfsctl support    $xfs"
-echo "nss used          $smartcard_nss"
-echo "libusb            $libusb"
-echo "usb net redir     $usb_redir"
-echo "GLX support       $glx"
-if test "$libiscsi_version" = "1.4.0"; then
-echo "libiscsi support  $libiscsi (1.4.0)"
-else
-echo "libiscsi support  $libiscsi"
-fi
-echo "libnfs support    $libnfs"
-echo "build guest agent $guest_agent"
-echo "QGA VSS support   $guest_agent_with_vss"
-echo "seccomp support   $seccomp"
-echo "coroutine backend $coroutine"
-echo "coroutine pool    $coroutine_pool"
-echo "GlusterFS support $glusterfs"
-echo "virtio-blk-data-plane $virtio_blk_data_plane"
-echo "gcov              $gcov_tool"
-echo "gcov enabled      $gcov"
-echo "TPM support       $tpm"
-echo "libssh2 support   $libssh2"
-echo "TPM passthrough   $tpm_passthrough"
-echo "QOM debugging     $qom_cast_debug"
-echo "vhdx              $vhdx"
-echo "Quorum            $quorum"
-echo "lzo support       $lzo"
-echo "snappy support    $snappy"
-
 if test "$sdl_too_old" = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
 fi
@@ -5232,3 +5107,131 @@ printf " '%s'" "$0" "$@" >>config.status
 echo >>config.status
 chmod +x config.status
 
+echo "Install prefix    $prefix"
+echo "BIOS directory    `eval echo $qemu_datadir`"
+echo "binary directory  `eval echo $bindir`"
+echo "library directory `eval echo $libdir`"
+echo "module directory  `eval echo $qemu_moddir`"
+echo "libexec directory `eval echo $libexecdir`"
+echo "include directory `eval echo $includedir`"
+echo "config directory  `eval echo $sysconfdir`"
+if test "$mingw32" = "no" ; then
+echo "local state directory   `eval echo $local_statedir`"
+echo "Manual directory  `eval echo $mandir`"
+echo "ELF interp prefix $interp_prefix"
+else
+echo "local state directory   queried at runtime"
+echo "Windows SDK       $win_sdk"
+fi
+echo "Source path       $source_path"
+echo "C compiler        $cc"
+echo "Host C compiler   $host_cc"
+echo "C++ compiler      $cxx"
+echo "Objective-C compiler $objcc"
+echo "ARFLAGS           $ARFLAGS"
+echo "CFLAGS            $CFLAGS"
+echo "QEMU_CFLAGS       $QEMU_CFLAGS"
+echo "LDFLAGS           $LDFLAGS"
+echo "make              $make"
+echo "install           $install"
+echo "python            $python"
+if test "$slirp" = "yes" ; then
+    echo "smbd              $smbd"
+fi
+echo "module support    $modules"
+echo "host CPU          $cpu"
+echo "host big endian   $bigendian"
+echo "target list       $target_list"
+echo "tcg debug enabled $debug_tcg"
+echo "gprof enabled     $gprof"
+echo "sparse enabled    $sparse"
+echo "strip binaries    $strip_opt"
+echo "profiler          $profiler"
+echo "static build      $static"
+if test "$darwin" = "yes" ; then
+    echo "Cocoa support     $cocoa"
+fi
+echo "pixman            $pixman"
+echo "SDL support       $sdl"
+echo "GTK support       $gtk"
+echo "VTE support       $vte"
+echo "curses support    $curses"
+echo "curl support      $curl"
+echo "mingw32 support   $mingw32"
+echo "Audio drivers     $audio_drv_list"
+echo "Block whitelist (rw) $block_drv_rw_whitelist"
+echo "Block whitelist (ro) $block_drv_ro_whitelist"
+echo "VirtFS support    $virtfs"
+echo "VNC support       $vnc"
+if test "$vnc" = "yes" ; then
+    echo "VNC TLS support   $vnc_tls"
+    echo "VNC SASL support  $vnc_sasl"
+    echo "VNC JPEG support  $vnc_jpeg"
+    echo "VNC PNG support   $vnc_png"
+    echo "VNC WS support    $vnc_ws"
+fi
+if test -n "$sparc_cpu"; then
+    echo "Target Sparc Arch $sparc_cpu"
+fi
+echo "xen support       $xen"
+echo "brlapi support    $brlapi"
+echo "bluez  support    $bluez"
+echo "Documentation     $docs"
+echo "GUEST_BASE        $guest_base"
+echo "PIE               $pie"
+echo "vde support       $vde"
+echo "netmap support    $netmap"
+echo "Linux AIO support $linux_aio"
+echo "ATTR/XATTR support $attr"
+echo "Install blobs     $blobs"
+echo "KVM support       $kvm"
+echo "RDMA support      $rdma"
+echo "TCG interpreter   $tcg_interpreter"
+echo "fdt support       $fdt"
+echo "preadv support    $preadv"
+echo "fdatasync         $fdatasync"
+echo "madvise           $madvise"
+echo "posix_madvise     $posix_madvise"
+echo "sigev_thread_id   $sigev_thread_id"
+echo "uuid support      $uuid"
+echo "libcap-ng support $cap_ng"
+echo "vhost-net support $vhost_net"
+echo "vhost-scsi support $vhost_scsi"
+echo "Trace backend     $trace_backend"
+if test "$trace_backend" = "simple"; then
+echo "Trace output file $trace_file-<pid>"
+fi
+if test "$spice" = "yes"; then
+echo "spice support     $spice ($spice_protocol_version/$spice_server_version)"
+else
+echo "spice support     $spice"
+fi
+echo "rbd support       $rbd"
+echo "xfsctl support    $xfs"
+echo "nss used          $smartcard_nss"
+echo "libusb            $libusb"
+echo "usb net redir     $usb_redir"
+echo "GLX support       $glx"
+if test "$libiscsi_version" = "1.4.0"; then
+echo "libiscsi support  $libiscsi (1.4.0)"
+else
+echo "libiscsi support  $libiscsi"
+fi
+echo "libnfs support    $libnfs"
+echo "build guest agent $guest_agent"
+echo "QGA VSS support   $guest_agent_with_vss"
+echo "seccomp support   $seccomp"
+echo "coroutine backend $coroutine"
+echo "coroutine pool    $coroutine_pool"
+echo "GlusterFS support $glusterfs"
+echo "virtio-blk-data-plane $virtio_blk_data_plane"
+echo "gcov              $gcov_tool"
+echo "gcov enabled      $gcov"
+echo "TPM support       $tpm"
+echo "libssh2 support   $libssh2"
+echo "TPM passthrough   $tpm_passthrough"
+echo "QOM debugging     $qom_cast_debug"
+echo "vhdx              $vhdx"
+echo "Quorum            $quorum"
+echo "lzo support       $lzo"
+echo "snappy support    $snappy"
