@@ -4795,6 +4795,32 @@ if test "$linux" = "yes" ; then
     fi
 fi
 
+supported_kvm_target() {
+    test "$kvm" = "yes" || return 1
+    test "$target_softmmu" = "yes" || return 1
+    case "$target_name:$cpu" in
+        arm:arm | aarch64:aarch64 | \
+        i386:i386 | i386:x86_64 | x86_64:i386 | x86_64:x86_64 | \
+        ppc:ppc | ppcemb:ppc | ppc64:ppc | \
+        ppc:ppc64 | ppcemb:ppc64 | ppc64:ppc64 | \
+        s390x:s390x)
+            return 0
+        ;;
+    esac
+    return 1
+}
+
+supported_xen_target() {
+    test "$xen" = "yes" || return 1
+    test "$target_softmmu" = "yes" || return 1
+    case "$target_name:$cpu" in
+        i386:i386 | i386:x86_64 | x86_64:i386 | x86_64:x86_64)
+            return 0
+        ;;
+    esac
+    return 1
+}
+
 for target in $target_list; do
 target_dir="$target"
 config_target_mak=$target_dir/config-target.mak
@@ -4961,34 +4987,20 @@ if [ "$TARGET_ABI_DIR" = "" ]; then
   TARGET_ABI_DIR=$TARGET_ARCH
 fi
 echo "TARGET_ABI_DIR=$TARGET_ABI_DIR" >> $config_target_mak
-case "$target_name" in
-  i386|x86_64)
-    if test "$xen" = "yes" -a "$target_softmmu" = "yes" ; then
-      echo "CONFIG_XEN=y" >> $config_target_mak
-      if test "$xen_pci_passthrough" = yes; then
+
+if supported_xen_target; then
+    echo "CONFIG_XEN=y" >> $config_target_mak
+    if test "$xen_pci_passthrough" = yes; then
         echo "CONFIG_XEN_PCI_PASSTHROUGH=y" >> "$config_target_mak"
-      fi
     fi
-    ;;
-  *)
-esac
-case "$target_name" in
-  aarch64|arm|i386|x86_64|ppcemb|ppc|ppc64|s390x)
+fi
+if supported_kvm_target; then
     # Make sure the target and host cpus are compatible
-    if test "$kvm" = "yes" -a "$target_softmmu" = "yes" -a \
-      \( "$target_name" = "$cpu" -o \
-      \( "$target_name" = "ppcemb" -a "$cpu" = "ppc" \) -o \
-      \( "$target_name" = "ppc64"  -a "$cpu" = "ppc" \) -o \
-      \( "$target_name" = "ppc"    -a "$cpu" = "ppc64" \) -o \
-      \( "$target_name" = "ppcemb" -a "$cpu" = "ppc64" \) -o \
-      \( "$target_name" = "x86_64" -a "$cpu" = "i386"   \) -o \
-      \( "$target_name" = "i386"   -a "$cpu" = "x86_64" \) \) ; then
-      echo "CONFIG_KVM=y" >> $config_target_mak
-      if test "$vhost_net" = "yes" ; then
+    echo "CONFIG_KVM=y" >> $config_target_mak
+    if test "$vhost_net" = "yes" ; then
         echo "CONFIG_VHOST_NET=y" >> $config_target_mak
-      fi
     fi
-esac
+fi
 if test "$target_bigendian" = "yes" ; then
   echo "TARGET_WORDS_BIGENDIAN=y" >> $config_target_mak
 fi
