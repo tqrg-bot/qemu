@@ -63,6 +63,8 @@
 
 static CPUState *next_cpu;
 
+CPUInterruptHandler cpu_interrupt_handler;
+
 bool cpu_is_stopped(CPUState *cpu)
 {
     return cpu->stopped || !runstate_is_running();

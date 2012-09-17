@@ -1581,6 +1581,8 @@ static void check_watchpoint(int offset, int len_mask, int flags)
     CPUWatchpoint *wp;
     int cpu_flags;
 
+    assert(tcg_enabled());
+
     if (cpu->watchpoint_hit) {
         /* We re-entered the check after replacing the TB. Now raise
          * the debug interrupt so that is will trigger after the

@@ -592,24 +592,6 @@ static inline void code_gen_alloc(size_t tb_size)
             g_malloc(tcg_ctx.code_gen_max_blocks * sizeof(TranslationBlock));
 }
 
-/* Must be called before using the QEMU cpus. 'tb_size' is the size
-   (in bytes) allocated to the translation buffer. Zero means default
-   size. */
-void tcg_exec_init(unsigned long tb_size)
-{
-    tcg_allowed = true;
-    cpu_gen_init();
-    code_gen_alloc(tb_size);
-    tcg_ctx.code_gen_ptr = tcg_ctx.code_gen_buffer;
-    tcg_register_jit(tcg_ctx.code_gen_buffer, tcg_ctx.code_gen_buffer_size);
-    page_init();
-#if !defined(CONFIG_USER_ONLY) || !defined(CONFIG_USE_GUEST_BASE)
-    /* There's no guest base to take into account, so go ahead and
-       initialize the prologue now.  */
-    tcg_prologue_init(&tcg_ctx);
-#endif
-}
-
 /* Allocate a new translation block. Flush the translation buffer if
    too many translation blocks or too much generated code. */
 static TranslationBlock *tb_alloc(target_ulong pc)
@@ -1409,8 +1391,6 @@ static void tcg_handle_interrupt(CPUState *cpu, int mask)
     }
 }
 
-CPUInterruptHandler cpu_interrupt_handler = tcg_handle_interrupt;
-
 /* in deterministic execution mode, instructions doing device I/Os
    must be at the end of the TB */
 void cpu_io_recompile(CPUState *cpu, uintptr_t retaddr)
@@ -1830,3 +1810,24 @@ int page_unprotect(target_ulong address, uintptr_t pc, void *puc)
     return 0;
 }
 #endif /* CONFIG_USER_ONLY */
+
+/* Must be called before using the QEMU cpus. 'tb_size' is the size
+   (in bytes) allocated to the translation buffer. Zero means default
+   size. */
+void tcg_exec_init(unsigned long tb_size)
+{
+    tcg_allowed = true;
+    cpu_gen_init();
+    code_gen_alloc(tb_size);
+    tcg_ctx.code_gen_ptr = tcg_ctx.code_gen_buffer;
+    tcg_register_jit(tcg_ctx.code_gen_buffer, tcg_ctx.code_gen_buffer_size);
+    page_init();
+#if !defined(CONFIG_USER_ONLY) || !defined(CONFIG_USE_GUEST_BASE)
+    cpu_interrupt_handler = tcg_handle_interrupt;
+#endif
+#if !defined(CONFIG_USER_ONLY) || !defined(CONFIG_USE_GUEST_BASE)
+    /* There's no guest base to take into account, so go ahead and
+       initialize the prologue now.  */
+    tcg_prologue_init(&tcg_ctx);
+#endif
+}

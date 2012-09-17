@@ -230,6 +230,8 @@ int cpu_exec(CPUArchState *env)
     /* This must be volatile so it is not trashed by longjmp() */
     volatile bool have_tb_lock = false;
 
+    assert(tcg_enabled());
+
     if (cpu->halted) {
         if (!cpu_has_work(cpu)) {
             return EXCP_HALTED;
