@@ -1495,6 +1495,11 @@ void dump_exec_info(FILE *f, fprintf_function cpu_fprintf)
     int direct_jmp_count, direct_jmp2_count, cross_page;
     TranslationBlock *tb;
 
+    if (!tcg_enabled()) {
+        cpu_fprintf(f, "TCG not enabled\n");
+        return;
+    }
+
     target_code_size = 0;
     max_target_code_size = 0;
     cross_page = 0;
