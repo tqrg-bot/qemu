@@ -80,11 +80,6 @@ static int compute_all_eflags(CPUX86State *env)
     return CC_SRC;
 }
 
-static int compute_c_eflags(CPUX86State *env)
-{
-    return CC_SRC & CC_C;
-}
-
 uint32_t helper_cc_compute_all(CPUX86State *env, int op)
 {
     switch (op) {
@@ -201,119 +196,6 @@ uint32_t helper_cc_compute_all(CPUX86State *env, int op)
 uint32_t cpu_cc_compute_all(CPUX86State *env, int op)
 {
     return helper_cc_compute_all(env, op);
-}
-
-uint32_t helper_cc_compute_c(CPUX86State *env, int op)
-{
-    switch (op) {
-    default: /* should never happen */
-        return 0;
-
-    case CC_OP_EFLAGS:
-        return compute_c_eflags(env);
-
-    case CC_OP_MULB:
-        return compute_c_mull(env);
-    case CC_OP_MULW:
-        return compute_c_mull(env);
-    case CC_OP_MULL:
-        return compute_c_mull(env);
-
-    case CC_OP_ADDB:
-        return compute_c_addb(env);
-    case CC_OP_ADDW:
-        return compute_c_addw(env);
-    case CC_OP_ADDL:
-        return compute_c_addl(env);
-
-    case CC_OP_ADCB:
-        return compute_c_adcb(env);
-    case CC_OP_ADCW:
-        return compute_c_adcw(env);
-    case CC_OP_ADCL:
-        return compute_c_adcl(env);
-
-    case CC_OP_SUBB:
-        return compute_c_subb(env);
-    case CC_OP_SUBW:
-        return compute_c_subw(env);
-    case CC_OP_SUBL:
-        return compute_c_subl(env);
-
-    case CC_OP_SBBB:
-        return compute_c_sbbb(env);
-    case CC_OP_SBBW:
-        return compute_c_sbbw(env);
-    case CC_OP_SBBL:
-        return compute_c_sbbl(env);
-
-    case CC_OP_LOGICB:
-        return compute_c_logicb();
-    case CC_OP_LOGICW:
-        return compute_c_logicw();
-    case CC_OP_LOGICL:
-        return compute_c_logicl();
-
-    case CC_OP_INCB:
-        return compute_c_incl(env);
-    case CC_OP_INCW:
-        return compute_c_incl(env);
-    case CC_OP_INCL:
-        return compute_c_incl(env);
-
-    case CC_OP_DECB:
-        return compute_c_incl(env);
-    case CC_OP_DECW:
-        return compute_c_incl(env);
-    case CC_OP_DECL:
-        return compute_c_incl(env);
-
-    case CC_OP_SHLB:
-        return compute_c_shlb(env);
-    case CC_OP_SHLW:
-        return compute_c_shlw(env);
-    case CC_OP_SHLL:
-        return compute_c_shll(env);
-
-    case CC_OP_SARB:
-        return compute_c_sarl(env);
-    case CC_OP_SARW:
-        return compute_c_sarl(env);
-    case CC_OP_SARL:
-        return compute_c_sarl(env);
-
-#ifdef TARGET_X86_64
-    case CC_OP_MULQ:
-        return compute_c_mull(env);
-
-    case CC_OP_ADDQ:
-        return compute_c_addq(env);
-
-    case CC_OP_ADCQ:
-        return compute_c_adcq(env);
-
-    case CC_OP_SUBQ:
-        return compute_c_subq(env);
-
-    case CC_OP_SBBQ:
-        return compute_c_sbbq(env);
-
-    case CC_OP_LOGICQ:
-        return compute_c_logicq();
-
-    case CC_OP_INCQ:
-        return compute_c_incl(env);
-
-    case CC_OP_DECQ:
-        return compute_c_incl(env);
-
-    case CC_OP_SHLQ:
-        return compute_c_shlq(env);
-
-    case CC_OP_SARQ:
-        return compute_c_sarl(env);
-#endif
-    }
 }
 
 void helper_write_eflags(CPUX86State *env, target_ulong t0,
