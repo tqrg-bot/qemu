@@ -838,11 +838,21 @@ static void gen_compute_eflags(DisasContext *s)
     tcg_gen_extu_i32_tl(cpu_cc_src, cpu_tmp2_i32);
 }
 
+typedef struct CCPrepare {
+    TCGCond cond;
+    TCGv reg;
+    TCGv reg2;
+    target_ulong imm;
+    target_ulong mask;
+    bool use_reg2;
+    bool no_setcond;
+} CCPrepare;
+
 /* compute eflags.C to reg */
-static void gen_compute_eflags_c(DisasContext *s, TCGv reg, bool inv)
+static CCPrepare gen_prepare_eflags_c(DisasContext *s, TCGv reg)
 {
     TCGv t0, t1;
-    int size;
+    int size, shift;
 
     if (s->cc_op == CC_OP_DYNAMIC) {
         gen_compute_eflags(s);
@@ -870,9 +880,7 @@ static void gen_compute_eflags_c(DisasContext *s, TCGv reg, bool inv)
         t1 = gen_ext_tl(cpu_tmp0, cpu_cc_src, size, false);
         t0 = gen_ext_tl(reg, cpu_cc_dst, size, false);
     add_sub:
-        tcg_gen_setcond_tl(inv ? TCG_COND_GEU : TCG_COND_LTU, reg, t0, t1);
-        inv = false;
-        break;
+        return (CCPrepare) { .cond = TCG_COND_LTU, .reg = t0, .reg2 = t1, .mask = -1, .use_reg2 = true };
 
     case CC_OP_SBBB:
     case CC_OP_SBBW:
@@ -901,16 +909,13 @@ static void gen_compute_eflags_c(DisasContext *s, TCGv reg, bool inv)
         t1 = gen_ext_tl(cpu_tmp0, cpu_cc_src, size, false);
         t0 = gen_ext_tl(reg, cpu_cc_dst, size, false);
     adc_sbb:
-        tcg_gen_setcond_tl(inv ? TCG_COND_GTU : TCG_COND_LEU, reg, t0, t1);
-        inv = false;
-        break;
+        return (CCPrepare) { .cond = TCG_COND_LEU, .reg = t0, .reg2 = t1, .mask = -1, .use_reg2 = true };
 
     case CC_OP_LOGICB:
     case CC_OP_LOGICW:
     case CC_OP_LOGICL:
     case CC_OP_LOGICQ:
-        tcg_gen_movi_tl(reg, 0);
-        break;
+        return (CCPrepare) { .cond = TCG_COND_NEVER, .mask = -1 };
 
     case CC_OP_INCB:
     case CC_OP_INCW:
@@ -920,13 +925,7 @@ static void gen_compute_eflags_c(DisasContext *s, TCGv reg, bool inv)
     case CC_OP_DECW:
     case CC_OP_DECL:
     case CC_OP_DECQ:
-        if (inv) {
-            tcg_gen_xori_tl(reg, cpu_cc_src, 1);
-        } else {
-            tcg_gen_mov_tl(reg, cpu_cc_src);
-        }
-        inv = false;
-        break;
+        return (CCPrepare) { .cond = TCG_COND_NE, .reg = cpu_cc_src, .mask = -1, .no_setcond = true };
 
     case CC_OP_SHLB:
     case CC_OP_SHLW:
@@ -934,17 +933,14 @@ static void gen_compute_eflags_c(DisasContext *s, TCGv reg, bool inv)
     case CC_OP_SHLQ:
         /* (CC_SRC >> (DATA_BITS - 1)) & 1 */
         size = s->cc_op - CC_OP_SHLB;
-        tcg_gen_shri_tl(reg, cpu_cc_src, (8 << size) - 1);
-        tcg_gen_andi_tl(reg, reg, 1);
-        break;
+        shift = (8 << size) - 1;
+        return (CCPrepare) { .cond = TCG_COND_NE, .reg = cpu_cc_src, .mask = (target_ulong)1 << shift };
 
     case CC_OP_MULB:
     case CC_OP_MULW:
     case CC_OP_MULL:
     case CC_OP_MULQ:
-        tcg_gen_setcondi_tl(inv ? TCG_COND_EQ : TCG_COND_NE, reg, cpu_cc_src, 0);
-        inv = false;
-        break;
+        return (CCPrepare) { .cond = TCG_COND_NE, .reg = cpu_cc_src, .mask = -1 };
 
     case CC_OP_SARB:
     case CC_OP_SARW:
@@ -952,68 +948,96 @@ static void gen_compute_eflags_c(DisasContext *s, TCGv reg, bool inv)
     case CC_OP_SARQ:
     case CC_OP_EFLAGS:
         /* CC_SRC & 1 */
-        tcg_gen_andi_tl(reg, cpu_cc_src, 1);
-        break;
+        return (CCPrepare) { .cond = TCG_COND_NE, .reg = cpu_cc_src, .mask = 1 };
 
     default:
         abort();
     }
-    if (inv) {
-        tcg_gen_xori_tl(reg, reg, 1);
-    }
 }
 
 /* compute eflags.P to reg */
-static void gen_compute_eflags_p(DisasContext *s, TCGv reg)
+static CCPrepare gen_prepare_eflags_p(DisasContext *s, TCGv reg)
 {
     gen_compute_eflags(s);
-    tcg_gen_shri_tl(reg, cpu_cc_src, 2);
-    tcg_gen_andi_tl(reg, reg, 1);
+    return (CCPrepare) { .cond = TCG_COND_NE, .reg = cpu_cc_src, .mask = 4 };
 }
 
 /* compute eflags.S to reg */
-static void gen_compute_eflags_s(DisasContext *s, TCGv reg, bool inv)
+static CCPrepare gen_prepare_eflags_s(DisasContext *s, TCGv reg)
 {
     if (s->cc_op == CC_OP_DYNAMIC) {
         gen_compute_eflags(s);
     }
     if (s->cc_op == CC_OP_EFLAGS) {
-        tcg_gen_shri_tl(reg, cpu_cc_src, 7);
-        tcg_gen_andi_tl(reg, reg, 1);
-        if (inv) {
-            tcg_gen_xori_tl(reg, reg, 1);
-        }
+        return (CCPrepare) { .cond = TCG_COND_NE, .reg = cpu_cc_src, .mask = 128 };
     } else {
         int size = (s->cc_op - CC_OP_ADDB) & 3;
         TCGv t0 = gen_ext_tl(reg, cpu_cc_dst, size, true);
-        tcg_gen_setcondi_tl(inv ? TCG_COND_GE : TCG_COND_LT, reg, t0, 0);
+        return (CCPrepare) { .cond = TCG_COND_LT, .reg = t0, .mask = -1 };
     }
 }
 
 /* compute eflags.O to reg */
-static void gen_compute_eflags_o(DisasContext *s, TCGv reg)
+static CCPrepare gen_prepare_eflags_o(DisasContext *s, TCGv reg)
 {
     gen_compute_eflags(s);
-    tcg_gen_shri_tl(reg, cpu_cc_src, 11);
-    tcg_gen_andi_tl(reg, reg, 1);
+    return (CCPrepare) { .cond = TCG_COND_NE, .reg = cpu_cc_src, .mask = 0x800 };
 }
 
 /* compute eflags.Z to reg */
-static void gen_compute_eflags_z(DisasContext *s, TCGv reg, bool inv)
+static CCPrepare gen_prepare_eflags_z(DisasContext *s, TCGv reg)
 {
     if (s->cc_op == CC_OP_DYNAMIC) {
         gen_compute_eflags(s);
     }
     if (s->cc_op == CC_OP_EFLAGS) {
-        tcg_gen_shri_tl(reg, cpu_cc_src, 6);
-        tcg_gen_andi_tl(reg, reg, 1);
-        if (inv) {
-            tcg_gen_xori_tl(reg, reg, 1);
-        }
+        return (CCPrepare) { .cond = TCG_COND_NE, .reg = cpu_cc_src, .mask = 64 };
     } else {
         int size = (s->cc_op - CC_OP_ADDB) & 3;
         TCGv t0 = gen_ext_tl(reg, cpu_cc_dst, size, false);
-        tcg_gen_setcondi_tl(inv ? TCG_COND_NE : TCG_COND_EQ, reg, t0, 0);
+        return (CCPrepare) { .cond = TCG_COND_EQ, .reg = t0, .mask = -1 };
+    }
+}
+
+#define gen_compute_eflags_c(s, reg, inv) \
+    gen_do_setcc(reg, gen_prepare_eflags_c(s, reg), inv)
+#define gen_compute_eflags_p(s, reg) \
+    gen_do_setcc(reg, gen_prepare_eflags_p(s, reg), false)
+#define gen_compute_eflags_s(s, reg, inv) \
+    gen_do_setcc(reg, gen_prepare_eflags_s(s, reg), inv)
+#define gen_compute_eflags_o(s, reg) \
+    gen_do_setcc(reg, gen_prepare_eflags_o(s, reg), false)
+#define gen_compute_eflags_z(s, reg, inv) \
+    gen_do_setcc(reg, gen_prepare_eflags_z(s, reg), inv)
+
+static void gen_do_setcc(TCGv reg, struct CCPrepare cc, bool inv)
+{
+    if (inv) {
+        cc.cond = tcg_invert_cond(cc.cond);
+    }
+
+    if (cc.no_setcond) {
+        if (cc.cond == TCG_COND_EQ) {
+            tcg_gen_xori_tl(reg, cc.reg, 1);
+        } else {
+            tcg_gen_mov_tl(reg, cc.reg);
+        }
+        return;
+    }
+
+    if (cc.cond == TCG_COND_NE && !cc.use_reg2 && cc.imm == 0 &&
+        cc.mask != 0 && (cc.mask & (cc.mask - 1)) == 0) {
+        tcg_gen_shri_tl(reg, cc.reg, ffs(cc.mask) - 1);
+        tcg_gen_andi_tl(reg, reg, 1);
+        return;
+    }
+    if (cc.mask != -1) {
+        tcg_gen_andi_tl(reg, cc.reg, cc.mask);
+    }
+    if (cc.use_reg2) {
+        tcg_gen_setcond_tl(cc.cond, reg, cc.reg, cc.reg2);
+    } else {
+        tcg_gen_setcondi_tl(cc.cond, reg, cc.reg, cc.imm);
     }
 }
 
