@@ -2383,6 +2383,27 @@ static void gen_setcc(DisasContext *s, int b)
     gen_setcc1(s, b, cpu_T[0]);
 }
 
+static void gen_op_cmov_reg_v(DisasContext *s, int ot, int b, int reg, int t0)
+{
+    int l1;
+#ifdef TARGET_X86_64
+    if (ot == OT_LONG) {
+        /* XXX: specific Intel behaviour ? */
+        l1 = gen_new_label();
+        gen_jcc1(s, b ^ 1, l1);
+        tcg_gen_mov_tl(cpu_regs[reg], t0);
+        gen_set_label(l1);
+        tcg_gen_ext32u_tl(cpu_regs[reg], cpu_regs[reg]);
+    } else
+#endif
+    {
+        l1 = gen_new_label();
+        gen_jcc1(s, b ^ 1, l1);
+        gen_op_mov_reg_v(ot, reg, t0);
+        gen_set_label(l1);
+    }
+}
+
 static inline void gen_op_movl_T0_seg(int seg_reg)
 {
     tcg_gen_ld32u_tl(cpu_T[0], cpu_env, 
@@ -6419,7 +6440,6 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
         break;
     case 0x140 ... 0x14f: /* cmov Gv, Ev */
         {
-            int l1;
             TCGv t0;
 
             ot = dflag + OT_WORD;
@@ -6434,22 +6454,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 rm = (modrm & 7) | REX_B(s);
                 gen_op_mov_v_reg(ot, t0, rm);
             }
-#ifdef TARGET_X86_64
-            if (ot == OT_LONG) {
-                /* XXX: specific Intel behaviour ? */
-                l1 = gen_new_label();
-                gen_jcc1(s, b ^ 1, l1);
-                tcg_gen_mov_tl(cpu_regs[reg], t0);
-                gen_set_label(l1);
-                tcg_gen_ext32u_tl(cpu_regs[reg], cpu_regs[reg]);
-            } else
-#endif
-            {
-                l1 = gen_new_label();
-                gen_jcc1(s, b ^ 1, l1);
-                gen_op_mov_reg_v(ot, reg, t0);
-                gen_set_label(l1);
-            }
+            gen_op_cmov_reg_v(s, ot, b, reg, t0);
             tcg_temp_free(t0);
         }
         break;
