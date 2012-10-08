@@ -173,6 +173,8 @@ enum {
     OR_A0, /* temporary register used when doing address evaluation */
 };
 
+static void gen_op(DisasContext *s1, int op, int ot, int d);
+
 static inline void gen_op_movl_T0_0(void)
 {
     tcg_gen_movi_tl(cpu_T[0], 0);
@@ -805,12 +807,6 @@ static void gen_op_update2_cc(void)
     tcg_gen_mov_tl(cpu_cc_dst, cpu_T[0]);
 }
 
-static inline void gen_op_cmpl_T0_T1_cc(void)
-{
-    tcg_gen_mov_tl(cpu_cc_src, cpu_T[1]);
-    tcg_gen_sub_tl(cpu_cc_dst, cpu_T[0], cpu_T[1]);
-}
-
 static inline void gen_op_testl_T0_T1_cc(void)
 {
     tcg_gen_discard_tl(cpu_cc_src);
@@ -1181,26 +1177,22 @@ static inline void gen_lods(DisasContext *s, int ot)
 
 static inline void gen_scas(DisasContext *s, int ot)
 {
-    gen_op_mov_TN_reg(OT_LONG, 0, R_EAX);
     gen_string_movl_A0_EDI(s);
     gen_op_ld_T1_A0(ot + s->mem_index);
-    gen_op_cmpl_T0_T1_cc();
+    gen_op(s, OP_CMPL, ot, R_EAX);
     gen_op_movl_T0_Dshift(ot);
     gen_op_add_reg_T0(s->aflag, R_EDI);
-    s->cc_op = CC_OP_SUBB + ot;
 }
 
 static inline void gen_cmps(DisasContext *s, int ot)
 {
-    gen_string_movl_A0_ESI(s);
-    gen_op_ld_T0_A0(ot + s->mem_index);
     gen_string_movl_A0_EDI(s);
     gen_op_ld_T1_A0(ot + s->mem_index);
-    gen_op_cmpl_T0_T1_cc();
+    gen_string_movl_A0_ESI(s);
+    gen_op(s, OP_CMPL, ot, OR_TMP0);
     gen_op_movl_T0_Dshift(ot);
     gen_op_add_reg_T0(s->aflag, R_ESI);
     gen_op_add_reg_T0(s->aflag, R_EDI);
-    s->cc_op = CC_OP_SUBB + ot;
 }
 
 static inline void gen_ins(DisasContext *s, int ot)
@@ -1429,7 +1421,8 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
         s1->cc_op = CC_OP_LOGICB + ot;
         break;
     case OP_CMPL:
-        gen_op_cmpl_T0_T1_cc();
+        tcg_gen_mov_tl(cpu_cc_src, cpu_T[1]);
+        tcg_gen_sub_tl(cpu_cc_dst, cpu_T[0], cpu_T[1]);
         s1->cc_op = CC_OP_SUBB + ot;
         break;
     }
