@@ -46,13 +46,14 @@ struct tcg_temp_info {
     uint16_t prev_copy;
     uint16_t next_copy;
     tcg_target_ulong val;
+    tcg_target_ulong mask;
 };
 
 static struct tcg_temp_info temps[TCG_MAX_TEMPS];
 
 /* Reset TEMP's state to TCG_TEMP_UNDEF.  If TEMP only had one copy, remove
    the copy flag from the left temp.  */
-static void reset_temp(TCGArg temp)
+static void reset_temp(TCGArg temp, tcg_target_ulong mask)
 {
     if (temps[temp].state == TCG_TEMP_COPY) {
         if (temps[temp].prev_copy == temps[temp].next_copy) {
@@ -63,6 +64,7 @@ static void reset_temp(TCGArg temp)
         }
     }
     temps[temp].state = TCG_TEMP_UNDEF;
+    temps[temp].mask = mask;
 }
 
 static int op_bits(TCGOpcode op)
@@ -139,7 +141,7 @@ static bool temps_are_copies(TCGArg arg1, TCGArg arg2)
 static void tcg_opt_gen_mov(TCGContext *s, TCGArg *gen_args,
                             TCGArg dst, TCGArg src)
 {
-        reset_temp(dst);
+        reset_temp(dst, temps[src].mask);
         assert(temps[src].state != TCG_TEMP_CONST);
 
         if (s->temps[src].type == s->temps[dst].type) {
@@ -161,7 +163,7 @@ static void tcg_opt_gen_mov(TCGContext *s, TCGArg *gen_args,
 
 static void tcg_opt_gen_movi(TCGArg *gen_args, TCGArg dst, TCGArg val)
 {
-        reset_temp(dst);
+        reset_temp(dst, val);
         temps[dst].state = TCG_TEMP_CONST;
         temps[dst].val = val;
         gen_args[0] = dst;
@@ -470,6 +472,7 @@ static TCGArg *tcg_constant_folding(TCGContext *s, uint16_t *tcg_opc_ptr,
                                     TCGArg *args, TCGOpDef *tcg_op_defs)
 {
     int i, nb_ops, op_index, nb_temps, nb_globals, nb_call_args;
+    target_ulong mask;
     TCGOpcode op;
     const TCGOpDef *def;
     TCGArg *gen_args;
@@ -484,6 +487,7 @@ static TCGArg *tcg_constant_folding(TCGContext *s, uint16_t *tcg_opc_ptr,
     nb_globals = s->nb_globals;
     for (i = 0; i < nb_temps; i++) {
         temps[i].state = TCG_TEMP_UNDEF;
+        temps[i].mask = -1;
     }
 
     nb_ops = tcg_opc_ptr - gen_opc_buf;
@@ -610,6 +614,87 @@ static TCGArg *tcg_constant_folding(TCGContext *s, uint16_t *tcg_opc_ptr,
                 continue;
             }
             break;
+        default:
+            break;
+        }
+
+        /* Simplify using known-zero bits */
+        mask = -1;
+        switch (op) {
+        CASE_OP_32_64(ext8s):
+            if ((temps[args[1]].mask & 0x80) != 0) {
+                break;
+            }
+        CASE_OP_32_64(ext8u):
+            mask = 0xff;
+            goto and_const;
+        CASE_OP_32_64(ext16s):
+            if ((temps[args[1]].mask & 0x8000) != 0) {
+                break;
+            }
+        CASE_OP_32_64(ext16u):
+            mask = 0xffff;
+            goto and_const;
+        case INDEX_op_ext32s_i64:
+            if ((temps[args[1]].mask & 0x80000000) != 0) {
+                break;
+            }
+        case INDEX_op_ext32u_i64:
+            mask = (target_ulong) 0xffffffffU;
+            goto and_const;
+
+        CASE_OP_32_64(and):
+            mask = temps[args[2]].mask;
+            if (temps[args[2]].state == TCG_TEMP_CONST) {
+        and_const:
+                ;
+            }
+            mask = temps[args[1]].mask & mask;
+            break;
+
+        CASE_OP_32_64(sar):
+            if (temps[args[2]].state == TCG_TEMP_CONST) {
+                mask = (target_long)temps[args[1]].mask >> temps[args[2]].val;
+            }
+            break;
+
+        CASE_OP_32_64(shr):
+            if (temps[args[2]].state == TCG_TEMP_CONST) {
+                mask = temps[args[1]].mask >> temps[args[2]].val;
+            }
+            break;
+
+        CASE_OP_32_64(shl):
+            if (temps[args[2]].state == TCG_TEMP_CONST) {
+                mask = temps[args[1]].mask << temps[args[2]].val;
+            }
+            break;
+
+        CASE_OP_32_64(neg):
+            /* Set to 1 all bits to the left of the rightmost.  */
+            mask = -(temps[args[1]].mask & -temps[args[1]].mask);
+            break;
+
+        CASE_OP_32_64(deposit):
+            tmp = ((1ull << args[4]) - 1);
+            mask =
+                  (temps[args[1]].mask & ~(tmp << args[3]))
+                  | ((temps[args[2]].mask & tmp) << args[3]);
+            break;
+
+        CASE_OP_32_64(or):
+        CASE_OP_32_64(xor):
+            mask = temps[args[1]].mask | temps[args[2]].mask;
+            break;
+
+        CASE_OP_32_64(setcond):
+            mask = 1;
+            break;
+
+        CASE_OP_32_64(movcond):
+            mask = temps[args[3]].mask | temps[args[4]].mask;
+            break;
+
         default:
             break;
         }
@@ -772,6 +857,7 @@ static TCGArg *tcg_constant_folding(TCGContext *s, uint16_t *tcg_opc_ptr,
                 if (tmp) {
                     for (i = 0; i < nb_temps; i++) {
                         temps[i].state = TCG_TEMP_UNDEF;
+                        temps[i].mask = -1;
                     }
                     gen_opc_buf[op_index] = INDEX_op_br;
                     gen_args[0] = args[3];
@@ -922,11 +1008,11 @@ static TCGArg *tcg_constant_folding(TCGContext *s, uint16_t *tcg_opc_ptr,
             if (!(args[nb_call_args + 1] & (TCG_CALL_NO_READ_GLOBALS |
                                             TCG_CALL_NO_WRITE_GLOBALS))) {
                 for (i = 0; i < nb_globals; i++) {
-                    reset_temp(i);
+                    reset_temp(i, -1);
                 }
             }
             for (i = 0; i < (args[0] >> 16); i++) {
-                reset_temp(args[i + 1]);
+                reset_temp(args[i + 1], -1);
             }
             i = nb_call_args + 3;
             while (i) {
@@ -942,14 +1028,17 @@ static TCGArg *tcg_constant_folding(TCGContext *s, uint16_t *tcg_opc_ptr,
             /* Default case: we know nothing about operation (or were unable
                to compute the operation result) so no propagation is done.
                We trash everything if the operation is the end of a basic
-               block, otherwise we only trash the output args.  */
+               block, otherwise we only trash the output args.  "mask" is
+               the non-zero bits mask for the first output arg.  */
             if (def->flags & TCG_OPF_BB_END) {
                 for (i = 0; i < nb_temps; i++) {
                     temps[i].state = TCG_TEMP_UNDEF;
+                    temps[i].mask = -1;
                 }
             } else {
                 for (i = 0; i < def->nb_oargs; i++) {
-                    reset_temp(args[i]);
+                    reset_temp(args[i], mask);
+                    mask = -1;
                 }
             }
             for (i = 0; i < def->nb_args; i++) {
