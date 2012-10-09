@@ -328,14 +328,6 @@ void qemu_cpu_kick(void *env);
 void qemu_cpu_kick_self(void);
 int qemu_cpu_is_self(void *env);
 
-/* work queue */
-struct qemu_work_item {
-    struct qemu_work_item *next;
-    void (*func)(void *data);
-    void *data;
-    int done;
-};
-
 #ifdef CONFIG_USER_ONLY
 #define qemu_init_vcpu(env) do { } while (0)
 #else

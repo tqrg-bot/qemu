@@ -136,7 +136,7 @@ typedef struct icount_decr_u16 {
 
 struct kvm_run;
 struct KVMState;
-struct qemu_work_item;
+typedef struct CPUWorkItem CPUWorkItem;
 
 typedef struct CPUBreakpoint {
     target_ulong pc;
@@ -209,7 +209,7 @@ typedef struct CPUWatchpoint {
     uint32_t stop;   /* Stop request */                                 \
     uint32_t stopped; /* Artificially stopped */                        \
     struct QemuCond *halt_cond;                                         \
-    struct qemu_work_item *queued_work_first, *queued_work_last;        \
+    CPUWorkItem *queued_work_first, *queued_work_last;                  \
     const char *cpu_model_str;                                          \
     struct KVMState *kvm_state;                                         \
     struct kvm_run *kvm_run;                                            \

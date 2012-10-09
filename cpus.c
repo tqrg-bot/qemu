@@ -636,9 +636,17 @@ void qemu_init_cpu_loop(void)
     qemu_thread_get_self(&io_thread);
 }
 
+/* work queue */
+struct CPUWorkItem {
+    struct CPUWorkItem *next;
+    void (*func)(void *data);
+    void *data;
+    int done;
+};
+
 void run_on_cpu(CPUArchState *env, void (*func)(void *data), void *data)
 {
-    struct qemu_work_item wi;
+    CPUWorkItem wi;
 
     if (qemu_cpu_is_self(env)) {
         func(data);
@@ -667,7 +675,7 @@ void run_on_cpu(CPUArchState *env, void (*func)(void *data), void *data)
 
 static void flush_queued_work(CPUArchState *env)
 {
-    struct qemu_work_item *wi;
+    CPUWorkItem *wi;
 
     if (!env->queued_work_first) {
         return;
