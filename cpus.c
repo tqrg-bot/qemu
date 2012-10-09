@@ -618,15 +618,11 @@ static QemuThread io_thread;
 static QemuThread *tcg_cpu_thread;
 static QemuCond *tcg_halt_cond;
 
-/* cpu creation */
-static QemuCond qemu_cpu_cond;
-/* system init */
 static QemuCond qemu_work_cond;
 
 void qemu_init_cpu_loop(void)
 {
     qemu_init_sigbus();
-    qemu_cond_init(&qemu_cpu_cond);
     qemu_cond_init(&qemu_work_cond);
     qemu_cond_init(&qemu_io_proceeded_cond);
     qemu_mutex_init(&qemu_global_mutex);
@@ -758,10 +754,6 @@ static void *qemu_kvm_cpu_thread_fn(void *arg)
 
     qemu_kvm_init_cpu_signals(env);
 
-    /* signal CPU creation */
-    env->created = 1;
-    qemu_cond_signal(&qemu_cpu_cond);
-
     while (1) {
         if (cpu_can_run(env)) {
             r = kvm_cpu_exec(env);
@@ -792,10 +784,6 @@ static void *qemu_dummy_cpu_thread_fn(void *arg)
 
     sigemptyset(&waitset);
     sigaddset(&waitset, SIG_IPI);
-
-    /* signal CPU creation */
-    env->created = 1;
-    qemu_cond_signal(&qemu_cpu_cond);
 
     cpu_single_env = env;
     while (1) {
@@ -832,7 +820,6 @@ static void *qemu_tcg_cpu_thread_fn(void *arg)
     qemu_mutex_lock(&qemu_global_mutex);
     for (env = first_cpu; env != NULL; env = env->next_cpu) {
         env->thread_id = qemu_get_thread_id();
-        env->created = 1;
     }
     qemu_cond_signal(&qemu_cpu_cond);
 
@@ -968,6 +955,10 @@ void resume_all_vcpus(void)
     }
 }
 
+static void do_nothing(void *unused)
+{
+}
+
 static void qemu_tcg_init_vcpu(void *_env)
 {
     CPUArchState *env = _env;
@@ -984,9 +975,7 @@ static void qemu_tcg_init_vcpu(void *_env)
 #ifdef _WIN32
         cpu->hThread = qemu_thread_get_handle(cpu->thread);
 #endif
-        while (env->created == 0) {
-            qemu_cond_wait(&qemu_cpu_cond, &qemu_global_mutex);
-        }
+        run_on_cpu(env, do_nothing, NULL);
         tcg_cpu_thread = cpu->thread;
     } else {
         cpu->thread = tcg_cpu_thread;
@@ -1003,9 +992,7 @@ static void qemu_kvm_start_vcpu(CPUArchState *env)
     qemu_cond_init(env->halt_cond);
     qemu_thread_create(cpu->thread, qemu_kvm_cpu_thread_fn, env,
                        QEMU_THREAD_JOINABLE);
-    while (env->created == 0) {
-        qemu_cond_wait(&qemu_cpu_cond, &qemu_global_mutex);
-    }
+    run_on_cpu(env, do_nothing, NULL);
 }
 
 static void qemu_dummy_start_vcpu(CPUArchState *env)
@@ -1017,9 +1004,7 @@ static void qemu_dummy_start_vcpu(CPUArchState *env)
     qemu_cond_init(env->halt_cond);
     qemu_thread_create(cpu->thread, qemu_dummy_cpu_thread_fn, env,
                        QEMU_THREAD_JOINABLE);
-    while (env->created == 0) {
-        qemu_cond_wait(&qemu_cpu_cond, &qemu_global_mutex);
-    }
+    run_on_cpu(env, do_nothing, NULL);
 }
 
 void qemu_init_vcpu(void *_env)
