@@ -644,33 +644,46 @@ struct CPUWorkItem {
     int done;
 };
 
-void run_on_cpu(CPUArchState *env, void (*func)(void *data), void *data)
+static CPUWorkItem *cpu_work_queue(CPUArchState *env, void (*func)(void *data), void *data)
 {
-    CPUWorkItem wi;
+    CPUWorkItem *wi = g_new(CPUWorkItem, 1);
 
     if (qemu_cpu_is_self(env)) {
         func(data);
+        wi->done = true;
         return;
     }
 
-    wi.func = func;
-    wi.data = data;
+    wi->func = func;
+    wi->data = data;
     if (!env->queued_work_first) {
         env->queued_work_first = &wi;
     } else {
         env->queued_work_last->next = &wi;
     }
     env->queued_work_last = &wi;
-    wi.next = NULL;
-    wi.done = false;
+    wi->next = NULL;
+    wi->done = false;
 
     qemu_cpu_kick(env);
-    while (!wi.done) {
+    return wi;
+}
+
+static CPUWorkItem *cpu_work_wait(CPUWorkItem *wi)
+{
+    while (!wi->done) {
         CPUArchState *self_env = cpu_single_env;
 
         qemu_cond_wait(&qemu_work_cond, &qemu_global_mutex);
         cpu_single_env = self_env;
     }
+}
+
+void run_on_cpu(CPUArchState *env, void (*func)(void *data), void *data)
+{
+    CPUWorkItem *wi = cpu_work_queue(env, func, data);
+    cpu_work_wait(wi);
+    g_free(wi);
 }
 
 static void flush_queued_work(CPUArchState *env)
