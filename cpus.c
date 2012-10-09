@@ -448,7 +448,7 @@ static void do_vm_stop(RunState state)
 
 static int cpu_can_run(CPUArchState *env)
 {
-    if (env->stop) {
+    if (env->stop || env->queued_work_first) {
         return 0;
     }
     if (env->stopped || !runstate_is_running()) {
@@ -1164,7 +1164,7 @@ static void tcg_exec_all(void)
                 cpu_handle_guest_debug(env);
                 break;
             }
-        } else if (env->stop || env->stopped) {
+        } else if (env->stop || env->queued_work_first || env->stopped) {
             break;
         }
     }
