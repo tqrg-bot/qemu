@@ -206,7 +206,7 @@ typedef struct CPUWatchpoint {
     void *opaque;                                                       \
                                                                         \
     uint32_t created;                                                   \
-    uint32_t stop;   /* Stop request */                                 \
+    CPUWorkItem *stop;   /* Stop request */                             \
     uint32_t stopped; /* Artificially stopped */                        \
     struct QemuCond *halt_cond;                                         \
     CPUWorkItem *queued_work_first, *queued_work_last;                  \

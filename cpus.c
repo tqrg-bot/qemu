@@ -64,7 +64,7 @@ static CPUArchState *next_cpu;
 
 static bool cpu_thread_is_idle(CPUArchState *env)
 {
-    if (env->stop || env->queued_work_first) {
+    if (env->queued_work_first) {
         return false;
     }
     if (env->stopped || !runstate_is_running()) {
@@ -448,7 +448,7 @@ static void do_vm_stop(RunState state)
 
 static int cpu_can_run(CPUArchState *env)
 {
-    if (env->stop || env->queued_work_first) {
+    if (env->queued_work_first) {
         return 0;
     }
     if (env->stopped || !runstate_is_running()) {
@@ -621,14 +621,12 @@ static QemuCond *tcg_halt_cond;
 /* cpu creation */
 static QemuCond qemu_cpu_cond;
 /* system init */
-static QemuCond qemu_pause_cond;
 static QemuCond qemu_work_cond;
 
 void qemu_init_cpu_loop(void)
 {
     qemu_init_sigbus();
     qemu_cond_init(&qemu_cpu_cond);
-    qemu_cond_init(&qemu_pause_cond);
     qemu_cond_init(&qemu_work_cond);
     qemu_cond_init(&qemu_io_proceeded_cond);
     qemu_mutex_init(&qemu_global_mutex);
@@ -707,11 +705,6 @@ static void qemu_wait_io_event_common(CPUArchState *env)
 {
     CPUState *cpu = ENV_GET_CPU(env);
 
-    if (env->stop) {
-        env->stop = 0;
-        env->stopped = 1;
-        qemu_cond_signal(&qemu_pause_cond);
-    }
     flush_queued_work(env);
     cpu->thread_kicked = false;
 }
@@ -939,50 +932,22 @@ void qemu_mutex_unlock_iothread(void)
     qemu_mutex_unlock(&qemu_global_mutex);
 }
 
-static int all_vcpus_paused(void)
-{
-    CPUArchState *penv = first_cpu;
-
-    while (penv) {
-        if (!penv->stopped) {
-            return 0;
-        }
-        penv = penv->next_cpu;
-    }
-
-    return 1;
-}
-
 void pause_all_vcpus(void)
 {
     CPUArchState *penv = first_cpu;
 
     qemu_clock_enable(vm_clock, false);
     while (penv) {
-        penv->stop = 1;
-        qemu_cpu_kick(penv);
+        penv->stop = cpu_work_queue(penv, cpu_stop_current, penv);
         penv = penv->next_cpu;
     }
 
-    if (!qemu_thread_is_self(&io_thread)) {
-        cpu_stop_current();
-        if (!kvm_enabled()) {
-            while (penv) {
-                penv->stop = 0;
-                penv->stopped = 1;
-                penv = penv->next_cpu;
-            }
-            return;
-        }
-    }
-
-    while (!all_vcpus_paused()) {
-        qemu_cond_wait(&qemu_pause_cond, &qemu_global_mutex);
-        penv = first_cpu;
-        while (penv) {
-            qemu_cpu_kick(penv);
-            penv = penv->next_cpu;
-        }
+    penv = first_cpu;
+    while (penv) {
+        cpu_work_wait(penv->stop);
+        g_free(penv->stop);
+        penv->stop = NULL;
+        penv = penv->next_cpu;
     }
 }
 
@@ -992,7 +957,11 @@ void resume_all_vcpus(void)
 
     qemu_clock_enable(vm_clock, true);
     while (penv) {
-        penv->stop = 0;
+        if (penv->stop) {
+            cpu_work_wait(penv->stop);
+            g_free(penv->stop);
+            penv->stop = NULL;
+        }
         penv->stopped = 0;
         qemu_cpu_kick(penv);
         penv = penv->next_cpu;
@@ -1069,25 +1038,23 @@ void qemu_init_vcpu(void *_env)
     }
 }
 
-void cpu_stop_current(void)
+void cpu_stop_current(void *opaque)
 {
-    if (cpu_single_env) {
-        cpu_single_env->stop = 0;
-        cpu_single_env->stopped = 1;
-        cpu_exit(cpu_single_env);
-        qemu_cond_signal(&qemu_pause_cond);
-    }
+    CPUArchState *env = opaque;
+
+    env->stopped = 1;
+    cpu_exit(env);
 }
 
 void vm_stop(RunState state)
 {
     if (!qemu_thread_is_self(&io_thread)) {
-        qemu_system_vmstop_request(state);
         /*
          * FIXME: should not return to device code in case
          * vm_stop() has been requested.
          */
-        cpu_stop_current();
+        cpu_stop_current(cpu_single_env);
+        qemu_system_vmstop_request(state);
         return;
     }
     do_vm_stop(state);
@@ -1164,7 +1131,7 @@ static void tcg_exec_all(void)
                 cpu_handle_guest_debug(env);
                 break;
             }
-        } else if (env->stop || env->queued_work_first || env->stopped) {
+        } else if (env->queued_work_first || env->stopped) {
             break;
         }
     }
