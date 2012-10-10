@@ -59,6 +59,20 @@ void qemu_mutex_lock(QemuMutex *mutex)
         error_exit(err, __func__);
 }
 
+int qemu_mutex_lock_recursive(QemuMutex *mutex)
+{
+    int err;
+
+    err = pthread_mutex_lock(&mutex->lock);
+    if (err == EDEADLK) {
+        return 1;
+    }
+    if (err) {
+        error_exit(err, __func__);
+    }
+    return 0;
+}
+
 int qemu_mutex_trylock(QemuMutex *mutex)
 {
     return pthread_mutex_trylock(&mutex->lock);

@@ -21,6 +21,7 @@ typedef struct QemuThread QemuThread;
 void qemu_mutex_init(QemuMutex *mutex);
 void qemu_mutex_destroy(QemuMutex *mutex);
 void qemu_mutex_lock(QemuMutex *mutex);
+int qemu_mutex_lock_recursive(QemuMutex *mutex);
 int qemu_mutex_trylock(QemuMutex *mutex);
 void qemu_mutex_unlock(QemuMutex *mutex);
 
