@@ -1128,10 +1128,32 @@ static inline void gen_compute_eflags_c(DisasContext *s, TCGv reg)
 
 /* generate a conditional jump to label 'l1' according to jump opcode
    value 'b'. In the fast case, T0 is guaranted not to be used. */
+static inline void gen_jcc1_noeob(DisasContext *s, int b, int l1)
+{
+    CCPrepare cc = gen_prepare_cc(s, b, cpu_T[0]);
+
+    if (cc.mask != -1) {
+        tcg_gen_andi_tl(cpu_T[0], cc.reg, cc.mask);
+        cc.reg = cpu_T[0];
+    }
+    if (cc.use_reg2) {
+        tcg_gen_brcond_tl(cc.cond, cc.reg, cc.reg2, l1);
+    } else {
+        tcg_gen_brcondi_tl(cc.cond, cc.reg, cc.imm, l1);
+    }
+}
+
+/* generate a conditional jump to label 'l1' according to jump opcode
+   value 'b'. In the fast case, T0 is guaranted not to be used.
+   A translation block must end soon.  */
 static inline void gen_jcc1(DisasContext *s, int b, int l1)
 {
     CCPrepare cc = gen_prepare_cc(s, b, cpu_T[0]);
 
+    if (s->cc_op != CC_OP_DYNAMIC) {
+        gen_op_set_cc_op(s->cc_op);
+    }
+    s->cc_op = CC_OP_DYNAMIC;
     if (cc.mask != -1) {
         tcg_gen_andi_tl(cpu_T[0], cc.reg, cc.mask);
         cc.reg = cpu_T[0];
@@ -1264,12 +1286,10 @@ static inline void gen_repz_ ## op(DisasContext *s, int ot,                   \
     l2 = gen_jz_ecx_string(s, next_eip);                                      \
     gen_ ## op(s, ot);                                                        \
     gen_op_add_reg_im(s->aflag, R_ECX, -1);                                   \
-    gen_op_set_cc_op(s->cc_op);                                               \
     gen_jcc1(s, (JCC_Z << 1) | (nz ^ 1), l2);                                 \
     if (!s->jmp_opt)                                                          \
         gen_op_jz_ecx(s->aflag, l2);                                          \
     gen_jmp(s, cur_eip);                                                      \
-    s->cc_op = CC_OP_DYNAMIC;                                                 \
 }
 
 GEN_REPZ(movs)
@@ -2340,13 +2360,9 @@ static inline void gen_jcc(DisasContext *s, int b,
     int l1, l2;
 
     if (s->jmp_opt) {
-        if (s->cc_op != CC_OP_DYNAMIC) {
-            gen_op_set_cc_op(s->cc_op);
-        }
         l1 = gen_new_label();
         gen_jcc1(s, b, l1);
-        s->cc_op = CC_OP_DYNAMIC;
-        
+
         gen_goto_tb(s, 0, next_eip);
 
         gen_set_label(l1);
@@ -2384,7 +2400,7 @@ static void gen_op_cmov_reg_v(DisasContext *s, int ot, int b, int reg, int t0)
 
     if (ot <= OT_WORD) {
         l1 = gen_new_label();
-        gen_jcc1(s, b ^ 1, l1);
+        gen_jcc1_noeob(s, b ^ 1, l1);
         gen_op_mov_reg_v(ot, reg, t0);
         gen_set_label(l1);
         return;
@@ -6067,7 +6083,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                     };
                     op1 = fcmov_cc[op & 3] | (((op >> 3) & 1) ^ 1);
                     l1 = gen_new_label();
-                    gen_jcc1(s, op1, l1);
+                    gen_jcc1_noeob(s, op1, l1);
                     gen_helper_fmov_ST0_STN(cpu_env, tcg_const_i32(opreg));
                     gen_set_label(l1);
                 }
