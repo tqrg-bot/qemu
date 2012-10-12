@@ -801,10 +801,11 @@ static void gen_op_update1_cc(void)
     tcg_gen_mov_tl(cpu_cc_dst, cpu_T[0]);
 }
 
-static void gen_op_update2_cc(void)
+static void gen_op_update2_cc(DisasContext *s, int new_cc_op)
 {
     tcg_gen_mov_tl(cpu_cc_src, cpu_T[1]);
     tcg_gen_mov_tl(cpu_cc_dst, cpu_T[0]);
+    s->cc_op = new_cc_op;
 }
 
 static inline void gen_op_testl_T0_T1_cc(void)
@@ -1380,8 +1381,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
             gen_op_mov_reg_T0(ot, d);
         else
             gen_op_st_T0_A0(ot + s1->mem_index);
-        gen_op_update2_cc();
-        s1->cc_op = CC_OP_ADDB + ot;
+        gen_op_update2_cc(s1, CC_OP_ADDB + ot);
         break;
     case OP_SUBL:
         tcg_gen_sub_tl(cpu_T[0], cpu_T[0], cpu_T[1]);
@@ -1389,8 +1389,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
             gen_op_mov_reg_T0(ot, d);
         else
             gen_op_st_T0_A0(ot + s1->mem_index);
-        gen_op_update2_cc();
-        s1->cc_op = CC_OP_SUBB + ot;
+        gen_op_update2_cc(s1, CC_OP_SUBB + ot);
         break;
     default:
     case OP_ANDL:
@@ -4947,8 +4946,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_op_st_T0_A0(ot + s->mem_index);
             gen_op_mov_reg_T1(ot, reg);
         }
-        gen_op_update2_cc();
-        s->cc_op = CC_OP_ADDB + ot;
+        gen_op_update2_cc(s, CC_OP_ADDB + ot);
         break;
     case 0x1b0:
     case 0x1b1: /* cmpxchg Ev, Gv */
