@@ -51,7 +51,7 @@
 
 /* global register indexes */
 static TCGv_ptr cpu_env;
-static TCGv cpu_A0, cpu_cc_src, cpu_cc_dst;
+static TCGv cpu_A0, cpu_cc_src, cpu_cc_dst, cpu_cc_src2;
 static TCGv_i32 cpu_cc_op;
 static TCGv cpu_regs[CPU_NB_REGS];
 /* local temps */
@@ -797,12 +797,16 @@ static inline void gen_update_cc_op(DisasContext *s)
 
 static void gen_op_update1_cc(void)
 {
+    tcg_gen_discard_tl(cpu_cc_src2);
     tcg_gen_discard_tl(cpu_cc_src);
     tcg_gen_mov_tl(cpu_cc_dst, cpu_T[0]);
 }
 
 static void gen_op_update2_cc(DisasContext *s, int new_cc_op)
 {
+    if (new_cc_op < CC_OP_SUBB || new_cc_op > CC_OP_SUBQ) {
+        tcg_gen_discard_tl(cpu_cc_src2);
+    }
     tcg_gen_mov_tl(cpu_cc_src, cpu_T[1]);
     tcg_gen_mov_tl(cpu_cc_dst, cpu_T[0]);
     s->cc_op = new_cc_op;
@@ -817,6 +821,7 @@ static inline void gen_op_testl_T0_T1_cc(void)
 static void gen_op_update_neg_cc(void)
 {
     tcg_gen_neg_tl(cpu_cc_src, cpu_T[0]);
+    tcg_gen_movi_tl(cpu_cc_src2, 0);
     tcg_gen_mov_tl(cpu_cc_dst, cpu_T[0]);
 }
 
@@ -829,6 +834,7 @@ static void gen_compute_eflags(DisasContext *s)
     if (s->cc_op == CC_OP_EFLAGS) {
         return;
     }
+    tcg_gen_discard_tl(cpu_cc_src2);
     gen_helper_cc_compute_all(cpu_tmp2_i32, cpu_env, cpu_cc_op);
     tcg_gen_discard_tl(cpu_cc_dst);
     s->cc_op = CC_OP_EFLAGS;
@@ -859,12 +865,12 @@ static CCPrepare gen_prepare_eflags_c(DisasContext *s, TCGv reg)
     case CC_OP_SUBW:
     case CC_OP_SUBL:
     case CC_OP_SUBQ:
-        /* (DATA_TYPE)(CC_DST + CC_SRC) < (DATA_TYPE)CC_SRC */
+        /* (DATA_TYPE)CC_SRC2 < (DATA_TYPE)CC_SRC */
         size = s->cc_op - CC_OP_SUBB;
         t1 = gen_ext_tl(cpu_tmp0, cpu_cc_src, size, false);
         /* If no temporary was used, be careful not to alias t1 and t0.  */
         t0 = (t1 == cpu_cc_src) ? cpu_tmp0 : reg;
-        tcg_gen_add_tl(t0, cpu_cc_dst, cpu_cc_src);
+        tcg_gen_mov_tl(t0, cpu_cc_src2);
         gen_extu(size, t0);
         goto add_sub;
 
@@ -1016,7 +1022,7 @@ static inline CCPrepare gen_prepare_cc(DisasContext *s, int b, TCGv reg)
         size = s->cc_op - CC_OP_SUBB;
         switch(jcc_op) {
         case JCC_BE:
-            tcg_gen_add_tl(cpu_tmp4, cpu_cc_dst, cpu_cc_src);
+            tcg_gen_mov_tl(cpu_tmp4, cpu_cc_src2);
             gen_extu(size, cpu_tmp4);
             t0 = gen_ext_tl(cpu_tmp0, cpu_cc_src, size, false);
             cc = (CCPrepare) { .cond = TCG_COND_LEU, .reg = cpu_tmp4, .reg2 = t0, .mask = -1, .use_reg2 = true };
@@ -1028,7 +1034,7 @@ static inline CCPrepare gen_prepare_cc(DisasContext *s, int b, TCGv reg)
         case JCC_LE:
             cond = TCG_COND_LE;
         fast_jcc_l:
-            tcg_gen_add_tl(cpu_tmp4, cpu_cc_dst, cpu_cc_src);
+            tcg_gen_mov_tl(cpu_tmp4, cpu_cc_src2);
             gen_exts(size, cpu_tmp4);
             t0 = gen_ext_tl(cpu_tmp0, cpu_cc_src, size, true);
             cc = (CCPrepare) { .cond = cond, .reg = cpu_tmp4, .reg2 = t0, .mask = -1, .use_reg2 = true };
@@ -1153,11 +1159,12 @@ static inline void gen_jcc1(DisasContext *s, int b, int l1)
     if (s->cc_op != CC_OP_DYNAMIC) {
         gen_op_set_cc_op(s->cc_op);
     }
-    s->cc_op = CC_OP_DYNAMIC;
     if (cc.mask != -1) {
         tcg_gen_andi_tl(cpu_T[0], cc.reg, cc.mask);
         cc.reg = cpu_T[0];
     }
+    tcg_gen_discard_tl(cpu_cc_src2);
+    s->cc_op = CC_OP_DYNAMIC;
     if (cc.use_reg2) {
         tcg_gen_brcond_tl(cc.cond, cc.reg, cc.reg2, l1);
     } else {
@@ -1381,6 +1388,10 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
         s1->cc_op = CC_OP_DYNAMIC;
         break;
     case OP_SBBL:
+        /*
+         * No need to store cpu_cc_src2, because it is used only
+         * when the cc_op is known.
+         */
         gen_compute_eflags_c(s1, cpu_tmp4);
         tcg_gen_sub_tl(cpu_T[0], cpu_T[0], cpu_T[1]);
         tcg_gen_sub_tl(cpu_T[0], cpu_T[0], cpu_tmp4);
@@ -1404,6 +1415,13 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
         gen_op_update2_cc(s1, CC_OP_ADDB + ot);
         break;
     case OP_SUBL:
+        /*
+         * We can store cc_src2 here, because it is used only
+         * when the cc_op is known.  If the write faults, flags
+         * for the handler are computed by the helper (which
+         * does not need cc_src2).
+         */
+        tcg_gen_mov_tl(cpu_cc_src2, cpu_T[0]);
         tcg_gen_sub_tl(cpu_T[0], cpu_T[0], cpu_T[1]);
         if (d != OR_TMP0)
             gen_op_mov_reg_T0(ot, d);
@@ -1441,6 +1459,7 @@ static void gen_op(DisasContext *s1, int op, int ot, int d)
         break;
     case OP_CMPL:
         tcg_gen_mov_tl(cpu_cc_src, cpu_T[1]);
+        tcg_gen_mov_tl(cpu_cc_src2, cpu_T[0]);
         tcg_gen_sub_tl(cpu_cc_dst, cpu_T[0], cpu_T[1]);
         s1->cc_op = CC_OP_SUBB + ot;
         break;
@@ -2776,6 +2795,7 @@ static void gen_eob(DisasContext *s)
    direct call to the next block may occur */
 static void gen_jmp_tb(DisasContext *s, target_ulong eip, int tb_num)
 {
+    tcg_gen_discard_tl(cpu_cc_src2);
     if (s->jmp_opt) {
         gen_update_cc_op(s);
         gen_goto_tb(s, tb_num, eip);
@@ -4992,6 +5012,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
                 rm = 0; /* avoid warning */
             }
             label1 = gen_new_label();
+            tcg_gen_mov_tl(cpu_cc_src2, cpu_regs[R_EAX]);
             tcg_gen_sub_tl(t2, cpu_regs[R_EAX], t0);
             gen_extu(ot, t2);
             tcg_gen_brcondi_tl(TCG_COND_EQ, t2, 0, label1);
@@ -7910,6 +7931,8 @@ static inline void gen_intermediate_code_internal(CPUX86State *env,
     cpu_tmp5 = tcg_temp_new();
     cpu_ptr0 = tcg_temp_new_ptr();
     cpu_ptr1 = tcg_temp_new_ptr();
+
+    cpu_cc_src2 = tcg_temp_local_new();
 
     gen_opc_end = gen_opc_buf + OPC_MAX_SIZE;
 
