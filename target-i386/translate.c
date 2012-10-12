@@ -2297,10 +2297,10 @@ static inline void gen_jcc(DisasContext *s, int b,
 {
     int l1, l2;
 
-    if (s->cc_op != CC_OP_DYNAMIC) {
-        gen_op_set_cc_op(s->cc_op);
-    }
     if (s->jmp_opt) {
+        if (s->cc_op != CC_OP_DYNAMIC) {
+            gen_op_set_cc_op(s->cc_op);
+        }
         l1 = gen_new_label();
         gen_jcc1(s, b, l1);
         s->cc_op = CC_OP_DYNAMIC;
@@ -2315,7 +2315,6 @@ static inline void gen_jcc(DisasContext *s, int b,
         l1 = gen_new_label();
         l2 = gen_new_label();
         gen_jcc1(s, b, l1);
-        s->cc_op = CC_OP_DYNAMIC;
 
         gen_jmp_im(next_eip);
         tcg_gen_br(l2);
