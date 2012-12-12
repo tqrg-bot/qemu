@@ -34,6 +34,7 @@
 #include "block/coroutine.h"
 #include "qmp-commands.h"
 #include "qemu/timer.h"
+#include "block/thread-pool.h"
 
 #ifdef CONFIG_BSD
 #include <sys/types.h>
@@ -4035,11 +4036,9 @@ int coroutine_fn bdrv_co_flush(BlockDriverState *bs)
         }
     }
 
-    /* The persistent bitmap is flushed synchronously; we may want to
-     * move this to a thread pool.
-     */
     if (bs->persistent_bitmap) {
-        ret = qemu_mmap_flush(&bs->persistent_mmap);
+        ret = thread_pool_submit_co((ThreadPoolFunc *) qemu_mmap_flush,
+                                    &bs->persistent_mmap);
         if (ret < 0) {
             return ret;
         }
