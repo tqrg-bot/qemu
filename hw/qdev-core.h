@@ -36,7 +36,24 @@ typedef struct DeviceClass {
     Property *props;
     int no_user;
 
-    /* callbacks */
+    /* reset:
+     * @dev: Device being reset.
+     *
+     * Performs the device-specific part of a device-level ("soft") reset
+     * of @dev.  This is called by QEMU internally as part of initialization
+     * or resetting a bus, but it is often accessible using a device register
+     * as well.  Devices can access it using qdev_reset_all.
+     *
+     * In general, a soft reset will not reset any state that depends on the
+     * type of bus that the device resides on.  For example, PCI devices do not
+     * reset their base address registers or configuration space in the reset
+     * callback.  Resetting these registers is handled by the bus, not by the
+     * device.
+     *
+     * A device-level reset also includes a hard reset of all the buses exposed
+     * by @dev (and all devices below those, recursively).  However, this is
+     * handled by qdev_reset_all and this callback need not care about it.
+     */
     void (*reset)(DeviceState *dev);
 
     /* device state */
@@ -86,6 +103,23 @@ struct BusClass {
      * bindings can be found at http://playground.sun.com/1275/bindings/.
      */
     char *(*get_fw_dev_path)(DeviceState *dev);
+
+    /* reset:
+     * @bus: Bus being reset.
+     *
+     * This callback performs a reset of @bus.  It is usually done when
+     * qdev_reset_all is called on the parent of @bus.
+     *
+     * Resetting a bus includes a bus-level ("hard") reset of all devices on
+     * the bus itself.  Compared to a device-level ("soft") reset, this will
+     * also remove all the configuration for devices.  In the case of PCI, for
+     * example, this means the base address registers, configuration space,
+     * etc.
+     *
+     * The callback may take care of calling qdev_reset_all on all devices
+     * to perform the soft reset, or not.  In the first case, it should return
+     * 1; in the second case, it should return 0 (see also qbus_walkerfn).
+     */
     int (*reset)(BusState *bus);
 };
 
@@ -186,6 +220,21 @@ int qdev_walk_children(DeviceState *dev,
                        qdev_walkerfn *post_devfn, qbus_walkerfn *post_busfn,
                        void *opaque);
 
+/**
+ * @qdev_reset_all:
+ * @dev: Device to be reset.
+ *
+ * Perform a device-level ("soft") reset of dev, including all buses
+ * and all devices connected to those buses.  A soft reset means that
+ * qdev_reset_all will not reset any state that depends on the type of
+ * bus that the device resides on.  For example, PCI devices will not
+ * reset their base address registers or configuration space.
+ *
+ * However, this is not true for device connected to @dev's buses; these are
+ * reset completely.  For example, if @dev is a PCI-to-PCI bridge, the base
+ * address registers will be reset for devices on the bridge, but not for @dev
+ * itself.
+ */
 void qdev_reset_all(DeviceState *dev);
 
 /**
