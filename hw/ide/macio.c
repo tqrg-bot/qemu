@@ -550,10 +550,6 @@ static int ide_nop_int(IDEDMA *dma, int x)
     return 0;
 }
 
-static void ide_nop_restart(void *opaque, int x, RunState y)
-{
-}
-
 static void ide_dbdma_start(IDEDMA *dma, IDEState *s,
                             BlockDriverCompletionFunc *cb)
 {
@@ -569,7 +565,6 @@ static const IDEDMAOps dbdma_ops = {
     .prepare_buf    = ide_nop_int,
     .rw_buf         = ide_nop_int,
     .set_unit       = ide_nop_int,
-    .restart_cb     = ide_nop_restart,
 };
 
 static void macio_ide_realizefn(DeviceState *dev, Error **errp)
