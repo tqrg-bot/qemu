@@ -239,7 +239,7 @@ void qbus_reset_all(BusState *bus)
     qbus_walk_children(bus, NULL, NULL, qdev_reset_one, qbus_reset_one, NULL);
 }
 
-void qbus_reset_all_fn(void *opaque)
+static void qbus_reset_all_fn(void *opaque)
 {
     BusState *bus = opaque;
     qbus_reset_all(bus);
@@ -453,7 +453,7 @@ static void qbus_realize(BusState *bus)
         QLIST_INSERT_HEAD(&bus->parent->child_bus, bus, sibling);
         bus->parent->num_child_bus++;
         object_property_add_child(OBJECT(bus->parent), bus->name, OBJECT(bus), NULL);
-    } else if (bus != sysbus_get_default()) {
+    } else {
         /* TODO: once all bus devices are qdevified,
            only reset handler for main_system_bus should be registered here. */
         qemu_register_reset(qbus_reset_all_fn, bus);

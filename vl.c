@@ -3984,9 +3984,6 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
-    /* TODO: once all bus devices are qdevified, this should be done
-     * when bus is created by qdev.c */
-    qemu_register_reset(qbus_reset_all_fn, sysbus_get_default());
     qemu_run_machine_init_done_notifiers();
 
     qemu_system_reset(VMRESET_SILENT);

@@ -248,7 +248,6 @@ void qdev_reset_all(DeviceState *dev);
  * or configuration space.
  */
 void qbus_reset_all(BusState *bus);
-void qbus_reset_all_fn(void *opaque);
 
 void qbus_free(BusState *bus);
 
