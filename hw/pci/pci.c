@@ -45,7 +45,7 @@
 static void pcibus_dev_print(Monitor *mon, DeviceState *dev, int indent);
 static char *pcibus_get_dev_path(DeviceState *dev);
 static char *pcibus_get_fw_dev_path(DeviceState *dev);
-static int pcibus_reset(BusState *qbus);
+static void pcibus_reset(BusState *qbus);
 
 static Property pci_props[] = {
     DEFINE_PROP_PCI_DEVFN("addr", PCIDevice, devfn, -1),
@@ -205,7 +205,7 @@ void pci_device_reset(PCIDevice *dev)
     msix_reset(dev);
 }
 
-static int pcibus_reset(BusState *qbus)
+static void pcibus_reset(BusState *qbus)
 {
     PCIBus *bus = DO_UPCAST(PCIBus, qbus, qbus);
     int i;
@@ -213,8 +213,6 @@ static int pcibus_reset(BusState *qbus)
     for (i = 0; i < bus->nirq; i++) {
         assert(bus->irq_count[i] == 0);
     }
-
-    return 0;
 }
 
 static void pci_host_bus_register(int domain, PCIBus *bus)

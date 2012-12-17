@@ -115,12 +115,8 @@ struct BusClass {
      * also remove all the configuration for devices.  In the case of PCI, for
      * example, this means the base address registers, configuration space,
      * etc.
-     *
-     * The callback may take care of calling qdev_reset_all on all devices
-     * to perform the soft reset, or not.  In the first case, it should return
-     * 1; in the second case, it should return 0 (see also qbus_walkerfn).
      */
-    int (*reset)(BusState *bus);
+    void (*reset)(BusState *bus);
 };
 
 typedef struct BusChild {

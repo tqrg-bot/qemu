@@ -533,7 +533,7 @@ static void set_config(VirtIODevice *vdev, const uint8_t *config_data)
     memcpy(&config, config_data, sizeof(config));
 }
 
-static int virtser_bus_reset(BusState *qbus)
+static void virtser_bus_reset(BusState *qbus)
 {
     VirtIOSerialBus *bus = DO_UPCAST(VirtIOSerialBus, qbus, qbus);
     VirtIOSerialPort *port;
@@ -548,7 +548,6 @@ static int virtser_bus_reset(BusState *qbus)
                 vsc->guest_close(port);
         }
     }
-    return 0;
 }
 
 static void set_status(VirtIODevice *vdev, uint8_t status)

@@ -224,7 +224,7 @@ static int qbus_reset_one(BusState *bus, void *opaque)
 {
     BusClass *bc = BUS_GET_CLASS(bus);
     if (bc->reset) {
-        return bc->reset(bus);
+        bc->reset(bus);
     }
     return 0;
 }
