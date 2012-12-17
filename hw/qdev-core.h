@@ -218,13 +218,6 @@ char *qdev_get_fw_dev_path(DeviceState *dev);
  */
 void qdev_machine_init(void);
 
-/**
- * @device_reset
- *
- * Reset a single device (by calling the reset method).
- */
-void device_reset(DeviceState *dev);
-
 const struct VMStateDescription *qdev_get_vmsd(DeviceState *dev);
 
 const char *qdev_fw_name(DeviceState *dev);

@@ -211,7 +211,11 @@ void qdev_unplug(DeviceState *dev, Error **errp)
 
 static int qdev_reset_one(DeviceState *dev, void *opaque)
 {
-    device_reset(dev);
+    DeviceClass *klass = DEVICE_GET_CLASS(dev);
+
+    if (klass->reset) {
+        klass->reset(dev);
+    }
 
     return 0;
 }
@@ -736,15 +740,6 @@ static void qdev_remove_from_bus(Object *obj)
 static void device_class_init(ObjectClass *class, void *data)
 {
     class->unparent = qdev_remove_from_bus;
-}
-
-void device_reset(DeviceState *dev)
-{
-    DeviceClass *klass = DEVICE_GET_CLASS(dev);
-
-    if (klass->reset) {
-        klass->reset(dev);
-    }
 }
 
 Object *qdev_get_machine(void)
