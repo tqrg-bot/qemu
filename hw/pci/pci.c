@@ -205,27 +205,16 @@ void pci_device_reset(PCIDevice *dev)
     msix_reset(dev);
 }
 
-/*
- * Trigger pci bus reset under a given bus.
- * To be called on RST# assert.
- */
 static int pcibus_reset(BusState *qbus)
 {
     PCIBus *bus = DO_UPCAST(PCIBus, qbus, qbus);
     int i;
 
-    for (i = 0; i < ARRAY_SIZE(bus->devices); ++i) {
-        if (bus->devices[i]) {
-            pci_device_reset(bus->devices[i]);
-        }
-    }
     for (i = 0; i < bus->nirq; i++) {
         assert(bus->irq_count[i] == 0);
     }
 
-    /* topology traverse is done in the pci_device_reset() loop above.
-       Tell qbus/qdev walker not to traverse the tree */
-    return 1;
+    return 0;
 }
 
 static void pci_host_bus_register(int domain, PCIBus *bus)
