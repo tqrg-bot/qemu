@@ -175,8 +175,10 @@ int qdev_init(DeviceState *dev)
                                        dev->alias_required_for_version);
     }
     dev->state = DEV_STATE_INITIALIZED;
-    if (dev->hotplugged) {
-        device_reset(dev);
+    if (dev->hotplugged &&
+        (!dev->parent_bus || !dev->parent_bus->parent ||
+         dev->parent_bus->parent->state == DEV_STATE_INITIALIZED)) {
+        qdev_reset_all(dev);
     }
     return 0;
 }
