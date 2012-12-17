@@ -257,8 +257,8 @@ static void virtio_pci_stop_ioeventfd(VirtIOPCIProxy *proxy)
 void virtio_pci_reset(DeviceState *d)
 {
     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
-    virtio_pci_stop_ioeventfd(proxy);
     virtio_reset(proxy->vdev);
+    virtio_pci_stop_ioeventfd(proxy);
     msix_unuse_all_vectors(&proxy->pci_dev);
     proxy->flags &= ~VIRTIO_PCI_FLAG_BUS_MASTER_BUG;
 }
@@ -280,8 +280,8 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
     case VIRTIO_PCI_QUEUE_PFN:
         pa = (hwaddr)val << VIRTIO_PCI_QUEUE_ADDR_SHIFT;
         if (pa == 0) {
-            virtio_pci_stop_ioeventfd(proxy);
             virtio_reset(proxy->vdev);
+            virtio_pci_stop_ioeventfd(proxy);
             msix_unuse_all_vectors(&proxy->pci_dev);
         }
         else
@@ -297,6 +297,10 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         }
         break;
     case VIRTIO_PCI_STATUS:
+        if (vdev->status == 0) {
+            virtio_reset(proxy->vdev);
+        }
+
         if (!(val & VIRTIO_CONFIG_S_DRIVER_OK)) {
             virtio_pci_stop_ioeventfd(proxy);
         }
@@ -308,7 +312,6 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         }
 
         if (vdev->status == 0) {
-            virtio_reset(proxy->vdev);
             msix_unuse_all_vectors(&proxy->pci_dev);
         }
 
