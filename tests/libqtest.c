@@ -106,6 +106,7 @@ QTestState *qtest_init(const char *extra_args)
     QTestState *s;
     int sock, qmpsock, ret, i;
     gchar *pid_file;
+    gchar *log_file;
     gchar *command;
     const char *qemu_binary;
     pid_t pid;
@@ -118,6 +119,7 @@ QTestState *qtest_init(const char *extra_args)
     s->socket_path = g_strdup_printf("/tmp/qtest-%d.sock", getpid());
     s->qmp_socket_path = g_strdup_printf("/tmp/qtest-%d.qmp", getpid());
     pid_file = g_strdup_printf("/tmp/qtest-%d.pid", getpid());
+    log_file = g_strdup_printf("/tmp/qtest-%d.log", getpid());
 
     sock = init_socket(s->socket_path);
     qmpsock = init_socket(s->qmp_socket_path);
@@ -126,12 +128,12 @@ QTestState *qtest_init(const char *extra_args)
     if (pid == 0) {
         command = g_strdup_printf("%s "
                                   "-qtest unix:%s,nowait "
-                                  "-qtest-log /dev/null "
+                                  "-qtest-log %s "
                                   "-qmp unix:%s,nowait "
                                   "-pidfile %s "
                                   "-machine accel=qtest "
                                   "%s", qemu_binary, s->socket_path,
-                                  s->qmp_socket_path, pid_file,
+                                  log_file, s->qmp_socket_path, pid_file,
                                   extra_args ?: "");
 
         ret = system(command);
