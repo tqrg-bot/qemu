@@ -81,9 +81,14 @@ int64_t pit_get_next_transition_time(PITChannelState *s, int64_t current_time)
 
     d = muldiv64(current_time - s->count_load_time, PIT_FREQ,
                  get_ticks_per_sec());
+
     switch (s->mode) {
     default:
     case 0:
+        if (s->gate == 0) {
+            return -1;
+        }
+	/* fall through */
     case 1:
         if (d < s->count) {
             next_time = s->count;
@@ -92,6 +97,9 @@ int64_t pit_get_next_transition_time(PITChannelState *s, int64_t current_time)
         }
         break;
     case 2:
+        if (s->gate == 0) {
+            return -1;
+        }
         base = (d / s->count) * s->count;
         if ((d - base) == 0 && d != 0) {
             next_time = base + s->count;
@@ -100,6 +108,9 @@ int64_t pit_get_next_transition_time(PITChannelState *s, int64_t current_time)
         }
         break;
     case 3:
+        if (s->gate == 0) {
+            return -1;
+        }
         base = (d / s->count) * s->count;
         period2 = ((s->count + 1) >> 1);
         if ((d - base) < period2) {
@@ -109,6 +120,10 @@ int64_t pit_get_next_transition_time(PITChannelState *s, int64_t current_time)
         }
         break;
     case 4:
+        if (s->gate == 0) {
+            return -1;
+        }
+	/* fall through */
     case 5:
         if (d < s->count) {
             next_time = s->count;

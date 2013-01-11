@@ -539,6 +539,16 @@ static void register_b_set_flag(void)
     g_assert_cmpint(cmos_read(RTC_CENTURY), ==, 0x20);
 }
 
+static void pit_stop(void)
+{
+    static const int iobase = 0x40;
+    int i;
+
+    for (i = 0; i <= 2; i++) {
+        outb(iobase + 3, (i << 6) | (4 << 1));
+    }
+}
+
 int main(int argc, char **argv)
 {
     QTestState *s = NULL;
@@ -547,7 +557,9 @@ int main(int argc, char **argv)
     g_test_init(&argc, &argv, NULL);
 
     s = qtest_start("-display none -rtc clock=vm");
+
     qtest_irq_intercept_in(s, "ioapic");
+    pit_stop();
 
     qtest_add_func("/rtc/check-time/bcd", bcd_check_time);
     qtest_add_func("/rtc/check-time/dec", dec_check_time);

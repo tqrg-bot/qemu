@@ -35,6 +35,7 @@
 #define RW_STATE_WORD0 3
 #define RW_STATE_WORD1 4
 
+static void pit_timer_update(PITChannelState *s, int64_t current_time);
 static void pit_irq_timer_update(PITChannelState *s, int64_t current_time);
 
 static int pit_get_count(PITChannelState *s)
@@ -70,7 +71,11 @@ static void pit_set_channel_gate(PITCommonState *s, PITChannelState *sc,
     default:
     case 0:
     case 4:
-        /* XXX: just disable/enable counting */
+        if (sc->gate < val) {
+            /* restart counting on rising edge */
+            sc->count_load_time = qemu_get_clock_ns(vm_clock);
+        }
+        pit_timer_update(sc, sc->count_load_time);
         break;
     case 1:
     case 5:
@@ -87,7 +92,6 @@ static void pit_set_channel_gate(PITCommonState *s, PITChannelState *sc,
             sc->count_load_time = qemu_get_clock_ns(vm_clock);
             pit_irq_timer_update(sc, sc->count_load_time);
         }
-        /* XXX: disable/enable counting */
         break;
     }
     sc->gate = val;
@@ -233,27 +237,36 @@ static uint64_t pit_ioport_read(void *opaque, hwaddr addr,
     return ret;
 }
 
-static void pit_irq_timer_update(PITChannelState *s, int64_t current_time)
+static void pit_timer_update(PITChannelState *s, int64_t current_time)
 {
     int64_t expire_time;
-    int irq_level;
 
     if (!s->irq_timer || s->irq_disabled) {
         return;
     }
     expire_time = pit_get_next_transition_time(s, current_time);
-    irq_level = pit_get_out(s, current_time);
-    qemu_set_irq(s->irq, irq_level);
-#ifdef DEBUG_PIT
-    printf("irq_level=%d next_delay=%f\n",
-           irq_level,
-           (double)(expire_time - current_time) / get_ticks_per_sec());
-#endif
     s->next_transition_time = expire_time;
     if (expire_time != -1)
         qemu_mod_timer(s->irq_timer, expire_time);
     else
         qemu_del_timer(s->irq_timer);
+}
+
+static void pit_irq_timer_update(PITChannelState *s, int64_t current_time)
+{
+    int irq_level;
+
+    if (!s->irq_timer || s->irq_disabled) {
+        return;
+    }
+    irq_level = pit_get_out(s, current_time);
+    qemu_set_irq(s->irq, irq_level);
+    pit_timer_update(s, current_time);
+#ifdef DEBUG_PIT
+    printf("irq_level=%d next_delay=%f\n",
+           irq_level,
+           (double)(expire_time - current_time) / get_ticks_per_sec());
+#endif
 }
 
 static void pit_irq_timer(void *opaque)
