@@ -23,7 +23,9 @@ static uint8_t base = 0x70;
 
 static int bcd2dec(int value)
 {
-    return (((value >> 4) & 0x0F) * 10) + (value & 0x0F);
+    int am_pm = value & 0x80;
+    value &= 0x7f;
+    return am_pm | (((value >> 4) * 10) + (value & 0x0F));
 }
 
 static uint8_t cmos_read(uint8_t reg)

@@ -88,6 +88,7 @@ static void rtc_set_time(RTCState *s);
 static void rtc_update_time(RTCState *s);
 static void rtc_set_cmos(RTCState *s, const struct tm *tm);
 static inline int rtc_from_bcd(RTCState *s, int a);
+static inline int rtc_from_bcd_hours(RTCState *s, int a);
 static uint64_t get_next_alarm(RTCState *s);
 
 static inline bool rtc_running(RTCState *s)
@@ -254,17 +255,6 @@ static void check_update_timer(RTCState *s)
     }
 }
 
-static inline uint8_t convert_hour(RTCState *s, uint8_t hour)
-{
-    if (!(s->cmos_data[RTC_REG_B] & REG_B_24H)) {
-        hour %= 12;
-        if (s->cmos_data[RTC_HOURS] & 0x80) {
-            hour += 12;
-        }
-    }
-    return hour;
-}
-
 static uint64_t get_next_alarm(RTCState *s)
 {
     int32_t alarm_sec, alarm_min, alarm_hour, cur_hour, cur_min, cur_sec;
@@ -274,13 +264,11 @@ static uint64_t get_next_alarm(RTCState *s)
 
     alarm_sec = rtc_from_bcd(s, s->cmos_data[RTC_SECONDS_ALARM]);
     alarm_min = rtc_from_bcd(s, s->cmos_data[RTC_MINUTES_ALARM]);
-    alarm_hour = rtc_from_bcd(s, s->cmos_data[RTC_HOURS_ALARM]);
-    alarm_hour = alarm_hour == -1 ? -1 : convert_hour(s, alarm_hour);
+    alarm_hour = rtc_from_bcd_hours(s, s->cmos_data[RTC_HOURS_ALARM]);
 
     cur_sec = rtc_from_bcd(s, s->cmos_data[RTC_SECONDS]);
     cur_min = rtc_from_bcd(s, s->cmos_data[RTC_MINUTES]);
-    cur_hour = rtc_from_bcd(s, s->cmos_data[RTC_HOURS]);
-    cur_hour = convert_hour(s, cur_hour);
+    cur_hour = rtc_from_bcd_hours(s, s->cmos_data[RTC_HOURS]);
 
     if (alarm_hour == -1) {
         alarm_hour = cur_hour;
@@ -495,6 +483,23 @@ static inline int rtc_to_bcd(RTCState *s, int a)
     }
 }
 
+static inline int rtc_from_bcd_hours(RTCState *s, int a)
+{
+    int hour;
+    if ((a & 0xc0) == 0xc0) {
+        return -1;
+    }
+    if (s->cmos_data[RTC_REG_B] & REG_B_DM) {
+        hour = a;
+    } else {
+        hour = (a & 0x80) | ((((a & 0x70) >> 4) * 10) + (a & 0x0f));
+    }
+    if (!(s->cmos_data[RTC_REG_B] & REG_B_24H)) {
+        hour = (hour % 12) + (hour & 0x80 ? 12 : 0);
+    }
+    return hour;
+}
+
 static inline int rtc_from_bcd(RTCState *s, int a)
 {
     if ((a & 0xc0) == 0xc0) {
@@ -511,13 +516,7 @@ static void rtc_get_time(RTCState *s, struct tm *tm)
 {
     tm->tm_sec = rtc_from_bcd(s, s->cmos_data[RTC_SECONDS]);
     tm->tm_min = rtc_from_bcd(s, s->cmos_data[RTC_MINUTES]);
-    tm->tm_hour = rtc_from_bcd(s, s->cmos_data[RTC_HOURS] & 0x7f);
-    if (!(s->cmos_data[RTC_REG_B] & REG_B_24H)) {
-        tm->tm_hour %= 12;
-        if (s->cmos_data[RTC_HOURS] & 0x80) {
-            tm->tm_hour += 12;
-        }
-    }
+    tm->tm_hour = rtc_from_bcd_hours(s, s->cmos_data[RTC_HOURS]);
     tm->tm_wday = rtc_from_bcd(s, s->cmos_data[RTC_DAY_OF_WEEK]) - 1;
     tm->tm_mday = rtc_from_bcd(s, s->cmos_data[RTC_DAY_OF_MONTH]);
     tm->tm_mon = rtc_from_bcd(s, s->cmos_data[RTC_MONTH]) - 1;
