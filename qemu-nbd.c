@@ -81,6 +81,7 @@ static void usage(const char *name)
 "  -s, --snapshot       use snapshot file\n"
 "  -n, --nocache        disable host cache\n"
 "      --cache=MODE     set cache mode (none, writeback, ...)\n"
+"      --discard=MODE   set discard mode (ignore or unmap)\n"
 #ifdef CONFIG_LINUX_AIO
 "      --aio=MODE       set AIO mode (native or threads)\n"
 #endif
