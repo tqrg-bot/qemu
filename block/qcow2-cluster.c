@@ -1084,6 +1084,82 @@ int qcow2_decompress_cluster(BlockDriverState *bs, uint64_t cluster_offset)
 }
 
 /*
+ * This anchors as many clusters of nb_clusters as possible at once (i.e.
+ * all clusters in the same L2 table) and returns the number of anchored
+ * clusters.
+ */
+static int anchor_single_l2(BlockDriverState *bs, uint64_t offset,
+    unsigned int nb_clusters)
+{
+    BDRVQcowState *s = bs->opaque;
+    uint64_t *l2_table;
+    int l2_index;
+    int ret;
+    int i;
+
+    ret = get_cluster_table(bs, offset, &l2_table, &l2_index);
+    if (ret < 0) {
+        return ret;
+    }
+
+    /* Limit nb_clusters to one L2 table */
+    nb_clusters = MIN(nb_clusters, s->l2_size - l2_index);
+
+    for (i = 0; i < nb_clusters; i++) {
+        uint64_t old_offset;
+
+        old_offset = be64_to_cpu(l2_table[l2_index + i]);
+        if ((old_offset & L2E_OFFSET_MASK) == 0) {
+            continue;
+        }
+
+        /* Anchor those that are otherwise unused.  */
+        qcow2_anchor_single_ref_clusters(bs, old_offset);
+    }
+
+    ret = qcow2_cache_put(bs, s->l2_table_cache, (void**) &l2_table);
+    if (ret < 0) {
+        return ret;
+    }
+
+    return nb_clusters;
+}
+
+int qcow2_anchor_clusters(BlockDriverState *bs, uint64_t offset,
+    int nb_sectors)
+{
+    BDRVQcowState *s = bs->opaque;
+    uint64_t end_offset;
+    unsigned int nb_clusters;
+    int ret;
+
+    end_offset = offset + (nb_sectors << BDRV_SECTOR_BITS);
+
+    /* Round start up and end down */
+    offset = align_offset(offset, s->cluster_size);
+    end_offset &= ~(s->cluster_size - 1);
+
+    if (offset > end_offset) {
+        return 0;
+    }
+
+    nb_clusters = size_to_clusters(s, end_offset - offset);
+
+    /* Each L2 table is handled by its own loop iteration */
+    while (nb_clusters > 0) {
+        ret = anchor_single_l2(bs, offset, nb_clusters);
+        if (ret < 0) {
+            return ret;
+        }
+
+        nb_clusters -= ret;
+        offset += (ret * s->cluster_size);
+    }
+
+    return 0;
+}
+
+/*
  * This discards as many clusters of nb_clusters as possible at once (i.e.
  * all clusters in the same L2 table) and returns the number of discarded
  * clusters.
