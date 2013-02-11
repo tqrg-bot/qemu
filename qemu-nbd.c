@@ -342,7 +342,7 @@ int main(int argc, char **argv)
     int opt_ind = 0;
     int li;
     char *end;
-    int flags = BDRV_O_RDWR;
+    int flags = BDRV_O_RDWR | BDRV_O_ANCHOR;
     int partition = -1;
     int ret;
     int fd;

@@ -301,7 +301,7 @@ DriveInfo *drive_init(QemuOpts *opts, BlockInterfaceType block_default_type)
     int max_devs;
     int index;
     int ro = 0;
-    int bdrv_flags = 0;
+    int bdrv_flags = BDRV_O_ANCHOR;
     int on_read_error, on_write_error;
     const char *devaddr;
     DriveInfo *dinfo;
