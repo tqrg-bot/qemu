@@ -412,6 +412,49 @@ fail_block:
     return ret;
 }
 
+static int cmp_uint64(const void *a, const void *b)
+{
+    const uint64_t *elem_a = a;
+    const uint64_t *elem_b = b;
+
+    if (*elem_a < *elem_b) {
+        return -1;
+    } else if (*elem_a < *elem_b) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int
+discard_clusters_in_file(BlockDriverState *bs,
+                         uint64_t *freed_clusters, int n_freed_clusters);
+{
+    uint64_t base = freed_clusters[0] >> BDRV_SECTOR_BITS;
+    uint64_t length = s->cluster_sectors;
+    int i, ret;
+
+    /* Clusters are discarded at the end to coalesce adjacent sectors
+     * more easily.
+     */
+    qsort(freed_clusters, n_freed_clusters, sizeof(uint64_t), cmp_uint64);
+    for (i = 1; i < n_freed_clusters; i++) {
+        uint64_t cur = freed_clusters[i] >> BDRV_SECTOR_BITS;
+        if (cur == base + length) {
+            length += s->cluster_sectors;
+        } else {
+            ret = bdrv_discard(bs->file, base, length);
+            if (ret < 0) {
+                return ret;
+            }
+            base = cur;
+            length = s->cluster_sectors;
+        }
+    }
+
+    return bdrv_discard(bs->file, base, length);
+}
+
 /* XXX: cache several refcount block clusters ? */
 static int QEMU_WARN_UNUSED_RESULT update_refcount(BlockDriverState *bs,
     int64_t offset, int64_t length, int addend)
@@ -420,7 +463,8 @@ static int QEMU_WARN_UNUSED_RESULT update_refcount(BlockDriverState *bs,
     int64_t start, last, cluster_offset;
     uint16_t *refcount_block = NULL;
     int64_t old_table_index = -1;
-    int ret;
+    uint64_t *freed_clusters;
+    int ret, n_freed_clusters;
 
 #ifdef DEBUG_ALLOC2
     fprintf(stderr, "update_refcount: offset=%" PRId64 " size=%" PRId64 " addend=%d\n",
@@ -432,13 +476,18 @@ static int QEMU_WARN_UNUSED_RESULT update_refcount(BlockDriverState *bs,
         return 0;
     }
 
+    start = offset & ~(s->cluster_size - 1);
+    last = (offset + length - 1) & ~(s->cluster_size - 1);
+    length = last + s->cluster_size - start;
     if (addend < 0) {
         qcow2_cache_set_dependency(bs, s->refcount_block_cache,
             s->l2_table_cache);
+        freed_clusters = g_new(uint64_t, length >> s->cluster_bits);
+    } else {
+        freed_clusters = NULL;
     }
+    n_freed_clusters = 0;
 
-    start = offset & ~(s->cluster_size - 1);
-    last = (offset + length - 1) & ~(s->cluster_size - 1);
     for(cluster_offset = start; cluster_offset <= last;
         cluster_offset += s->cluster_size)
     {
@@ -476,6 +525,13 @@ static int QEMU_WARN_UNUSED_RESULT update_refcount(BlockDriverState *bs,
             ret = -EINVAL;
             goto fail;
         }
+        if (refcount == 0) {
+            int num = s->cluster_sectors;
+            qcow2_get_cluster_offset(bs, offset, &num,
+                                     &freed_clusters[n_freed_clusters++]);
+            assert (num == s->cluster_sectors);
+        }
+
         if (refcount == 0 && cluster_index < s->free_cluster_index) {
             s->free_cluster_index = cluster_index;
         }
@@ -489,10 +545,15 @@ fail:
         int wret;
         wret = qcow2_cache_put(bs, s->refcount_block_cache,
             (void**) &refcount_block);
-        if (wret < 0) {
-            return ret < 0 ? ret : wret;
+        if (ret == 0 && wret < 0) {
+            return wret;
         }
     }
+
+    if (ret == 0 && freed_clusters) {
+        discard_clusters_in_file(freed_clusters, n_freed_clusters);
+    }
+    g_free(freed_clusters);
 
     /*
      * Try do undo any updates if an error is returned (This may succeed in
