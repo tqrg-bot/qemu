@@ -3959,6 +3959,35 @@ BlockDriverAIOCB *bdrv_aio_flush(BlockDriverState *bs,
     return &acb->common;
 }
 
+static void coroutine_fn bdrv_aio_anchor_co_entry(void *opaque)
+{
+    BlockDriverAIOCBCoroutine *acb = opaque;
+    BlockDriverState *bs = acb->common.bs;
+
+    acb->req.error = bdrv_co_anchor(bs, acb->req.sector, acb->req.nb_sectors);
+    acb->bh = qemu_bh_new(bdrv_co_em_bh, acb);
+    qemu_bh_schedule(acb->bh);
+}
+
+BlockDriverAIOCB *bdrv_aio_anchor(BlockDriverState *bs,
+        int64_t sector_num, int nb_sectors,
+        BlockDriverCompletionFunc *cb, void *opaque)
+{
+    Coroutine *co;
+    BlockDriverAIOCBCoroutine *acb;
+
+    trace_bdrv_aio_anchor(bs, sector_num, nb_sectors, opaque);
+
+    acb = qemu_aio_get(&bdrv_em_co_aiocb_info, bs, cb, opaque);
+    acb->req.sector = sector_num;
+    acb->req.nb_sectors = nb_sectors;
+    acb->done = NULL;
+    co = qemu_coroutine_create(bdrv_aio_anchor_co_entry);
+    qemu_coroutine_enter(co, acb);
+
+    return &acb->common;
+}
+
 static void coroutine_fn bdrv_aio_discard_co_entry(void *opaque)
 {
     BlockDriverAIOCBCoroutine *acb = opaque;
@@ -4180,6 +4209,78 @@ int bdrv_flush(BlockDriverState *bs)
         bdrv_flush_co_entry(&rwco);
     } else {
         co = qemu_coroutine_create(bdrv_flush_co_entry);
+        qemu_coroutine_enter(co, &rwco);
+        while (rwco.ret == NOT_DONE) {
+            qemu_aio_wait();
+        }
+    }
+
+    return rwco.ret;
+}
+
+static void coroutine_fn bdrv_anchor_co_entry(void *opaque)
+{
+    RwCo *rwco = opaque;
+
+    rwco->ret = bdrv_co_anchor(rwco->bs, rwco->sector_num, rwco->nb_sectors);
+}
+
+int coroutine_fn bdrv_co_anchor(BlockDriverState *bs, int64_t sector_num,
+                                 int nb_sectors)
+{
+    if (!bs->drv) {
+        return -ENOMEDIUM;
+    } else if (bdrv_check_request(bs, sector_num, nb_sectors)) {
+        return -EIO;
+    } else if (bs->read_only) {
+        return -EROFS;
+    }
+
+    if (bs->dirty_bitmap) {
+        bdrv_reset_dirty(bs, sector_num, nb_sectors);
+    }
+
+    /* Do nothing if disabled.  */
+    if (!(bs->open_flags & BDRV_O_UNMAP)) {
+        return 0;
+    }
+
+    if (bs->drv->bdrv_co_anchor) {
+        return bs->drv->bdrv_co_anchor(bs, sector_num, nb_sectors);
+    } else if (bs->drv->bdrv_aio_anchor) {
+        BlockDriverAIOCB *acb;
+        CoroutineIOCompletion co = {
+            .coroutine = qemu_coroutine_self(),
+        };
+
+        acb = bs->drv->bdrv_aio_anchor(bs, sector_num, nb_sectors,
+                                        bdrv_co_io_em_complete, &co);
+        if (acb == NULL) {
+            return -EIO;
+        } else {
+            qemu_coroutine_yield();
+            return co.ret;
+        }
+    } else {
+        return 0;
+    }
+}
+
+int bdrv_anchor(BlockDriverState *bs, int64_t sector_num, int nb_sectors)
+{
+    Coroutine *co;
+    RwCo rwco = {
+        .bs = bs,
+        .sector_num = sector_num,
+        .nb_sectors = nb_sectors,
+        .ret = NOT_DONE,
+    };
+
+    if (qemu_in_coroutine()) {
+        /* Fast-path if already in coroutine context */
+        bdrv_anchor_co_entry(&rwco);
+    } else {
+        co = qemu_coroutine_create(bdrv_anchor_co_entry);
         qemu_coroutine_enter(co, &rwco);
         while (rwco.ret == NOT_DONE) {
             qemu_aio_wait();
