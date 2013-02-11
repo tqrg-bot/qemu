@@ -1918,7 +1918,7 @@ int main(int argc, char **argv)
     };
     int c;
     int opt_index = 0;
-    int flags = BDRV_O_UNMAP;
+    int flags = BDRV_O_UNMAP | BDRV_O_ANCHOR;
 
     progname = basename(argv[0]);
 

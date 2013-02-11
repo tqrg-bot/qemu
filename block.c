@@ -587,12 +587,15 @@ static int refresh_total_sectors(BlockDriverState *bs, int64_t hint)
  */
 int bdrv_parse_discard_flags(const char *mode, int *flags)
 {
-    *flags &= ~BDRV_O_UNMAP;
+    *flags &= ~(BDRV_O_UNMAP | BDRV_O_ANCHOR);
 
     if (!strcmp(mode, "off") || !strcmp(mode, "ignore")) {
         /* do nothing */
     } else if (!strcmp(mode, "on") || !strcmp(mode, "unmap")) {
-        *flags |= BDRV_O_UNMAP;
+        *flags |= BDRV_O_UNMAP | BDRV_O_ANCHOR;
+    } else if (!strcmp(mode, "anchor")) {
+        /* this is the default */
+        *flags |= BDRV_O_ANCHOR;
     } else {
         return -1;
     }
@@ -4241,7 +4244,7 @@ int coroutine_fn bdrv_co_anchor(BlockDriverState *bs, int64_t sector_num,
     }
 
     /* Do nothing if disabled.  */
-    if (!(bs->open_flags & BDRV_O_UNMAP)) {
+    if (!(bs->open_flags & BDRV_O_ANCHOR)) {
         return 0;
     }
 
@@ -4312,9 +4315,9 @@ int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
         bdrv_reset_dirty(bs, sector_num, nb_sectors);
     }
 
-    /* Do nothing if disabled.  */
+    /* Anchor (perhaps do nothing) if disabled.  */
     if (!(bs->open_flags & BDRV_O_UNMAP)) {
-        return 0;
+        return bdrv_co_anchor(bs, sector_num, nb_sectors);
     }
 
     if (bs->drv->bdrv_co_discard) {
