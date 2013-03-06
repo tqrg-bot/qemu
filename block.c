@@ -3001,6 +3001,7 @@ static int64_t coroutine_fn bdrv_co_get_block_status(BlockDriverState *bs,
 {
     int64_t length;
     int64_t n;
+    int64_t ret;
 
     length = bdrv_getlength(bs->total_sectors);
     if (length < 0) {
@@ -3022,7 +3023,15 @@ static int64_t coroutine_fn bdrv_co_get_block_status(BlockDriverState *bs,
         return BDRV_BLOCK_DATA;
     }
 
-    return bs->drv->bdrv_co_get_block_status(bs, sector_num, nb_sectors, pnum);
+    ret = bs->drv->bdrv_co_get_block_status(bs, sector_num, nb_sectors, pnum);
+    if (ret < 0) {
+        return ret;
+    }
+
+    if (!(ret & BDRV_BLOCK_DATA) && bdrv_has_zero_init(bs)) {
+        ret |= BDRV_BLOCK_ZERO;
+    }
+    return ret;
 }
 
 /* Coroutine wrapper for bdrv_get_block_status() */
