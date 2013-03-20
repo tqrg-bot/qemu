@@ -434,10 +434,6 @@ int kvm_arch_init_vcpu(CPUState *cs)
     return ret;
 }
 
-void kvm_arch_reset_vcpu(CPUState *cpu)
-{
-}
-
 static void kvm_sw_tlb_put(PowerPCCPU *cpu)
 {
     CPUPPCState *env = &cpu->env;
