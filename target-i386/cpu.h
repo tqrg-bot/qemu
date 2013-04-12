@@ -1254,12 +1254,16 @@ static inline void cpu_load_efer(CPUX86State *env, uint64_t val)
 }
 
 /* fpu_helper.c */
+#ifdef CONFIG_TCG
 void tcg_update_mxcsr(CPUX86State *env);
+#endif
 
 static inline void cpu_set_mxcsr(CPUX86State *env, uint32_t mxcsr)
 {
     env->mxcsr = mxcsr;
+#ifdef CONFIG_TCG
     tcg_update_mcsr(env);
+#endif
 }
 
 /* svm_helper.c */
