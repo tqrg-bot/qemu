@@ -91,15 +91,15 @@ TranslationBlock *tb_gen_code(CPUState *cpu,
 void cpu_exec_init(CPUArchState *env);
 void QEMU_NORETURN cpu_loop_exit(CPUState *cpu);
 int page_unprotect(target_ulong address, uintptr_t pc, void *puc);
-#if !defined(CONFIG_USER_ONLY)
-void tcg_cpu_address_space_init(CPUState *cpu, AddressSpace *as);
-/* cputlb.c */
-void tlb_flush_page(CPUState *cpu, target_ulong addr);
-void tlb_flush(CPUState *cpu, int flush_global);
 void tlb_set_page(CPUState *cpu, target_ulong vaddr,
                   hwaddr paddr, int prot,
                   int mmu_idx, target_ulong size);
 void tb_invalidate_phys_addr(AddressSpace *as, hwaddr addr);
+void tcg_cpu_address_space_init(CPUState *cpu, AddressSpace *as);
+#if defined(CONFIG_SOFTMMU) && defined(CONFIG_TCG)
+/* cputlb.c */
+void tlb_flush_page(CPUState *cpu, target_ulong addr);
+void tlb_flush(CPUState *cpu, int flush_global);
 #else
 static inline void tlb_flush_page(CPUState *cpu, target_ulong addr)
 {
@@ -396,6 +396,7 @@ extern volatile sig_atomic_t exit_request;
  */
 static inline bool cpu_can_do_io(CPUState *cpu)
 {
+#ifdef CONFIG_TCG
     if (!use_icount) {
         return true;
     }
@@ -404,6 +405,9 @@ static inline bool cpu_can_do_io(CPUState *cpu)
         return true;
     }
     return cpu->can_do_io != 0;
+#else
+    return 1;
+#endif
 }
 
 #endif

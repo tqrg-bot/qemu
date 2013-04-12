@@ -141,7 +141,6 @@ typedef struct subpage_t {
 
 static void io_mem_init(void);
 static void memory_map_init(void);
-static void tcg_commit(MemoryListener *listener);
 
 static MemoryRegion io_mem_watch;
 #endif
@@ -456,7 +455,24 @@ CPUState *qemu_get_cpu(int index)
     return NULL;
 }
 
-#if !defined(CONFIG_USER_ONLY)
+#if defined(CONFIG_TCG) && !defined(CONFIG_USER_ONLY)
+static void tcg_commit(MemoryListener *listener)
+{
+    CPUState *cpu;
+
+    /* since each CPU stores ram addresses in its TLB cache, we must
+       reset the modified entries */
+    /* XXX: slow ! */
+    CPU_FOREACH(cpu) {
+        /* FIXME: Disentangle the cpu.h circular files deps so we can
+           directly get the right CPU from listener.  */
+        if (cpu->tcg_as_listener != listener) {
+            continue;
+        }
+        tlb_flush(cpu, 1);
+    }
+}
+
 void tcg_cpu_address_space_init(CPUState *cpu, AddressSpace *as)
 {
     /* We only support one address space per cpu at the moment.  */
@@ -1828,23 +1844,6 @@ static void mem_commit(MemoryListener *listener)
     if (cur) {
         phys_sections_free(&cur->map);
         g_free(cur);
-    }
-}
-
-static void tcg_commit(MemoryListener *listener)
-{
-    CPUState *cpu;
-
-    /* since each CPU stores ram addresses in its TLB cache, we must
-       reset the modified entries */
-    /* XXX: slow ! */
-    CPU_FOREACH(cpu) {
-        /* FIXME: Disentangle the cpu.h circular files deps so we can
-           directly get the right CPU from listener.  */
-        if (cpu->tcg_as_listener != listener) {
-            continue;
-        }
-        tlb_flush(cpu, 1);
     }
 }
 

@@ -20,12 +20,29 @@
 #define TRANSLATE_ALL_H
 
 /* translate-all.c */
-void tb_invalidate_phys_page_fast(tb_page_addr_t start, int len);
 void cpu_unlink_tb(CPUState *cpu);
+void tb_invalidate_phys_range(tb_page_addr_t start, tb_page_addr_t end,
+                              int is_cpu_write_access);
+
+#ifdef CONFIG_TCG
+void tb_invalidate_phys_page_fast(tb_page_addr_t start, int len);
 void tb_check_watchpoint(CPUState *cpu);
 void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
                                    int is_cpu_write_access);
-void tb_invalidate_phys_range(tb_page_addr_t start, tb_page_addr_t end,
-                              int is_cpu_write_access);
+#else
+static inline void tb_invalidate_phys_page_fast(tb_page_addr_t start, int len)
+{
+}
+
+static inline void tb_check_watchpoint(CPUState *cpu)
+{
+}
+
+static inline void tb_invalidate_phys_page_range(tb_page_addr_t start,
+                                                 tb_page_addr_t end,
+                                                 int is_cpu_write_access)
+{
+}
+#endif
 
 #endif /* TRANSLATE_ALL_H */
