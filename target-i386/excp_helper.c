@@ -129,3 +129,32 @@ void raise_exception(CPUX86State *env, int exception_index)
 {
     raise_interrupt2(env, exception_index, 0, 0, 0);
 }
+
+#ifndef CONFIG_USER_ONLY
+void breakpoint_handler(CPUX86State *env)
+{
+    CPUState *cs = CPU(x86_env_get_cpu(env));
+    CPUBreakpoint *bp;
+
+    if (cs->watchpoint_hit) {
+        if (cs->watchpoint_hit->flags & BP_CPU) {
+            cs->watchpoint_hit = NULL;
+            if (check_hw_breakpoints(env, false)) {
+                raise_exception(env, EXCP01_DB);
+            } else {
+                cpu_resume_from_signal(cs, NULL);
+            }
+        }
+    } else {
+        QTAILQ_FOREACH(bp, &cs->breakpoints, entry) {
+            if (bp->pc == env->eip) {
+                if (bp->flags & BP_CPU) {
+                    check_hw_breakpoints(env, true);
+                    raise_exception(env, EXCP01_DB);
+                }
+                break;
+            }
+        }
+    }
+}
+#endif
