@@ -26,6 +26,7 @@
 
 #include "qemu.h"
 #include "qemu-common.h"
+#include "translate-all.h"
 #include "bsd-mman.h"
 
 //#define DEBUG_MMAP
