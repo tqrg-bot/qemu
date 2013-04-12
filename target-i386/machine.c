@@ -110,6 +110,24 @@ union x86_longdouble {
 #define EXPD1(fp)	((fp >> 52) & 0x7FF)
 #define SIGND1(fp)	((fp >> 32) & 0x80000000)
 
+static void cpu_get_fp80(uint64_t *pmant, uint16_t *pexp, floatx80 f)
+{
+    CPU_LDoubleU temp;
+
+    temp.d = f;
+    *pmant = temp.l.lower;
+    *pexp = temp.l.upper;
+}
+
+static floatx80 cpu_set_fp80(uint64_t mant, uint16_t upper)
+{
+    CPU_LDoubleU temp;
+
+    temp.l.upper = upper;
+    temp.l.lower = mant;
+    return temp.d;
+}
+
 static void fp64_to_fp80(union x86_longdouble *p, uint64_t temp)
 {
     int e;
