@@ -1917,7 +1917,10 @@ void kvm_arch_pre_run(CPUState *cpu, struct kvm_run *run)
 
     /* Inject NMI */
     if (cpu->interrupt_request & CPU_INTERRUPT_NMI) {
+        qemu_mutex_lock_iothread();
         cpu->interrupt_request &= ~CPU_INTERRUPT_NMI;
+        qemu_mutex_unlock_iothread();
+
         DPRINTF("injected NMI\n");
         ret = kvm_vcpu_ioctl(cpu, KVM_NMI);
         if (ret < 0) {
@@ -1927,6 +1930,8 @@ void kvm_arch_pre_run(CPUState *cpu, struct kvm_run *run)
     }
 
     if (!kvm_irqchip_in_kernel()) {
+        qemu_mutex_lock_iothread();
+
         /* Force the VCPU out of its inner loop to process any INIT requests
          * or pending TPR access reports. */
         if (cpu->interrupt_request &
@@ -1968,6 +1973,8 @@ void kvm_arch_pre_run(CPUState *cpu, struct kvm_run *run)
 
         DPRINTF("setting tpr\n");
         run->cr8 = cpu_get_apic_tpr(env->apic_state);
+
+        qemu_mutex_unlock_iothread();
     }
 }
 
@@ -1981,8 +1988,16 @@ void kvm_arch_post_run(CPUState *cpu, struct kvm_run *run)
     } else {
         env->eflags &= ~IF_MASK;
     }
+    /* We need to protect the apic state against concurrent accesses from
+     * different threads in case the userspace irqchip is used. */
+    if (!kvm_irqchip_in_kernel()) {
+        qemu_mutex_lock_iothread();
+    }
     cpu_set_apic_tpr(env->apic_state, run->cr8);
     cpu_set_apic_base(env->apic_state, run->apic_base);
+    if (!kvm_irqchip_in_kernel()) {
+        qemu_mutex_unlock_iothread();
+    }
 }
 
 int kvm_arch_process_async_events(CPUState *cs)
