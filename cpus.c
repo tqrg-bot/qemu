@@ -37,6 +37,7 @@
 #include "sysemu/qtest.h"
 #include "qemu/main-loop.h"
 #include "qemu/bitmap.h"
+#include "qemu/rcu.h"
 
 #ifndef _WIN32
 #include "qemu/compatfd.h"
@@ -837,6 +838,7 @@ static void *qemu_dummy_cpu_thread_fn(void *arg)
     while (1) {
         current_cpu = NULL;
         qemu_mutex_unlock_iothread();
+        rcu_thread_offline();
         do {
             int sig;
             r = sigwait(&waitset, &sig);
@@ -845,6 +847,7 @@ static void *qemu_dummy_cpu_thread_fn(void *arg)
             perror("sigwait");
             exit(1);
         }
+        rcu_thread_online();
         qemu_mutex_lock_iothread();
         current_cpu = cpu;
         qemu_wait_io_event_common(cpu);
