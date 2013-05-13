@@ -17,6 +17,7 @@
 #include "block/block.h"
 #include "qemu/queue.h"
 #include "qemu/sockets.h"
+#include "qemu/rcu.h"
 
 struct AioHandler
 {
@@ -178,6 +179,7 @@ bool aio_poll(AioContext *ctx, bool blocking)
     int ret;
     bool progress;
 
+    rcu_quiescent_state();
     progress = false;
 
     /*
@@ -223,9 +225,15 @@ bool aio_poll(AioContext *ctx, bool blocking)
     }
 
     /* wait until next event */
+    if (blocking) {
+        rcu_thread_offline();
+    }
     ret = qemu_poll_ns((GPollFD *)ctx->pollfds->data,
                          ctx->pollfds->len,
                          blocking ? timerlistgroup_deadline_ns(&ctx->tlg) : 0);
+    if (blocking) {
+        rcu_thread_online();
+    }
 
     /* if we have any readable fds, dispatch event */
     if (ret > 0) {

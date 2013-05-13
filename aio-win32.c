@@ -19,6 +19,7 @@
 #include "block/block.h"
 #include "qemu/queue.h"
 #include "qemu/sockets.h"
+#include "qemu/rcu.h"
 
 struct AioHandler {
     EventNotifier *e;
@@ -97,6 +98,7 @@ bool aio_poll(AioContext *ctx, bool blocking)
     int count;
     int timeout;
 
+    rcu_quiescent_state();
     progress = false;
 
     /*
@@ -172,7 +174,13 @@ bool aio_poll(AioContext *ctx, bool blocking)
 
         timeout = blocking ?
             qemu_timeout_ns_to_ms(timerlistgroup_deadline_ns(&ctx->tlg)) : 0;
+        if (timeout) {
+            rcu_thread_offline();
+        }
         ret = WaitForMultipleObjects(count, events, FALSE, timeout);
+        if (timeout) {
+            rcu_thread_online();
+        }
 
         /* if we have any signaled events, dispatch event */
         if ((DWORD) (ret - WAIT_OBJECT_0) >= count) {
