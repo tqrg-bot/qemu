@@ -119,7 +119,9 @@ void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex)
 {
     int err;
 
+    rcu_thread_offline();
     err = pthread_cond_wait(&cond->cond, &mutex->lock);
+    rcu_thread_online();
     if (err)
         error_exit(err, __func__);
 }
@@ -211,6 +213,10 @@ int qemu_sem_timedwait(QemuSemaphore *sem, int ms)
     int rc;
     struct timespec ts;
 
+    if (ms) {
+        rcu_thread_offline();
+    }
+
 #if defined(__APPLE__) || defined(__NetBSD__)
     rc = 0;
     compute_abs_deadline(&ts, ms);
@@ -228,7 +234,10 @@ int qemu_sem_timedwait(QemuSemaphore *sem, int ms)
         --sem->count;
     }
     pthread_mutex_unlock(&sem->lock);
-    return (rc == ETIMEDOUT ? -1 : 0);
+    if (rc == ETIMEDOUT) {
+        rc == -1;
+    }
+
 #else
     if (ms <= 0) {
         /* This is cheaper than sem_timedwait.  */
@@ -236,7 +245,7 @@ int qemu_sem_timedwait(QemuSemaphore *sem, int ms)
             rc = sem_trywait(&sem->sem);
         } while (rc == -1 && errno == EINTR);
         if (rc == -1 && errno == EAGAIN) {
-            return -1;
+            goto out;
         }
     } else {
         compute_abs_deadline(&ts, ms);
@@ -244,19 +253,25 @@ int qemu_sem_timedwait(QemuSemaphore *sem, int ms)
             rc = sem_timedwait(&sem->sem, &ts);
         } while (rc == -1 && errno == EINTR);
         if (rc == -1 && errno == ETIMEDOUT) {
-            return -1;
+            goto out;
         }
     }
     if (rc < 0) {
         error_exit(errno, __func__);
     }
-    return 0;
 #endif
+
+out:
+    if (ms) {
+        rcu_thread_online();
+    }
+    return rc;
 }
 
 void qemu_sem_wait(QemuSemaphore *sem)
 {
     int rc;
+    rcu_thread_offline();
 
 #if defined(__APPLE__) || defined(__NetBSD__)
     pthread_mutex_lock(&sem->lock);
@@ -276,6 +291,8 @@ void qemu_sem_wait(QemuSemaphore *sem)
         error_exit(errno, __func__);
     }
 #endif
+
+    rcu_thread_online();
 }
 
 #ifdef __linux__
@@ -384,7 +401,11 @@ void qemu_event_wait(QemuEvent *ev)
                 return;
             }
         }
+        rcu_thread_offline();
         futex_wait(ev, EV_BUSY);
+        rcu_thread_online();
+    } else {
+        rcu_quiescent_state();
     }
 }
 
