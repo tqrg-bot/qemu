@@ -45,6 +45,7 @@
 #include "trace.h"
 #endif
 #include "exec/cpu-all.h"
+#include "qemu/tls.h"
 
 #include "exec/cputlb.h"
 #include "translate-all.h"
@@ -71,8 +72,9 @@ static MemoryRegion io_mem_unassigned;
 
 struct CPUTailQ cpus = QTAILQ_HEAD_INITIALIZER(cpus);
 /* current CPU in the current thread. It is only valid inside
-   cpu_exec() */
-DEFINE_TLS(CPUState *, current_cpu);
+   cpu_exec().  */
+DEFINE_TLS(CPUState *, current_cpu_var);
+
 /* 0 = Do not count executed instructions.
    1 = Precise instruction counting.
    2 = Adaptive rate instruction counting.  */
@@ -313,6 +315,7 @@ address_space_translate_for_iotlb(AddressSpace *as, hwaddr addr, hwaddr *xlat,
 
 void cpu_exec_init_all(void)
 {
+    tls_alloc_current_cpu_var();
 #if !defined(CONFIG_USER_ONLY)
     qemu_mutex_init(&ram_list.mutex);
     memory_map_init();

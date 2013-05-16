@@ -211,8 +211,8 @@ extern struct CPUTailQ cpus;
     QTAILQ_FOREACH_SAFE(cpu, &cpus, node, next_cpu)
 #define first_cpu QTAILQ_FIRST(&cpus)
 
-DECLARE_TLS(CPUState *, current_cpu);
-#define current_cpu tls_var(current_cpu)
+DECLARE_TLS(CPUState *, current_cpu_var);
+#define current_cpu (*tls_get_current_cpu_var())
 
 /**
  * cpu_paging_enabled:

@@ -1,7 +1,7 @@
 /*
  * Abstraction layer for defining and using TLS variables
  *
- * Copyright (c) 2011 Red Hat, Inc
+ * Copyright (c) 2011, 2013 Red Hat, Inc
  * Copyright (c) 2011 Linaro Limited
  *
  * Authors:
@@ -25,28 +25,119 @@
 #ifndef QEMU_TLS_H
 #define QEMU_TLS_H
 
-/* Per-thread variables. Note that we only have implementations
- * which are really thread-local on Linux; the dummy implementations
- * define plain global variables.
+#include "qemu/osdep.h"
+
+#ifdef CONFIG_WIN32
+
+/* Do not use GCC's "emutls" path on Windows, it is slower.
  *
- * This means that for the moment use should be restricted to
- * per-VCPU variables, which are OK because:
- *  - the only -user mode supporting multiple VCPU threads is linux-user
- *  - TCG system mode is single-threaded regarding VCPUs
- *  - KVM system mode is multi-threaded but limited to Linux
+ * The initial contents of TLS variables are placed in the .tls section.
+ * The linker takes all section starting with ".tls$", sorts them and puts
+ * the contents in a single ".tls" section.  qemu-thread-win32.c defines
+ * special symbols in .tls$000 and .tls$ZZZ that represent the beginning
+ * and end of TLS memory.  The linker and run-time library then cooperate
+ * to copy memory between those symbols in the TLS area of new threads.
  *
- * TODO: proper implementations via Win32 .tls sections and
- * POSIX pthread_getspecific.
+ * _tls_index holds the number of our module.  The executable should be
+ * zero, DLLs are numbered 1 and up.  The loader fills it in for us.
+ *
+ * Thus, Teb->ThreadLocalStoragePointer[_tls_index] is the base of
+ * the TLS segment for this (thread, module) pair.  Each segment has
+ * the same layout as this module's .tls segment and is initialized
+ * with the content of the .tls segment; 0 is the _tls_start variable.
+ * So, get_##x passes us the offset of the passed variable relative to
+ * _tls_start, and we return that same offset plus the base of segment.
  */
-#ifdef __linux__
-#define DECLARE_TLS(type, x) extern DEFINE_TLS(type, x)
-#define DEFINE_TLS(type, x)  __thread __typeof__(type) tls__##x
-#define tls_var(x)           tls__##x
+
+typedef struct _TEB {
+    NT_TIB NtTib;
+    void *EnvironmentPointer;
+    void *x[3];
+    char **ThreadLocalStoragePointer;
+} TEB, *PTEB;
+
+extern int _tls_index;
+extern int _tls_start;
+
+static inline void *tls_var(size_t offset)
+{
+    PTEB Teb = NtCurrentTeb();
+    return (char *)(Teb->ThreadLocalStoragePointer[_tls_index]) + offset;
+}
+
+#define DECLARE_TLS(type, x)                                         \
+extern typeof(type) tls_##x __attribute__((section(".tls$QEMU")));   \
+                                                                     \
+static inline typeof(type) *tls_get_##x(void)                        \
+{                                                                    \
+    return tls_var((ULONG_PTR)&(tls_##x) - (ULONG_PTR)&_tls_start);  \
+}                                                                    \
+                                                                     \
+static inline typeof(type) *tls_alloc_##x(void)                      \
+{                                                                    \
+    typeof(type) *addr = get_##x();                                  \
+    memset((void *)addr, 0, sizeof(type));                           \
+    return addr;                                                     \
+}                                                                    \
+                                                                     \
+extern int glue(dummy_, __LINE__)
+
+#define DEFINE_TLS(type, x)                                          \
+typeof(type) tls_##x __attribute__((section(".tls$QEMU")))
+
+#elif defined CONFIG_TLS
+#define DECLARE_TLS(type, x)                     \
+extern __thread typeof(type) x;                  \
+                                                 \
+static inline typeof(type) *tls_get_##x(void)    \
+{                                                \
+    return &x;                                   \
+}                                                \
+                                                 \
+static inline typeof(type) *tls_alloc_##x(void)  \
+{                                                \
+    return &x;                                   \
+}                                                \
+                                                 \
+extern int glue(dummy_, __LINE__)
+
+#define DEFINE_TLS(type, x)                  \
+__thread typeof(type) x
+
+#elif defined CONFIG_POSIX
+typedef struct QEMUTLSValue {
+    pthread_key_t k;
+    pthread_once_t o;
+} QEMUTLSValue;
+
+#define DECLARE_TLS(type, x)                     \
+extern QEMUTLSValue x;                           \
+extern void tls_init_##x(void);                  \
+                                                 \
+static inline typeof(type) *tls_get_##x(void)    \
+{                                                \
+    return pthread_getspecific(x.k);             \
+}                                                \
+                                                 \
+static inline typeof(type) *tls_alloc_##x(void)  \
+{                                                \
+    void *datum = g_malloc0(sizeof(type));       \
+    pthread_once(&x.o, tls_init_##x);            \
+    pthread_setspecific(x.k, datum);             \
+    return datum;                                \
+}                                                \
+                                                 \
+extern int glue(dummy_, __LINE__)
+
+#define DEFINE_TLS(type, x)                      \
+void tls_init_##x(void) {                        \
+    pthread_key_create(&x.k, g_free);            \
+}                                                \
+                                                 \
+QEMUTLSValue x = { .o = PTHREAD_ONCE_INIT }
+
 #else
-/* Dummy implementations which define plain global variables */
-#define DECLARE_TLS(type, x) extern DEFINE_TLS(type, x)
-#define DEFINE_TLS(type, x)  __typeof__(type) tls__##x
-#define tls_var(x)           tls__##x
+#error No TLS abstraction available on this platform
 #endif
 
 #endif

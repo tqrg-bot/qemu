@@ -23,6 +23,7 @@
 #include "exec/cpu-common.h"
 #include "qemu/thread.h"
 #include "qom/cpu.h"
+#include "qemu/tls.h"
 
 /* some important defines:
  *
