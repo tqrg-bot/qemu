@@ -1828,7 +1828,8 @@ MemoryRegionSection memory_region_find(MemoryRegion *mr,
     }
     range = addrrange_make(int128_make64(addr), int128_make64(size));
 
-    view = address_space_get_flatview(as);
+    rcu_read_lock();
+    view = atomic_rcu_read(&as->current_map);
     fr = flatview_lookup(view, range);
     if (!fr) {
         flatview_unref(view);
@@ -1850,7 +1851,7 @@ MemoryRegionSection memory_region_find(MemoryRegion *mr,
     ret.readonly = fr->readonly;
     memory_region_ref(ret.mr);
 
-    flatview_unref(view);
+    rcu_read_unlock();
     return ret;
 }
 
