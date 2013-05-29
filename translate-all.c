@@ -1373,11 +1373,13 @@ void tb_invalidate_phys_addr(hwaddr addr)
     mr = address_space_translate(&address_space_memory, addr, &addr, &l, false);
     if (!(memory_region_is_ram(mr)
           || memory_region_is_romd(mr))) {
+        memory_region_unref(mr);
         return;
     }
     ram_addr = (memory_region_get_ram_addr(mr) & TARGET_PAGE_MASK)
         + addr;
     tb_invalidate_phys_page_range(ram_addr, ram_addr + 1, 0);
+    memory_region_unref(mr);
 }
 #endif /* TARGET_HAS_ICE && !defined(CONFIG_USER_ONLY) */
 
