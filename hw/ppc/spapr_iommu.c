@@ -56,6 +56,7 @@ static sPAPRTCETable *spapr_tce_find_by_liobn(uint32_t liobn)
     return NULL;
 }
 
+/* Called from RCU critical section */
 static IOMMUTLBEntry spapr_tce_translate_iommu(MemoryRegion *iommu, hwaddr addr)
 {
     sPAPRTCETable *tcet = container_of(iommu, sPAPRTCETable, iommu);

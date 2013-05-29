@@ -267,6 +267,7 @@ int cpu_exec(CPUArchState *env)
     env->exception_index = -1;
 
     /* prepare setjmp context for exception handling */
+    rcu_read_lock();
     for(;;) {
         if (sigsetjmp(env->jmp_env, 0) == 0) {
             /* if an exception is pending, we execute it here */
@@ -305,7 +306,11 @@ int cpu_exec(CPUArchState *env)
                     }
 #if !defined(CONFIG_USER_ONLY)
                     if (interrupt_request & CPU_INTERRUPT_TLBFLUSH) {
-                        AddressSpaceDispatch *d = address_space_memory.dispatch;
+                        AddressSpaceDispatch *d;
+                        rcu_read_unlock();
+                        rcu_quiescent_state();
+                        rcu_read_lock();
+                        d = atomic_rcu_read(&address_space_memory.dispatch);
                         env->memory_dispatch = d;
                         cpu->interrupt_request &= ~CPU_INTERRUPT_TLBFLUSH;
                         tlb_flush(env, 1);
@@ -693,7 +698,7 @@ int cpu_exec(CPUArchState *env)
             env = cpu->env_ptr;
         }
     } /* for(;;) */
-
+    rcu_read_unlock();
 
 #if defined(TARGET_I386)
     /* restore flags in standard format */
