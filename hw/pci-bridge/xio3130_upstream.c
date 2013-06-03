@@ -100,10 +100,10 @@ err_bridge:
 
 static void xio3130_upstream_exitfn(PCIDevice *d)
 {
-    pcie_aer_exit(d);
     pcie_cap_exit(d);
     msi_uninit(d);
     pci_bridge_exitfn(d);
+    pcie_aer_free(d);
     pci_bridge_free(d);
 }
 
