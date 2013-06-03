@@ -1849,17 +1849,11 @@ static void nic_cleanup(NetClientState *nc)
     s->nic = NULL;
 }
 
-static void pci_nic_uninit(PCIDevice *pci_dev)
-{
-    EEPRO100State *s = EEPRO100(pci_dev);
-
-    eeprom93xx_free(&pci_dev->qdev, s->eeprom);
-}
-
 static void e100_nic_instance_finalize(Object *obj)
 {
     EEPRO100State *s = EEPRO100(obj);
 
+    eeprom93xx_free(&pci_dev->qdev, s->eeprom);
     qemu_del_nic(s->nic);
 }
 
@@ -2067,7 +2061,6 @@ static void eepro100_class_init(ObjectClass *klass, void *data)
     k->class_id = PCI_CLASS_NETWORK_ETHERNET;
     k->romfile = "pxe-eepro100.rom";
     k->init = e100_nic_init;
-    k->exit = pci_nic_uninit;
 
     vmsd = g_malloc(sizeof(vmstate_eepro100));
     memcpy(vmsd, &vmstate_eepro100, sizeof(vmstate_eepro100));
