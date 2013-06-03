@@ -293,6 +293,13 @@ pci_testdev_uninit(PCIDevice *dev)
         g_free(d->tests[i].hdr);
     }
     g_free(d->tests);
+}
+
+static void
+pci_testdev_instance_finalize(Object *obj)
+{
+    PCITestDevState *d = PCI_TEST_DEV(obj);
+
     memory_region_destroy(&d->mmio);
     memory_region_destroy(&d->portio);
 }
@@ -324,6 +331,7 @@ static const TypeInfo pci_testdev_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCITestDevState),
     .class_init    = pci_testdev_class_init,
+    .instance_finalize = pci_testdev_instance_finalize,
 };
 
 static void pci_testdev_register_types(void)
