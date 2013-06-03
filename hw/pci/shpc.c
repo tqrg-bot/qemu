@@ -630,15 +630,21 @@ int shpc_bar_size(PCIDevice *d)
 void shpc_cleanup(PCIDevice *d, MemoryRegion *bar)
 {
     SHPCDevice *shpc = d->shpc;
+    /* TODO: cleanup config space changes? */
     d->cap_present &= ~QEMU_PCI_CAP_SHPC;
     memory_region_del_subregion(bar, &shpc->mmio);
-    /* TODO: cleanup config space changes? */
+}
+
+void shpc_free(PCIDevice *d)
+{
+    SHPCDevice *shpc = d->shpc;
     g_free(shpc->config);
     g_free(shpc->cmask);
     g_free(shpc->wmask);
     g_free(shpc->w1cmask);
     memory_region_destroy(&shpc->mmio);
     g_free(shpc);
+    d->shpc = NULL;
 }
 
 void shpc_cap_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)

@@ -39,6 +39,7 @@ void shpc_reset(PCIDevice *d);
 int shpc_bar_size(PCIDevice *dev);
 int shpc_init(PCIDevice *dev, PCIBus *sec_bus, MemoryRegion *bar, unsigned off);
 void shpc_cleanup(PCIDevice *dev, MemoryRegion *bar);
+void shpc_free(PCIDevice *d);
 void shpc_cap_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int len);
 
 extern VMStateInfo shpc_vmstate_info;
