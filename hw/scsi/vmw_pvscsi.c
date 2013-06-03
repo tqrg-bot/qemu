@@ -1104,6 +1104,14 @@ pvscsi_uninit(PCIDevice *pci_dev)
     qemu_bh_delete(s->completion_worker);
 
     pvscsi_cleanup_msi(s);
+}
+
+static void 
+pvscsi_instance_finalize(Object *obj)
+{
+    PVSCSIState *s = PVSCSI(obj);
+
+    trace_pvscsi_state("finalize");
 
     memory_region_destroy(&s->io_space);
 }
@@ -1207,6 +1215,7 @@ static const TypeInfo pvscsi_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PVSCSIState),
     .class_init    = pvscsi_class_init,
+    .instance_finalize = pvscsi_instance_finalize,
 };
 
 static void
