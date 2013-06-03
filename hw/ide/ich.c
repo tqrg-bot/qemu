@@ -140,11 +140,14 @@ static int pci_ich9_ahci_init(PCIDevice *dev)
 
 static void pci_ich9_uninit(PCIDevice *dev)
 {
-    struct AHCIPCIState *d;
-    d = ICH_AHCI(dev);
-
     msi_uninit(dev);
-    ahci_uninit(&d->ahci);
+}
+
+static void pci_ich9_instance_finalize(Object *obj)
+{
+    struct AHCIPCIState *d = ICH_AHCI(obj);
+
+    ahci_instance_finalize(&d->ahci);
 }
 
 static void ich_ahci_class_init(ObjectClass *klass, void *data)
@@ -168,6 +171,7 @@ static const TypeInfo ich_ahci_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(AHCIPCIState),
     .class_init    = ich_ahci_class_init,
+    .instance_finalize = pci_ich9_instance_finalize,
 };
 
 static void ich_ahci_register_types(void)

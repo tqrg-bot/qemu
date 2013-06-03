@@ -347,7 +347,7 @@ typedef struct NCQFrame {
 } QEMU_PACKED NCQFrame;
 
 void ahci_init(AHCIState *s, DeviceState *qdev, AddressSpace *as, int ports);
-void ahci_uninit(AHCIState *s);
+void ahci_instance_finalize(AHCIState *s);
 
 void ahci_reset(AHCIState *s);
 
