@@ -94,6 +94,7 @@ err_msi:
     msi_uninit(d);
 err_bridge:
     pci_bridge_exitfn(d);
+    pci_bridge_free(d);
     return rc;
 }
 
@@ -103,6 +104,7 @@ static void xio3130_upstream_exitfn(PCIDevice *d)
     pcie_cap_exit(d);
     msi_uninit(d);
     pci_bridge_exitfn(d);
+    pci_bridge_free(d);
 }
 
 PCIEPort *xio3130_upstream_init(PCIBus *bus, int devfn, bool multifunction,

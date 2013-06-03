@@ -76,6 +76,7 @@ static int i82801b11_bridge_initfn(PCIDevice *d)
 
 err_bridge:
     pci_bridge_exitfn(d);
+    pci_bridge_free(d);
 
     return rc;
 }

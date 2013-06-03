@@ -83,6 +83,7 @@ slotid_error:
     shpc_free(dev);
 shpc_error:
     pci_bridge_exitfn(dev);
+    pci_bridge_free(dev);
 bridge_error:
     return err;
 }
@@ -97,6 +98,7 @@ static void pci_bridge_dev_exitfn(PCIDevice *dev)
     shpc_cleanup(dev, &bridge_dev->bar);
     shpc_free(dev);
     pci_bridge_exitfn(dev);
+    pci_bridge_free(dev);
 }
 
 static void pci_bridge_dev_write_config(PCIDevice *d,
