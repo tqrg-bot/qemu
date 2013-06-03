@@ -1483,6 +1483,13 @@ pci_e1000_uninit(PCIDevice *dev)
     timer_free(d->autoneg_timer);
     timer_del(d->mit_timer);
     timer_free(d->mit_timer);
+}
+
+static void
+e1000_instance_finalize(Object *obj)
+{
+    E1000State *d = E1000(obj);
+
     memory_region_destroy(&d->mmio);
     memory_region_destroy(&d->io);
     qemu_del_nic(d->nic);
@@ -1583,6 +1590,7 @@ static const TypeInfo e1000_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(E1000State),
     .class_init    = e1000_class_init,
+    .instance_finalize = e1000_instance_finalize,
 };
 
 static void e1000_register_types(void)
