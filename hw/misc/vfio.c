@@ -2144,6 +2144,12 @@ static void vfio_teardown_msi(VFIODevice *vdev)
     if (vdev->msix) {
         msix_uninit(&vdev->pdev, &vdev->bars[vdev->msix->table_bar].mem,
                     &vdev->bars[vdev->msix->pba_bar].mem);
+    }
+}
+
+static void vfio_destroy_msi(VFIODevice *vdev)
+{
+    if (vdev->msix) {
         msix_free(&vdev->pdev);
     }
 }
@@ -2180,10 +2186,23 @@ static void vfio_unmap_bar(VFIODevice *vdev, int nr)
     vfio_bar_quirk_teardown(vdev, nr);
 
     memory_region_del_subregion(&bar->mem, &bar->mmap_mem);
-    munmap(bar->mmap, memory_region_size(&bar->mmap_mem));
 
     if (vdev->msix && vdev->msix->table_bar == nr) {
         memory_region_del_subregion(&bar->mem, &vdev->msix->mmap_mem);
+    }
+}
+
+static void vfio_destroy_bar(VFIODevice *vdev, int nr)
+{
+    VFIOBAR *bar = &vdev->bars[nr];
+
+    if (!bar->size) {
+        return;
+    }
+
+    munmap(bar->mmap, memory_region_size(&bar->mmap_mem));
+
+    if (vdev->msix && vdev->msix->table_bar == nr) {
         munmap(vdev->msix->mmap, memory_region_size(&vdev->msix->mmap_mem));
     }
 
@@ -2340,6 +2359,18 @@ static void vfio_unmap_bars(VFIODevice *vdev)
     if (vdev->has_vga) {
         vfio_vga_quirk_teardown(vdev);
         pci_unregister_vga(&vdev->pdev);
+    }
+}
+
+static void vfio_destroy_bars(VFIODevice *vdev)
+{
+    int i;
+
+    for (i = 0; i < PCI_ROM_SLOT; i++) {
+        vfio_destroy_bar(vdev, i);
+    }
+
+    if (vdev->has_vga) {
         memory_region_destroy(&vdev->vga.region[QEMU_PCI_VGA_MEM].mem);
         memory_region_destroy(&vdev->vga.region[QEMU_PCI_VGA_IO_LO].mem);
         memory_region_destroy(&vdev->vga.region[QEMU_PCI_VGA_IO_HI].mem);
@@ -3194,7 +3225,9 @@ static int vfio_initfn(PCIDevice *pdev)
 out_teardown:
     pci_device_set_intx_routing_notifier(&vdev->pdev, NULL);
     vfio_teardown_msi(vdev);
+    vfio_destroy_msi(vdev);
     vfio_unmap_bars(vdev);
+    vfio_destroy_bars(vdev);
 out_put:
     g_free(vdev->emulated_config_bits);
     vfio_put_device(vdev);
@@ -3205,16 +3238,25 @@ out_put:
 static void vfio_exitfn(PCIDevice *pdev)
 {
     VFIODevice *vdev = DO_UPCAST(VFIODevice, pdev, pdev);
-    VFIOGroup *group = vdev->group;
 
     vfio_unregister_err_notifier(vdev);
     pci_device_set_intx_routing_notifier(&vdev->pdev, NULL);
     vfio_disable_interrupts(vdev);
+    vfio_teardown_msi(vdev);
+    vfio_unmap_bars(vdev);
+}
+
+static void vfio_instance_finalize(Object *obj)
+{
+    PCIDevice *pdev = PCI_DEVICE(obj);
+    VFIODevice *vdev = DO_UPCAST(VFIODevice, pdev, pdev);
+    VFIOGroup *group = vdev->group;
+
     if (vdev->intx.mmap_timer) {
         timer_free(vdev->intx.mmap_timer);
     }
-    vfio_teardown_msi(vdev);
-    vfio_unmap_bars(vdev);
+    vfio_destroy_msi(vdev);
+    vfio_destroy_bars(vdev);
     g_free(vdev->emulated_config_bits);
     vfio_put_device(vdev);
     vfio_put_group(group);
@@ -3313,6 +3355,7 @@ static const TypeInfo vfio_pci_dev_info = {
     .parent = TYPE_PCI_DEVICE,
     .instance_size = sizeof(VFIODevice),
     .class_init = vfio_pci_dev_class_init,
+    .instance_finalize = vfio_instance_finalize,
 };
 
 static void register_vfio_pci_dev_type(void)
