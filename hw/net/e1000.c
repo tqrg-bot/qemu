@@ -1310,9 +1310,9 @@ e1000_cleanup(NetClientState *nc)
 }
 
 static void
-pci_e1000_uninit(PCIDevice *dev)
+pci_e1000_instance_finalize(Object *obj)
 {
-    E1000State *d = E1000(dev);
+    E1000State *d = E1000(obj);
 
     timer_del(d->autoneg_timer);
     timer_free(d->autoneg_timer);
@@ -1394,7 +1394,6 @@ static void e1000_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = pci_e1000_init;
-    k->exit = pci_e1000_uninit;
     k->romfile = "efi-e1000.rom";
     k->vendor_id = PCI_VENDOR_ID_INTEL;
     k->device_id = E1000_DEVID;
@@ -1412,6 +1411,7 @@ static const TypeInfo e1000_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(E1000State),
     .class_init    = e1000_class_init,
+    .instance_finalize = pci_e1000_instance_finalize,
 };
 
 static void e1000_register_types(void)
