@@ -797,6 +797,11 @@ static void do_pci_unregister_device(PCIDevice *pci_dev)
 {
     pci_dev->bus->devices[pci_dev->devfn] = NULL;
     pci_config_free(pci_dev);
+}
+
+static void pci_device_instance_finalize(Object *obj)
+{
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
 
     address_space_destroy(&pci_dev->bus_master_as);
 }
@@ -2358,6 +2363,7 @@ static const TypeInfo pci_device_type_info = {
     .abstract = true,
     .class_size = sizeof(PCIDeviceClass),
     .class_init = pci_device_class_init,
+    .instance_finalize = pci_device_instance_finalize,
 };
 
 static void pci_register_types(void)
