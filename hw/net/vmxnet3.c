@@ -1979,7 +1979,6 @@ vmxnet3_init_msix(VMXNET3State *s)
         if (!vmxnet3_use_msix_vectors(s, VMXNET3_MAX_INTRS)) {
             VMW_WRPRN("Failed to use MSI-X vectors, error %d", res);
             msix_uninit(d, &s->msix_bar, &s->msix_bar);
-            msix_free(d);
             s->msix_used = false;
         } else {
             s->msix_used = true;
@@ -2124,11 +2123,18 @@ static void vmxnet3_pci_uninit(PCIDevice *pci_dev)
 
     unregister_savevm(dev, "vmxnet3-msix", s);
 
-    vmxnet3_net_uninit(s);
-
     vmxnet3_cleanup_msix(s);
 
     vmxnet3_cleanup_msi(s);
+}
+
+static void vmxnet3_pci_instance_finalize(Object *obj)
+{
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
+    VMXNET3State *s = VMXNET3(pci_dev);
+
+    vmxnet3_net_uninit(s);
+    msix_free(pci_dev);
 
     memory_region_destroy(&s->bar0);
     memory_region_destroy(&s->bar1);
@@ -2464,6 +2470,7 @@ static const TypeInfo vmxnet3_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(VMXNET3State),
     .class_init    = vmxnet3_class_init,
+    .instance_finalize = vmxnet3_pci_instance_finalize,
 };
 
 static void vmxnet3_register_types(void)
