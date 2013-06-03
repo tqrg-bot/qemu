@@ -103,6 +103,12 @@ static void xio3130_upstream_exitfn(PCIDevice *d)
     pcie_cap_exit(d);
     msi_uninit(d);
     pci_bridge_exitfn(d);
+}
+
+static void xio3130_upstream_instance_finalize(Object *obj)
+{
+    PCIDevice *d = PCI_DEVICE(obj);
+
     pcie_aer_free(d);
     pci_bridge_free(d);
 }
@@ -165,6 +171,7 @@ static const TypeInfo xio3130_upstream_info = {
     .name          = "x3130-upstream",
     .parent        = TYPE_PCIE_PORT,
     .class_init    = xio3130_upstream_class_init,
+    .instance_finalize = xio3130_upstream_instance_finalize,
 };
 
 static void xio3130_upstream_register_types(void)
