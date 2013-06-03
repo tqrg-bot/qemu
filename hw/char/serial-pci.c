@@ -131,6 +131,14 @@ static void serial_pci_exit(PCIDevice *dev)
     SerialState *s = &pci->state;
 
     serial_exit_core(s);
+}
+
+static void serial_pci_instance_finalize(Object *obj)
+{
+    PCIDevice *dev = PCI_DEVICE(obj);
+    PCISerialState *pci = DO_UPCAST(PCISerialState, dev, dev);
+    SerialState *s = &pci->state;
+
     memory_region_destroy(&s->io);
 }
 
@@ -143,9 +151,22 @@ static void multi_serial_pci_exit(PCIDevice *dev)
     for (i = 0; i < pci->ports; i++) {
         s = pci->state + i;
         serial_exit_core(s);
+    }
+}
+
+static void multi_serial_pci_instance_finalize(Object *obj)
+{
+    PCIDevice *dev = PCI_DEVICE(obj);
+    PCIMultiSerialState *pci = DO_UPCAST(PCIMultiSerialState, dev, dev);
+    SerialState *s;
+    int i;
+
+    for (i = 0; i < pci->ports; i++) {
+        s = pci->state + i;
         memory_region_destroy(&s->io);
         g_free(pci->name[i]);
     }
+
     memory_region_destroy(&pci->iobar);
     qemu_free_irqs(pci->irqs);
 }
@@ -243,6 +264,7 @@ static const TypeInfo serial_pci_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCISerialState),
     .class_init    = serial_pci_class_initfn,
+    .instance_finalize = serial_pci_instance_finalize,
 };
 
 static const TypeInfo multi_2x_serial_pci_info = {
@@ -250,6 +272,7 @@ static const TypeInfo multi_2x_serial_pci_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCIMultiSerialState),
     .class_init    = multi_2x_serial_pci_class_initfn,
+    .instance_finalize = multi_serial_pci_instance_finalize,
 };
 
 static const TypeInfo multi_4x_serial_pci_info = {
@@ -257,6 +280,7 @@ static const TypeInfo multi_4x_serial_pci_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCIMultiSerialState),
     .class_init    = multi_4x_serial_pci_class_initfn,
+    .instance_finalize = multi_serial_pci_instance_finalize,
 };
 
 static void serial_pci_register_types(void)
