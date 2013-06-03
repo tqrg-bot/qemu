@@ -1854,6 +1854,12 @@ static void pci_nic_uninit(PCIDevice *pci_dev)
     EEPRO100State *s = EEPRO100(pci_dev);
 
     eeprom93xx_free(&pci_dev->qdev, s->eeprom);
+}
+
+static void e100_nic_instance_finalize(Object *obj)
+{
+    EEPRO100State *s = EEPRO100(obj);
+
     qemu_del_nic(s->nic);
 }
 
@@ -2084,6 +2090,7 @@ static const TypeInfo eepro100_info = {
     .instance_size = sizeof(EEPRO100State),
     .class_size    = sizeof(EEPRO100Class),
     .class_init    = eepro100_class_init,
+    .instance_finalize = e100_nic_instance_finalize,
     .abstract      = true,
 };
 
