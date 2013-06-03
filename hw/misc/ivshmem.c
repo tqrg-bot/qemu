@@ -784,17 +784,23 @@ static void pci_ivshmem_uninit(PCIDevice *dev)
 {
     IVShmemState *s = IVSHMEM(dev);
 
+    memory_region_del_subregion(&s->bar, &s->ivshmem);
+}
+
+static void pci_ivshmem_instance_finalize(Object *obj)
+{
+    IVShmemState *s = IVSHMEM(obj);
+
     if (s->migration_blocker) {
         migrate_del_blocker(s->migration_blocker);
         error_free(s->migration_blocker);
     }
 
     memory_region_destroy(&s->ivshmem_mmio);
-    memory_region_del_subregion(&s->bar, &s->ivshmem);
-    vmstate_unregister_ram(&s->ivshmem, DEVICE(dev));
+    vmstate_unregister_ram(&s->ivshmem, DEVICE(s));
     memory_region_destroy(&s->ivshmem);
     memory_region_destroy(&s->bar);
-    unregister_savevm(DEVICE(dev), "ivshmem", s);
+    unregister_savevm(DEVICE(s), "ivshmem", s);
 }
 
 static Property ivshmem_properties[] = {
@@ -829,6 +835,7 @@ static const TypeInfo ivshmem_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(IVShmemState),
     .class_init    = ivshmem_class_init,
+    .instance_finalize = pci_ivshmem_instance_finalize,
 };
 
 static void ivshmem_register_types(void)
