@@ -2073,9 +2073,9 @@ static const VMStateDescription vmstate_lsi_scsi = {
     }
 };
 
-static void lsi_scsi_uninit(PCIDevice *d)
+static void lsi_scsi_instance_finalize(Object *obj)
 {
-    LSIState *s = LSI53C895A(d);
+    LSIState *s = LSI53C895A(obj);
 
     memory_region_destroy(&s->mmio_io);
     memory_region_destroy(&s->ram_io);
@@ -2135,7 +2135,6 @@ static void lsi_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = lsi_scsi_init;
-    k->exit = lsi_scsi_uninit;
     k->vendor_id = PCI_VENDOR_ID_LSI_LOGIC;
     k->device_id = PCI_DEVICE_ID_LSI_53C895A;
     k->class_id = PCI_CLASS_STORAGE_SCSI;
@@ -2150,6 +2149,7 @@ static const TypeInfo lsi_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(LSIState),
     .class_init    = lsi_class_init,
+    .instance_finalize = lsi_scsi_instance_finalize,
 };
 
 static void lsi53c810_class_init(ObjectClass *klass, void *data)
