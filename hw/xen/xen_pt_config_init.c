@@ -1861,9 +1861,6 @@ void xen_pt_config_delete(XenPCIPassthroughState *s)
     struct XenPTReg *reg, *next_reg;
 
     /* free MSI/MSI-X info table */
-    if (s->msix) {
-        xen_pt_msix_delete(s);
-    }
     if (s->msi) {
         g_free(s->msi);
     }

@@ -605,6 +605,13 @@ void xen_pt_msix_delete(XenPCIPassthroughState *s)
         return;
     }
 
+    memory_region_del_subregion(&s->bar[msix->bar_index], &msix->mmio);
+}
+
+void xen_pt_msix_free(XenPCIPassthroughState *s)
+{
+    XenPTMSIX *msix = s->msix;
+
     /* unmap the MSI-X memory mapped register area */
     if (msix->phys_iomem_base) {
         XEN_PT_LOG(&s->dev, "unmapping physical MSI-X table from %p\n",
@@ -613,7 +620,6 @@ void xen_pt_msix_delete(XenPCIPassthroughState *s)
                + msix->table_offset_adjust);
     }
 
-    memory_region_del_subregion(&s->bar[msix->bar_index], &msix->mmio);
     memory_region_destroy(&msix->mmio);
 
     g_free(s->msix);
