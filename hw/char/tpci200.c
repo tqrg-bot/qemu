@@ -613,8 +613,9 @@ static int tpci200_initfn(PCIDevice *pci_dev)
     return 0;
 }
 
-static void tpci200_exitfn(PCIDevice *pci_dev)
+static void tpci200_instance_finalize(Object *obj)
 {
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
     TPCI200State *s = TPCI200(pci_dev);
 
     memory_region_destroy(&s->mmio);
@@ -646,7 +647,6 @@ static void tpci200_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = tpci200_initfn;
-    k->exit = tpci200_exitfn;
     k->vendor_id = PCI_VENDOR_ID_TEWS;
     k->device_id = PCI_DEVICE_ID_TEWS_TPCI200;
     k->class_id = PCI_CLASS_BRIDGE_OTHER;
@@ -662,6 +662,7 @@ static const TypeInfo tpci200_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(TPCI200State),
     .class_init    = tpci200_class_init,
+    .instance_finalize = tpci200_instance_finalize,
 };
 
 static void tpci200_register_types(void)
