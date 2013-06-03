@@ -278,9 +278,9 @@ static void pci_pcnet_cleanup(NetClientState *nc)
     pcnet_common_cleanup(d);
 }
 
-static void pci_pcnet_uninit(PCIDevice *dev)
+static void pci_pcnet_instance_finalize(Object *obj)
 {
-    PCIPCNetState *d = PCI_PCNET(dev);
+    PCIPCNetState *d = PCI_PCNET(obj);
 
     memory_region_destroy(&d->state.mmio);
     memory_region_destroy(&d->io_bar);
@@ -357,7 +357,6 @@ static void pcnet_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = pci_pcnet_init;
-    k->exit = pci_pcnet_uninit;
     k->romfile = "efi-pcnet.rom",
     k->vendor_id = PCI_VENDOR_ID_AMD;
     k->device_id = PCI_DEVICE_ID_AMD_LANCE;
@@ -374,6 +373,7 @@ static const TypeInfo pcnet_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCIPCNetState),
     .class_init    = pcnet_class_init,
+    .instance_finalize = pci_pcnet_instance_finalize,
 };
 
 static void pci_pcnet_register_types(void)
