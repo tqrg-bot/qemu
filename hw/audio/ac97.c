@@ -1390,8 +1390,9 @@ static int ac97_initfn (PCIDevice *dev)
     return 0;
 }
 
-static void ac97_exitfn (PCIDevice *dev)
+static void ac97_instance_finalize (Object *obj)
 {
+    PCIDevice *dev = PCI_DEVICE(obj);
     AC97LinkState *s = DO_UPCAST (AC97LinkState, dev, dev);
 
     memory_region_destroy (&s->io_nam);
@@ -1415,7 +1416,6 @@ static void ac97_class_init (ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS (klass);
 
     k->init = ac97_initfn;
-    k->exit = ac97_exitfn;
     k->vendor_id = PCI_VENDOR_ID_INTEL;
     k->device_id = PCI_DEVICE_ID_INTEL_82801AA_5;
     k->revision = 0x01;
@@ -1431,6 +1431,7 @@ static const TypeInfo ac97_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof (AC97LinkState),
     .class_init    = ac97_class_init,
+    .instance_finalize = ac97_instance_finalize,
 };
 
 static void ac97_register_types (void)
