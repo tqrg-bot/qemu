@@ -1829,6 +1829,13 @@ static void assigned_exitfn(struct PCIDevice *pci_dev)
     AssignedDevice *dev = DO_UPCAST(AssignedDevice, dev, pci_dev);
 
     deassign_device(dev);
+}
+
+static void assigned_instance_finalize(Object *obj)
+{
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
+    AssignedDevice *dev = DO_UPCAST(AssignedDevice, dev, pci_dev);
+
     free_assigned_device(dev);
 }
 
@@ -1864,6 +1871,7 @@ static const TypeInfo assign_info = {
     .parent             = TYPE_PCI_DEVICE,
     .instance_size      = sizeof(AssignedDevice),
     .class_init         = assign_class_init,
+    .instance_finalize  = assigned_instance_finalize,
 };
 
 static void assign_register_types(void)
