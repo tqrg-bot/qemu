@@ -1185,7 +1185,7 @@ void ahci_init(AHCIState *s, DeviceState *qdev, AddressSpace *as, int ports)
     }
 }
 
-void ahci_uninit(AHCIState *s)
+void ahci_instance_finalize(AHCIState *s)
 {
     memory_region_destroy(&s->mem);
     memory_region_destroy(&s->idp);
