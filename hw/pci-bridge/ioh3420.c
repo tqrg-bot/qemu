@@ -154,6 +154,12 @@ static void ioh3420_exitfn(PCIDevice *d)
     pcie_cap_exit(d);
     msi_uninit(d);
     pci_bridge_exitfn(d);
+}
+
+static void ioh3420_instance_finalize(Object *obj)
+{
+    PCIDevice *d = PCI_DEVICE(obj);
+
     pcie_aer_free(d);
     pci_bridge_free(d);
 }
@@ -219,6 +225,7 @@ static const TypeInfo ioh3420_info = {
     .name          = "ioh3420",
     .parent        = TYPE_PCIE_SLOT,
     .class_init    = ioh3420_class_init,
+    .instance_finalize = ioh3420_instance_finalize,
 };
 
 static void ioh3420_register_types(void)
