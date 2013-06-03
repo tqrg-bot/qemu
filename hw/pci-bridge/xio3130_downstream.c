@@ -115,11 +115,11 @@ static void xio3130_downstream_exitfn(PCIDevice *d)
 {
     PCIESlot *s = PCIE_SLOT(d);
 
-    pcie_aer_exit(d);
     pcie_chassis_del_slot(s);
     pcie_cap_exit(d);
     msi_uninit(d);
     pci_bridge_exitfn(d);
+    pcie_aer_free(d);
     pci_bridge_free(d);
 }
 
