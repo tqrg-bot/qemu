@@ -303,9 +303,9 @@ static int pci_cmd646_ide_initfn(PCIDevice *dev)
     return 0;
 }
 
-static void pci_cmd646_ide_exitfn(PCIDevice *dev)
+static void pci_cmd646_ide_instance_finalize(Object *obj)
 {
-    PCIIDEState *d = PCI_IDE(dev);
+    PCIIDEState *d = PCI_IDE(obj);
     unsigned i;
 
     for (i = 0; i < 2; ++i) {
@@ -342,7 +342,6 @@ static void cmd646_ide_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = pci_cmd646_ide_initfn;
-    k->exit = pci_cmd646_ide_exitfn;
     k->vendor_id = PCI_VENDOR_ID_CMD;
     k->device_id = PCI_DEVICE_ID_CMD_646;
     k->revision = 0x07;
@@ -354,6 +353,7 @@ static const TypeInfo cmd646_ide_info = {
     .name          = "cmd646-ide",
     .parent        = TYPE_PCI_IDE,
     .class_init    = cmd646_ide_class_init,
+    .instance_finalize = pci_cmd646_ide_instance_finalize,
 };
 
 static void cmd646_ide_register_types(void)
