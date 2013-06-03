@@ -1023,6 +1023,13 @@ static void virtio_pci_exit(PCIDevice *pci_dev)
     msix_uninit_exclusive_bar(pci_dev);
 }
 
+static void virtio_pci_instance_finalize(Object *obj)
+{
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
+
+    msix_free_exclusive_bar(pci_dev);
+}
+
 static void virtio_pci_reset(DeviceState *qdev)
 {
     VirtIOPCIProxy *proxy = VIRTIO_PCI(qdev);
