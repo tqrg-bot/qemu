@@ -1292,8 +1292,9 @@ static int usb_uhci_vt82c686b_initfn(PCIDevice *dev)
     return usb_uhci_common_initfn(dev);
 }
 
-static void usb_uhci_exit(PCIDevice *dev)
+static void usb_uhci_instance_finalize(Object *obj)
 {
+    PCIDevice *dev = PCI_DEVICE(obj);
     UHCIState *s = DO_UPCAST(UHCIState, dev, dev);
 
     memory_region_destroy(&s->io_bar);
@@ -1315,7 +1316,6 @@ static void uhci_class_init(ObjectClass *klass, void *data)
     UHCIInfo *info = data;
 
     k->init = info->initfn ? info->initfn : usb_uhci_common_initfn;
-    k->exit = info->unplug ? usb_uhci_exit : NULL;
     k->vendor_id = info->vendor_id;
     k->device_id = info->device_id;
     k->revision  = info->revision;
@@ -1402,6 +1402,7 @@ static void uhci_register_types(void)
         .instance_size = sizeof(UHCIState),
         .class_size    = sizeof(UHCIPCIDeviceClass),
         .class_init    = uhci_class_init,
+        .instance_finalize = usb_uhci_instance_finalize,
     };
     int i;
 
