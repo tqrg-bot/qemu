@@ -374,9 +374,9 @@ static int esp_pci_scsi_init(PCIDevice *dev)
     return 0;
 }
 
-static void esp_pci_scsi_uninit(PCIDevice *d)
+static void esp_pci_scsi_instance_finalize(Object *obj)
 {
-    PCIESPState *pci = PCI_ESP(d);
+    PCIESPState *pci = PCI_ESP(obj);
 
     memory_region_destroy(&pci->io);
 }
@@ -387,7 +387,6 @@ static void esp_pci_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = esp_pci_scsi_init;
-    k->exit = esp_pci_scsi_uninit;
     k->vendor_id = PCI_VENDOR_ID_AMD;
     k->device_id = PCI_DEVICE_ID_AMD_SCSI;
     k->revision = 0x10;
@@ -403,6 +402,7 @@ static const TypeInfo esp_pci_info = {
     .parent = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCIESPState),
     .class_init = esp_pci_class_init,
+    .instance_finalize = esp_pci_scsi_instance_finalize,
 };
 
 typedef struct {
