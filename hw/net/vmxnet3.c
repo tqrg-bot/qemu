@@ -1892,6 +1892,10 @@ static void vmxnet3_net_uninit(VMXNET3State *s)
     vmxnet_tx_pkt_reset(s->tx_pkt);
     vmxnet_tx_pkt_uninit(s->tx_pkt);
     vmxnet_rx_pkt_uninit(s->rx_pkt);
+}
+
+static void vmxnet3_net_free(VMXNET3State *s)
+{
     qemu_del_nic(s->nic);
 }
 
@@ -2126,10 +2130,18 @@ static void vmxnet3_pci_uninit(PCIDevice *pci_dev)
     vmxnet3_cleanup_msix(s);
 
     vmxnet3_cleanup_msi(s);
+}
+
+static void vmxnet3_pci_instance_finalize(Object *obj)
+{
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
+    VMXNET3State *s = VMXNET3(pci_dev);
 
     memory_region_destroy(&s->bar0);
     memory_region_destroy(&s->bar1);
     memory_region_destroy(&s->msix_bar);
+
+    vmxnet3_net_free(s);
 }
 
 static void vmxnet3_qdev_reset(DeviceState *dev)
@@ -2461,6 +2473,7 @@ static const TypeInfo vmxnet3_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(VMXNET3State),
     .class_init    = vmxnet3_class_init,
+    .instance_finalize = vmxnet3_pci_instance_finalize,
 };
 
 static void vmxnet3_register_types(void)
