@@ -793,16 +793,12 @@ static void pci_config_free(PCIDevice *pci_dev)
     g_free(pci_dev->used);
 }
 
-static void do_pci_unregister_device(PCIDevice *pci_dev)
-{
-    pci_dev->bus->devices[pci_dev->devfn] = NULL;
-    pci_config_free(pci_dev);
-}
-
 static void pci_device_instance_finalize(Object *obj)
 {
     PCIDevice *pci_dev = PCI_DEVICE(obj);
 
+    qemu_free_irqs(pci_dev->irq);
+    pci_config_free(pci_dev);
     address_space_destroy(&pci_dev->bus_master_as);
 }
 
@@ -871,7 +867,6 @@ static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
         pci_init_mask_bridge(pci_dev);
     }
     if (pci_init_multifunction(bus, pci_dev)) {
-        do_pci_unregister_device(pci_dev);
         return NULL;
     }
 
@@ -914,7 +909,7 @@ static int pci_unregister_device(DeviceState *dev)
     }
 
     pci_device_deassert_intx(pci_dev);
-    do_pci_unregister_device(pci_dev);
+    pci_dev->bus->devices[pci_dev->devfn] = NULL;
     return 0;
 }
 
@@ -1771,7 +1766,6 @@ static int pci_qdev_init(DeviceState *qdev)
     if (pc->init) {
         rc = pc->init(pci_dev);
         if (rc != 0) {
-            do_pci_unregister_device(pci_dev);
             return rc;
         }
     }
