@@ -110,17 +110,24 @@ static const MemoryRegionOps pcie_mmcfg_ops = {
 int pcie_host_init(PCIExpressHost *e)
 {
     e->base_addr = PCIE_BASE_ADDR_UNMAPPED;
-
+    memory_region_init_io(&e->mmio, OBJECT(e), &pcie_mmcfg_ops, e, "pcie-mmcfg-mmio",
+                          PCIE_MMCFG_SIZE_MAX);
     return 0;
 }
 
 void pcie_host_mmcfg_unmap(PCIExpressHost *e)
 {
     if (e->base_addr != PCIE_BASE_ADDR_UNMAPPED) {
-        memory_region_del_subregion(get_system_memory(), &e->mmio);
-        memory_region_destroy(&e->mmio);
+        memory_region_del_subregion(get_system_memory(), &e->mapped_mmio);
+        memory_region_destroy(&e->mapped_mmio);
         e->base_addr = PCIE_BASE_ADDR_UNMAPPED;
     }
+}
+
+static void pcie_host_instance_finalize(Object *obj)
+{
+    PCIExpressHost *e = PCIE_HOST_BRIDGE(obj);
+    memory_region_destroy(&e->mmio);
 }
 
 void pcie_host_mmcfg_map(PCIExpressHost *e, hwaddr addr,
@@ -130,10 +137,13 @@ void pcie_host_mmcfg_map(PCIExpressHost *e, hwaddr addr,
     assert(size >= PCIE_MMCFG_SIZE_MIN);
     assert(size <= PCIE_MMCFG_SIZE_MAX);
     e->size = size;
-    memory_region_init_io(&e->mmio, OBJECT(e), &pcie_mmcfg_ops, e,
-                          "pcie-mmcfg", e->size);
     e->base_addr = addr;
-    memory_region_add_subregion(get_system_memory(), e->base_addr, &e->mmio);
+
+    memory_region_init_alias(&e->mapped_mmio, OBJECT(e),
+                             "pcie-mmcfg", &e->mmio,
+                             0, e->size);
+
+    memory_region_add_subregion(get_system_memory(), e->base_addr, &e->mapped_mmio);
 }
 
 void pcie_host_mmcfg_update(PCIExpressHost *e,
@@ -152,6 +162,7 @@ static const TypeInfo pcie_host_type_info = {
     .parent = TYPE_PCI_HOST_BRIDGE,
     .abstract = true,
     .instance_size = sizeof(PCIExpressHost),
+    .instance_finalize = pcie_host_instance_finalize,
 };
 
 static void pcie_host_register_types(void)
