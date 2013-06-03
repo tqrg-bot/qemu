@@ -200,9 +200,9 @@ PCIDevice *pci_piix3_xen_ide_init(PCIBus *bus, DriveInfo **hd_table, int devfn)
     return dev;
 }
 
-static void pci_piix_ide_exitfn(PCIDevice *dev)
+static void pci_piix_ide_instance_finalize(Object *obj)
 {
-    PCIIDEState *d = PCI_IDE(dev);
+    PCIIDEState *d = PCI_IDE(obj);
     unsigned i;
 
     for (i = 0; i < 2; ++i) {
@@ -243,7 +243,6 @@ static void piix3_ide_class_init(ObjectClass *klass, void *data)
 
     k->no_hotplug = 1;
     k->init = pci_piix_ide_initfn;
-    k->exit = pci_piix_ide_exitfn;
     k->vendor_id = PCI_VENDOR_ID_INTEL;
     k->device_id = PCI_DEVICE_ID_INTEL_82371SB_1;
     k->class_id = PCI_CLASS_STORAGE_IDE;
@@ -255,6 +254,7 @@ static const TypeInfo piix3_ide_info = {
     .name          = "piix3-ide",
     .parent        = TYPE_PCI_IDE,
     .class_init    = piix3_ide_class_init,
+    .instance_finalize = pci_piix_ide_instance_finalize,
 };
 
 static void piix3_ide_xen_class_init(ObjectClass *klass, void *data)
@@ -275,6 +275,7 @@ static const TypeInfo piix3_ide_xen_info = {
     .name          = "piix3-ide-xen",
     .parent        = TYPE_PCI_IDE,
     .class_init    = piix3_ide_xen_class_init,
+    .instance_finalize = pci_piix_ide_instance_finalize,
 };
 
 static void piix4_ide_class_init(ObjectClass *klass, void *data)
@@ -284,7 +285,6 @@ static void piix4_ide_class_init(ObjectClass *klass, void *data)
 
     k->no_hotplug = 1;
     k->init = pci_piix_ide_initfn;
-    k->exit = pci_piix_ide_exitfn;
     k->vendor_id = PCI_VENDOR_ID_INTEL;
     k->device_id = PCI_DEVICE_ID_INTEL_82371AB;
     k->class_id = PCI_CLASS_STORAGE_IDE;
@@ -296,6 +296,7 @@ static const TypeInfo piix4_ide_info = {
     .name          = "piix4-ide",
     .parent        = TYPE_PCI_IDE,
     .class_init    = piix4_ide_class_init,
+    .instance_finalize = pci_piix_ide_instance_finalize,
 };
 
 static void piix_ide_register_types(void)
