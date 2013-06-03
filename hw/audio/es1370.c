@@ -1044,8 +1044,9 @@ static int es1370_initfn (PCIDevice *dev)
     return 0;
 }
 
-static void es1370_exitfn (PCIDevice *dev)
+static void es1370_instance_finalize (Object *obj)
 {
+    PCIDevice *dev = PCI_DEVICE(obj);
     ES1370State *s = DO_UPCAST (ES1370State, dev, dev);
 
     memory_region_destroy (&s->io);
@@ -1063,7 +1064,6 @@ static void es1370_class_init (ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS (klass);
 
     k->init = es1370_initfn;
-    k->exit = es1370_exitfn;
     k->vendor_id = PCI_VENDOR_ID_ENSONIQ;
     k->device_id = PCI_DEVICE_ID_ENSONIQ_ES1370;
     k->class_id = PCI_CLASS_MULTIMEDIA_AUDIO;
@@ -1079,6 +1079,7 @@ static const TypeInfo es1370_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof (ES1370State),
     .class_init    = es1370_class_init,
+    .instance_finalize = es1370_instance_finalize,
 };
 
 static void es1370_register_types (void)
