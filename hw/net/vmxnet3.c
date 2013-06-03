@@ -2182,7 +2182,10 @@ static void vmxnet3_pci_uninit(PCIDevice *pci_dev)
 
 static void vmxnet3_pci_instance_finalize(Object *obj)
 {
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
     VMXNET3State *s = VMXNET3(obj);
+
+    msix_free(pci_dev);
 
     g_free(s->mcast_list);
     vmxnet_tx_pkt_free(s->tx_pkt);
