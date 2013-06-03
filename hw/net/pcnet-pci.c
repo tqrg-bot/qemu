@@ -282,10 +282,16 @@ static void pci_pcnet_uninit(PCIDevice *dev)
 {
     PCIPCNetState *d = PCI_PCNET(dev);
 
-    memory_region_destroy(&d->state.mmio);
-    memory_region_destroy(&d->io_bar);
     timer_del(d->state.poll_timer);
     timer_free(d->state.poll_timer);
+}
+
+static void pci_pcnet_instance_finalize(Object *obj)
+{
+    PCIPCNetState *d = PCI_PCNET(obj);
+
+    memory_region_destroy(&d->state.mmio);
+    memory_region_destroy(&d->io_bar);
     qemu_del_nic(d->state.nic);
 }
 
@@ -374,6 +380,7 @@ static const TypeInfo pcnet_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCIPCNetState),
     .class_init    = pcnet_class_init,
+    .instance_finalize = pci_pcnet_instance_finalize,
 };
 
 static void pci_pcnet_register_types(void)
