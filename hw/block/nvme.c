@@ -839,6 +839,12 @@ static void nvme_exit(PCIDevice *pci_dev)
     g_free(n->cq);
     g_free(n->sq);
     msix_uninit_exclusive_bar(pci_dev);
+}
+
+static void nvme_instance_finalize(Object *obj)
+{
+    NvmeCtrl *n = NVME(obj);
+
     memory_region_destroy(&n->iomem);
 }
 
@@ -877,6 +883,7 @@ static const TypeInfo nvme_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(NvmeCtrl),
     .class_init    = nvme_class_init,
+    .instance_finalize = nvme_instance_finalize,
 };
 
 static void nvme_register_types(void)
