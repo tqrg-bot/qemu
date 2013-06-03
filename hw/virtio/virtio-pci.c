@@ -997,8 +997,14 @@ static void virtio_pci_exit(PCIDevice *pci_dev)
 {
     VirtIOPCIProxy *proxy = VIRTIO_PCI(pci_dev);
     virtio_pci_stop_ioeventfd(proxy);
-    memory_region_destroy(&proxy->bar);
     msix_uninit_exclusive_bar(pci_dev);
+}
+
+static void virtio_pci_instance_finalize(Object *obj)
+{
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
+    VirtIOPCIProxy *proxy = VIRTIO_PCI(obj);
+    memory_region_destroy(&proxy->bar);
     msix_free(pci_dev);
 }
 
@@ -1031,6 +1037,7 @@ static const TypeInfo virtio_pci_info = {
     .instance_size = sizeof(VirtIOPCIProxy),
     .class_init    = virtio_pci_class_init,
     .class_size    = sizeof(VirtioPCIClass),
+    .instance_finalize = virtio_pci_instance_finalize,
     .abstract      = true,
 };
 
