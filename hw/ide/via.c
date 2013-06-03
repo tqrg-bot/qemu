@@ -191,9 +191,9 @@ static int vt82c686b_ide_initfn(PCIDevice *dev)
     return 0;
 }
 
-static void vt82c686b_ide_exitfn(PCIDevice *dev)
+static void vt82c686b_ide_instance_finalize(Object *obj)
 {
-    PCIIDEState *d = PCI_IDE(dev);
+    PCIIDEState *d = PCI_IDE(obj);
     unsigned i;
 
     for (i = 0; i < 2; ++i) {
@@ -219,7 +219,6 @@ static void via_ide_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = vt82c686b_ide_initfn;
-    k->exit = vt82c686b_ide_exitfn;
     k->vendor_id = PCI_VENDOR_ID_VIA;
     k->device_id = PCI_DEVICE_ID_VIA_IDE;
     k->revision = 0x06;
@@ -232,6 +231,7 @@ static const TypeInfo via_ide_info = {
     .name          = "via-ide",
     .parent        = TYPE_PCI_IDE,
     .class_init    = via_ide_class_init,
+    .instance_finalize = vt82c686b_ide_instance_finalize,
 };
 
 static void via_ide_register_types(void)
