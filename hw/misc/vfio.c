@@ -2144,6 +2144,7 @@ static void vfio_teardown_msi(VFIODevice *vdev)
     if (vdev->msix) {
         msix_uninit(&vdev->pdev, &vdev->bars[vdev->msix->table_bar].mem,
                     &vdev->bars[vdev->msix->pba_bar].mem);
+        msix_free(&vdev->pdev);
     }
 }
 

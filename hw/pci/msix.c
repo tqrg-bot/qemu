@@ -359,16 +359,26 @@ void msix_uninit(PCIDevice *dev, MemoryRegion *table_bar, MemoryRegion *pba_bar)
     msix_free_irq_entries(dev);
     dev->msix_entries_nr = 0;
     memory_region_del_subregion(pba_bar, &dev->msix_pba_mmio);
-    memory_region_destroy(&dev->msix_pba_mmio);
-    g_free(dev->msix_pba);
-    dev->msix_pba = NULL;
     memory_region_del_subregion(table_bar, &dev->msix_table_mmio);
-    memory_region_destroy(&dev->msix_table_mmio);
-    g_free(dev->msix_table);
+    dev->cap_present &= ~QEMU_PCI_CAP_MSIX;
+}
+
+void msix_free(PCIDevice *dev)
+{
+    if (dev->msix_pba) {
+        memory_region_destroy(&dev->msix_pba_mmio);
+        g_free(dev->msix_pba);
+    }
+    dev->msix_pba = NULL;
+
+    if (dev->msix_table) {
+        memory_region_destroy(&dev->msix_table_mmio);
+        g_free(dev->msix_table);
+    }
     dev->msix_table = NULL;
+
     g_free(dev->msix_entry_used);
     dev->msix_entry_used = NULL;
-    dev->cap_present &= ~QEMU_PCI_CAP_MSIX;
 }
 
 void msix_uninit_exclusive_bar(PCIDevice *dev)
