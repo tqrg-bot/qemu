@@ -855,6 +855,7 @@ static Property tpm_tis_properties[] = {
 
 static void tpm_tis_realizefn(DeviceState *dev, Error **errp)
 {
+    ISADevice *d = ISA_DEVICE(dev);
     TPMState *s = TPM(dev);
     TPMTISEmuState *tis = &s->s.tis;
 
@@ -881,26 +882,31 @@ static void tpm_tis_realizefn(DeviceState *dev, Error **errp)
 
     tis->bh = qemu_bh_new(tpm_tis_receive_bh, s);
 
-    isa_init_irq(&s->busdev, &tis->irq, tis->irq_num);
+    isa_init_irq(d, &tis->irq, tis->irq_num);
+    memory_region_add_subregion(isa_address_space(d), TPM_TIS_ADDR_BASE,
+                                &s->mmio);
+}
+
+static void tpm_tis_unrealizefn(DeviceState *dev, Error **errp)
+{
+    TPMState *s = TPM(dev);
+
+    memory_region_del_subregion(get_system_memory(), &s->mmio);
 }
 
 static void tpm_tis_initfn(Object *obj)
 {
-    ISADevice *dev = ISA_DEVICE(obj);
     TPMState *s = TPM(obj);
 
     memory_region_init_io(&s->mmio, OBJECT(s), &tpm_tis_memory_ops,
                           s, "tpm-tis-mmio",
                           TPM_TIS_NUM_LOCALITIES << TPM_TIS_LOCALITY_SHIFT);
-    memory_region_add_subregion(isa_address_space(dev), TPM_TIS_ADDR_BASE,
-                                &s->mmio);
 }
 
 static void tpm_tis_uninitfn(Object *obj)
 {
     TPMState *s = TPM(obj);
 
-    memory_region_del_subregion(get_system_memory(), &s->mmio);
     memory_region_destroy(&s->mmio);
 }
 
@@ -909,6 +915,7 @@ static void tpm_tis_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->realize = tpm_tis_realizefn;
+    dc->unrealize = tpm_tis_unrealizefn;
     dc->props = tpm_tis_properties;
     dc->reset = tpm_tis_reset;
     dc->vmsd  = &vmstate_tpm_tis;
