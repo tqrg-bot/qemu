@@ -745,8 +745,9 @@ static int pci_ne2000_init(PCIDevice *pci_dev)
     return 0;
 }
 
-static void pci_ne2000_exit(PCIDevice *pci_dev)
+static void pci_ne2000_instance_finalize(Object *obj)
 {
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
     PCINE2000State *d = DO_UPCAST(PCINE2000State, dev, pci_dev);
     NE2000State *s = &d->ne2000;
 
@@ -765,7 +766,6 @@ static void ne2000_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = pci_ne2000_init;
-    k->exit = pci_ne2000_exit;
     k->romfile = "efi-ne2k_pci.rom",
     k->vendor_id = PCI_VENDOR_ID_REALTEK;
     k->device_id = PCI_DEVICE_ID_REALTEK_8029;
@@ -780,6 +780,7 @@ static const TypeInfo ne2000_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCINE2000State),
     .class_init    = ne2000_class_init,
+    .instance_finalize = pci_ne2000_instance_finalize,
 };
 
 static void ne2000_register_types(void)
