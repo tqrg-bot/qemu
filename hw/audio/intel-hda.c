@@ -1153,6 +1153,13 @@ static void intel_hda_exit(PCIDevice *pci)
     IntelHDAState *d = INTEL_HDA(pci);
 
     msi_uninit(&d->pci);
+}
+
+static void intel_hda_instance_finalize(Object *obj)
+{
+    PCIDevice *pci = PCI_DEVICE(obj);
+    IntelHDAState *d = DO_UPCAST(IntelHDAState, pci, pci);
+
     memory_region_destroy(&d->mmio);
 }
 
@@ -1285,6 +1292,7 @@ static const TypeInfo intel_hda_info_ich6 = {
     .name          = "intel-hda",
     .parent        = TYPE_INTEL_HDA_GENERIC,
     .class_init    = intel_hda_class_init_ich6,
+    .instance_finalize = intel_hda_instance_finalize,
 };
 
 static const TypeInfo intel_hda_info_ich9 = {
