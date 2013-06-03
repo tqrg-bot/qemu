@@ -388,6 +388,11 @@ void pci_bridge_exitfn(PCIDevice *pci_dev)
     assert(QLIST_EMPTY(&s->sec_bus.child));
     QLIST_REMOVE(&s->sec_bus, sibling);
     pci_bridge_region_del(s, s->windows);
+}
+
+void pci_bridge_free(PCIDevice *pci_dev)
+{
+    PCIBridge *s = PCI_BRIDGE(pci_dev);
     pci_bridge_region_cleanup(s, s->windows);
     memory_region_destroy(&s->address_space_mem);
     memory_region_destroy(&s->address_space_io);

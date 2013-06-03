@@ -142,6 +142,7 @@ err_msi:
     msi_uninit(d);
 err_bridge:
     pci_bridge_exitfn(d);
+    pci_bridge_free(d);
     return rc;
 }
 
@@ -154,6 +155,7 @@ static void ioh3420_exitfn(PCIDevice *d)
     pcie_cap_exit(d);
     msi_uninit(d);
     pci_bridge_exitfn(d);
+    pci_bridge_free(d);
 }
 
 PCIESlot *ioh3420_init(PCIBus *bus, int devfn, bool multifunction,
