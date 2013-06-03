@@ -787,6 +787,15 @@ static void pci_config_free(PCIDevice *pci_dev)
     g_free(pci_dev->used);
 }
 
+static void pci_device_instance_finalize(Object *obj)
+{
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
+
+    pci_del_option_rom(pci_dev);
+    address_space_destroy(&pci_dev->bus_master_as);
+    memory_region_destroy(&pci_dev->bus_master_enable_region);
+}
+
 /* -1 for devfn means auto assign */
 static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
                                          const char *name, int devfn)
@@ -873,9 +882,6 @@ static void do_pci_unregister_device(PCIDevice *pci_dev)
     qemu_free_irqs(pci_dev->irq);
     pci_dev->bus->devices[pci_dev->devfn] = NULL;
     pci_config_free(pci_dev);
-
-    address_space_destroy(&pci_dev->bus_master_as);
-    memory_region_destroy(&pci_dev->bus_master_enable_region);
 }
 
 static void pci_unregister_io_regions(PCIDevice *pci_dev)
@@ -899,7 +905,6 @@ static int pci_unregister_device(DeviceState *dev)
     PCIDeviceClass *pc = PCI_DEVICE_GET_CLASS(pci_dev);
 
     pci_unregister_io_regions(pci_dev);
-    pci_del_option_rom(pci_dev);
 
     if (pc->exit) {
         pc->exit(pci_dev);
@@ -2316,6 +2321,7 @@ static const TypeInfo pci_device_type_info = {
     .abstract = true,
     .class_size = sizeof(PCIDeviceClass),
     .class_init = pci_device_class_init,
+    .instance_finalize = pci_device_instance_finalize,
 };
 
 static void pci_register_types(void)
