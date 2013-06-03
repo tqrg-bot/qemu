@@ -1840,8 +1840,9 @@ static void nic_cleanup(NetClientState *nc)
     s->nic = NULL;
 }
 
-static void pci_nic_uninit(PCIDevice *pci_dev)
+static void pci_nic_instance_finalize(Object *obj)
 {
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
     EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, pci_dev);
 
     memory_region_destroy(&s->mmio_bar);
@@ -2090,7 +2091,6 @@ static void eepro100_class_init(ObjectClass *klass, void *data)
     k->class_id = PCI_CLASS_NETWORK_ETHERNET;
     k->romfile = "pxe-eepro100.rom";
     k->init = e100_nic_init;
-    k->exit = pci_nic_uninit;
     k->device_id = info->device_id;
     k->revision = info->revision;
     k->subsystem_vendor_id = info->subsystem_vendor_id;
@@ -2108,6 +2108,7 @@ static void eepro100_register_types(void)
         type_info.parent = TYPE_PCI_DEVICE;
         type_info.class_init = eepro100_class_init;
         type_info.instance_size = sizeof(EEPRO100State);
+        type_info.instance_finalize = pci_nic_instance_finalize;
         
         type_register(&type_info);
     }
