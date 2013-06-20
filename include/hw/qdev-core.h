@@ -86,6 +86,10 @@ struct VMStateDescription;
  * object_initialize() in their own #TypeInfo.instance_init and forward the
  * realization events appropriately.
  *
+ * Note that for now it is not possible to unrealize a device and then
+ * re-realize it.  While this may change in the future, it is a valid
+ * assumption for now.
+ *
  * The @init callback is considered private to a particular bus implementation
  * (immediate abstract child types of TYPE_DEVICE). Derived leaf types set an
  * "init" callback on their parent class instead.
