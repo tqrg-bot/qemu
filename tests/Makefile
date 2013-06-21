@@ -52,6 +52,8 @@ gcov-files-test-tls-y =
 check-unit-y += tests/test-int128$(EXESUF)
 # all code tested by test-int128 is inside int128.h
 gcov-files-test-int128-y =
+check-unit-y += tests/rcutorture$(EXESUF)
+gcov-files-rcutorture-y = util/rcu.c
 check-unit-y += tests/test-bitops$(EXESUF)
 check-unit-y += tests/test-qdev-global-props$(EXESUF)
 
@@ -106,7 +108,7 @@ test-obj-y = tests/check-qint.o tests/check-qstring.o tests/check-qdict.o \
 	tests/test-qmp-input-visitor.o tests/test-qmp-input-strict.o \
 	tests/test-qmp-commands.o tests/test-visitor-serialization.o \
 	tests/test-x86-cpuid.o tests/test-mul64.o tests/test-int128.o \
-	tests/test-opts-visitor.o tests/test-tls.o
+	tests/test-opts-visitor.o tests/test-tls.o tests/rcutorture.o
 
 test-qapi-obj-y = tests/test-qapi-visit.o tests/test-qapi-types.o
 
@@ -131,6 +133,7 @@ tests/test-xbzrle$(EXESUF): tests/test-xbzrle.o xbzrle.o page_cache.o libqemuuti
 tests/test-cutils$(EXESUF): tests/test-cutils.o util/cutils.o
 tests/test-int128$(EXESUF): tests/test-int128.o
 tests/test-tls$(EXESUF): tests/test-tls.o libqemuutil.a
+tests/rcutorture$(EXESUF): tests/rcutorture.o libqemuutil.a
 tests/test-qdev-global-props$(EXESUF): tests/test-qdev-global-props.o \
 	hw/core/qdev.o hw/core/qdev-properties.o \
 	hw/core/irq.o \
