@@ -45,6 +45,7 @@
 #endif
 #include "exec/cpu-all.h"
 #include "qemu/rcu_queue.h"
+#include "qemu/main-loop.h"
 #include "exec/cputlb.h"
 #include "translate-all.h"
 
@@ -2265,8 +2266,9 @@ static int memory_access_size(MemoryRegion *mr, unsigned l, hwaddr addr)
     return l;
 }
 
-bool address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
-                      int len, bool is_write)
+static bool address_space_rw_internal(AddressSpace *as, hwaddr addr,
+                                      uint8_t *buf, int len, bool is_write,
+                                      bool unlocked)
 {
     hwaddr l;
     uint8_t *ptr;
@@ -2274,11 +2276,28 @@ bool address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
     hwaddr addr1;
     MemoryRegion *mr;
     bool error = false;
+    bool release_lock;
 
     rcu_read_lock();
     while (len > 0) {
         l = len;
         mr = address_space_translate(as, addr, &addr1, &l, is_write);
+
+        release_lock = false;
+        if (unlocked && mr->global_locking) {
+            qemu_mutex_lock_iothread();
+            unlocked = false;
+            release_lock = true;
+        }
+        if (mr->flush_coalesced_mmio) {
+            if (unlocked) {
+                qemu_mutex_lock_iothread();
+            }
+            qemu_flush_coalesced_mmio_buffer();
+            if (unlocked) {
+                qemu_mutex_unlock_iothread();
+            }
+        }
 
         if (is_write) {
             if (!memory_access_is_direct(mr, is_write)) {
@@ -2350,6 +2369,12 @@ bool address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
                 memcpy(buf, ptr, l);
             }
         }
+
+        if (release_lock) {
+            qemu_mutex_unlock_iothread();
+            unlocked = true;
+        }
+
         len -= l;
         buf += l;
         addr += l;
@@ -2357,6 +2382,18 @@ bool address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
     rcu_read_unlock();
 
     return error;
+}
+
+bool address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
+                      int len, bool is_write)
+{
+    return address_space_rw_internal(as, addr, buf, len, is_write, false);
+}
+
+bool address_space_rw_unlocked(AddressSpace *as, hwaddr addr, uint8_t *buf,
+                               int len, bool is_write)
+{
+    return address_space_rw_internal(as, addr, buf, len, is_write, true);
 }
 
 bool address_space_write(AddressSpace *as, hwaddr addr,
