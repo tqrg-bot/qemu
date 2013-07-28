@@ -280,9 +280,9 @@ static int pci_testdev_init(PCIDevice *pci_dev)
 }
 
 static void
-pci_testdev_uninit(PCIDevice *dev)
+pci_testdev_instance_finalize(Object *obj)
 {
-    PCITestDevState *d = PCI_TEST_DEV(dev);
+    PCITestDevState *d = PCI_TEST_DEV(obj);
     int i;
 
     pci_testdev_reset(d);
@@ -309,7 +309,6 @@ static void pci_testdev_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = pci_testdev_init;
-    k->exit = pci_testdev_uninit;
     k->vendor_id = PCI_VENDOR_ID_REDHAT;
     k->device_id = PCI_DEVICE_ID_REDHAT_TEST;
     k->revision = 0x00;
@@ -324,6 +323,7 @@ static const TypeInfo pci_testdev_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(PCITestDevState),
     .class_init    = pci_testdev_class_init,
+    .instance_finalize = pci_testdev_instance_finalize,
 };
 
 static void pci_testdev_register_types(void)
