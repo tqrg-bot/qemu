@@ -3456,9 +3456,9 @@ static void rtl8139_cleanup(NetClientState *nc)
     s->nic = NULL;
 }
 
-static void pci_rtl8139_uninit(PCIDevice *dev)
+static void pci_rtl8139_instance_finalize(Object *obj)
 {
-    RTL8139State *s = RTL8139(dev);
+    RTL8139State *s = RTL8139(obj);
 
     memory_region_destroy(&s->bar_io);
     memory_region_destroy(&s->bar_mem);
@@ -3554,7 +3554,6 @@ static void rtl8139_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = pci_rtl8139_init;
-    k->exit = pci_rtl8139_uninit;
     k->romfile = "efi-rtl8139.rom";
     k->vendor_id = PCI_VENDOR_ID_REALTEK;
     k->device_id = PCI_DEVICE_ID_REALTEK_8139;
@@ -3571,6 +3570,7 @@ static const TypeInfo rtl8139_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(RTL8139State),
     .class_init    = rtl8139_class_init,
+    .instance_finalize = pci_rtl8139_instance_finalize,
 };
 
 static void rtl8139_register_types(void)
