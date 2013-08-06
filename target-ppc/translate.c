@@ -11158,18 +11158,14 @@ void ppc_cpu_dump_state(CPUState *cs, FILE *f, fprintf_function cpu_fprintf,
     for (i = 0; i < 8; i++) {
         cpu_fprintf(f, "%01x", ppc_get_crf(env, i));
     }
-    cpu_fprintf(f, "  [");
-    for (i = 0; i < 8; i++) {
-        char a = '-';
-        if (ppc_get_crf(env, i) & 0x08)
-            a = 'L';
-        else if (ppc_get_crf(env, i) & 0x04)
-            a = 'G';
-        else if (ppc_get_crf(env, i) & 0x02)
-            a = 'E';
-        cpu_fprintf(f, " %c%c", a, ppc_get_crf(env, i) & 0x01 ? 'O' : ' ');
+    cpu_fprintf(f, "  ");
+    for (i = 0; i < 32; i++) {
+        if ((i & 3) == 0) {
+            cpu_fprintf(f, "%c", i ? ' ' : '[');
+        }
+        cpu_fprintf(f, "%c", env->cr[i] ? "LGEO"[i&3] : '.');
     }
-    cpu_fprintf(f, " ]             RES " TARGET_FMT_lx "\n",
+    cpu_fprintf(f, "]       RES " TARGET_FMT_lx "\n",
                 env->reserve_addr);
     for (i = 0; i < 32; i++) {
         if ((i & (RFPL - 1)) == 0)
