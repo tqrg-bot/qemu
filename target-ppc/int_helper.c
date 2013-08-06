@@ -632,7 +632,7 @@ VCF(sx, int32_to_float32, s32)
                              ppc_avr_t *a, ppc_avr_t *b)                \
     {                                                                   \
         uint64_t ones = (uint64_t)-1;                                   \
-        uint64_t all = 1 << CRF_LT;                                     \
+        uint64_t all = 8 >> CRF_LT;                                     \
         uint64_t any = 0;                                               \
         int i;                                                          \
                                                                         \
@@ -657,7 +657,7 @@ VCF(sx, int32_to_float32, s32)
             any |= result;                                              \
         }                                                               \
         if (record) {                                                   \
-            ppc_set_crf(env, 6, (~any & (1 << CRF_EQ)) | all);          \
+            ppc_set_crf(env, 6, (~any & (8 >> CRF_EQ)) | all);          \
         }                                                               \
     }
 #define VCMP(suffix, compare, element)          \
@@ -683,7 +683,7 @@ VCMP(gtsd, >, s64)
                              ppc_avr_t *a, ppc_avr_t *b)                \
     {                                                                   \
         uint32_t ones = (uint32_t)-1;                                   \
-        uint32_t all = 1 << CRF_LT;                                     \
+        uint32_t all = 8 >> CRF_LT;                                     \
         uint32_t any = 0;                                               \
         int i;                                                          \
                                                                         \
@@ -703,7 +703,7 @@ VCMP(gtsd, >, s64)
             any |= result;                                              \
         }                                                               \
         if (record) {                                                   \
-            ppc_set_crf(env, 6, (~any & (1 << CRF_EQ)) | all);          \
+            ppc_set_crf(env, 6, (~any & (8 >> CRF_EQ)) | all);          \
         }                                                               \
     }
 #define VCMPFP(suffix, compare, order)          \
@@ -2303,25 +2303,25 @@ uint32_t helper_bcdadd(ppc_avr_t *r,  ppc_avr_t *a, ppc_avr_t *b, uint32_t ps)
         if (sgna == sgnb) {
             result.u8[BCD_DIG_BYTE(0)] = bcd_preferred_sgn(sgna, ps);
             zero = bcd_add_mag(&result, a, b, &invalid, &overflow);
-            cr = (sgna > 0) ? 1 << CRF_GT : 1 << CRF_LT;
+            cr = (sgna > 0) ? 8 >> CRF_GT : 8 >> CRF_LT;
         } else if (bcd_cmp_mag(a, b) > 0) {
             result.u8[BCD_DIG_BYTE(0)] = bcd_preferred_sgn(sgna, ps);
             zero = bcd_sub_mag(&result, a, b, &invalid, &overflow);
-            cr = (sgna > 0) ? 1 << CRF_GT : 1 << CRF_LT;
+            cr = (sgna > 0) ? 8 >> CRF_GT : 8 >> CRF_LT;
         } else {
             result.u8[BCD_DIG_BYTE(0)] = bcd_preferred_sgn(sgnb, ps);
             zero = bcd_sub_mag(&result, b, a, &invalid, &overflow);
-            cr = (sgnb > 0) ? 1 << CRF_GT : 1 << CRF_LT;
+            cr = (sgnb > 0) ? 8 >> CRF_GT : 8 >> CRF_LT;
         }
     }
 
     if (unlikely(invalid)) {
         result.u64[HI_IDX] = result.u64[LO_IDX] = -1;
-        cr = 1 << CRF_SO;
+        cr = 8 >> CRF_SO;
     } else if (overflow) {
-        cr |= 1 << CRF_SO;
+        cr |= 8 >> CRF_SO;
     } else if (zero) {
-        cr = 1 << CRF_EQ;
+        cr = 8 >> CRF_EQ;
     }
 
     *r = result;
@@ -2580,7 +2580,7 @@ target_ulong helper_dlmzb(CPUPPCState *env, target_ulong high,
  done:
     env->xer = (env->xer & ~0x7F) | i;
     if (update_Rc) {
-        env->crf[0] |= xer_so;
+        env->cr[CRF_SO] = xer_so;
     }
     return i;
 }

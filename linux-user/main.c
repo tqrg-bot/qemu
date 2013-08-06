@@ -1929,7 +1929,7 @@ void cpu_loop(CPUPPCState *env)
              * PPC ABI uses overflow flag in cr0 to signal an error
              * in syscalls.
              */
-            env->crf[0] &= ~0x1;
+            env->cr[CRF_SO] = 0;
             ret = do_syscall(env, env->gpr[0], env->gpr[3], env->gpr[4],
                              env->gpr[5], env->gpr[6], env->gpr[7],
                              env->gpr[8], 0, 0);
@@ -1939,7 +1939,7 @@ void cpu_loop(CPUPPCState *env)
                 break;
             }
             if (ret > (target_ulong)(-515)) {
-                env->crf[0] |= 0x1;
+                env->cr[CRF_SO] = 1;
                 ret = -ret;
             }
             env->gpr[3] = ret;

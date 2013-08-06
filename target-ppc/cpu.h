@@ -940,7 +940,7 @@ struct CPUPPCState {
     /* CTR */
     target_ulong ctr;
     /* condition register */
-    uint32_t crf[8];
+    uint32_t cr[32];
 #if defined(TARGET_PPC64)
     /* CFAR */
     target_ulong cfar;
@@ -1058,6 +1058,9 @@ struct CPUPPCState {
     uint64_t slb_shadow_addr, slb_shadow_size;
     uint64_t dtl_addr, dtl_size;
 #endif /* TARGET_PPC64 */
+
+    /* condition register, for migration compatibility */
+    uint32_t crf[8];
 
     int error_code;
     uint32_t pending_interrupts;
@@ -1202,8 +1205,8 @@ static inline uint32_t ppc_get_cr(const CPUPPCState *env)
     uint32_t cr = 0;
     int i;
 
-    for (i = 0; i < ARRAY_SIZE(env->crf); i++) {
-        cr |= env->crf[i] << (32 - ((i + 1) * 4));
+    for (i = 0; i < ARRAY_SIZE(env->cr); i++) {
+        cr |= env->cr[i] << (31 - i);
     }
     return cr;
 }
@@ -1212,19 +1215,27 @@ static inline void ppc_set_cr(CPUPPCState *env, uint32_t cr)
 {
     int i;
 
-    for (i = 0; i < ARRAY_SIZE(env->crf); i++) {
-        env->crf[i] = (cr >> (32 - ((i + 1) * 4))) & 0xF;
+    for (i = 0; i < ARRAY_SIZE(env->cr); i++) {
+        env->cr[i] = (cr >> (31 - i)) & 1;
     }
 }
 
 static inline uint32_t ppc_get_crf(const CPUPPCState *env, int i)
 {
-    return env->crf[i];
+    uint32_t r;
+    r = env->cr[i * 4];
+    r = (r << 1) | (env->cr[i * 4 + 1]);
+    r = (r << 1) | (env->cr[i * 4 + 2]);
+    r = (r << 1) | (env->cr[i * 4 + 3]);
+    return r;
 }
 
 static inline void ppc_set_crf(CPUPPCState *env, int i, uint32_t val)
 {
-    env->crf[i] = val;
+    env->cr[i * 4 + 0] = (val & 0x08) != 0;
+    env->cr[i * 4 + 1] = (val & 0x04) != 0;
+    env->cr[i * 4 + 2] = (val & 0x02) != 0;
+    env->cr[i * 4 + 3] = (val & 0x01) != 0;
 }
 
 static inline uint64_t ppc_dump_gpr(CPUPPCState *env, int gprn)
@@ -1271,14 +1282,14 @@ static inline int cpu_mmu_index (CPUPPCState *env)
 
 /*****************************************************************************/
 /* CRF definitions */
-#define CRF_LT        3
-#define CRF_GT        2
-#define CRF_EQ        1
-#define CRF_SO        0
-#define CRF_CH        (1 << CRF_LT)
-#define CRF_CL        (1 << CRF_GT)
-#define CRF_CH_OR_CL  (1 << CRF_EQ)
-#define CRF_CH_AND_CL (1 << CRF_SO)
+#define CRF_LT        0
+#define CRF_GT        1
+#define CRF_EQ        2
+#define CRF_SO        3
+#define CRF_CH        CRF_LT
+#define CRF_CL        CRF_GT
+#define CRF_CH_OR_CL  CRF_EQ
+#define CRF_CH_AND_CL CRF_SO
 
 /* XER definitions */
 #define XER_SO  31

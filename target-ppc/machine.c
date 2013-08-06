@@ -132,6 +132,10 @@ static void cpu_pre_save(void *opaque)
     CPUPPCState *env = &cpu->env;
     int i;
 
+    for (i = 0; i < 8; i++) {
+        env->crf[i] = ppc_get_crf(env, i);
+    }
+
     env->spr[SPR_LR] = env->lr;
     env->spr[SPR_CTR] = env->ctr;
     env->spr[SPR_XER] = env->xer;
@@ -165,6 +169,11 @@ static int cpu_post_load(void *opaque, int version_id)
      * software has to take care of running QEMU in a compatible mode.
      */
     env->spr[SPR_PVR] = env->spr_cb[SPR_PVR].default_value;
+
+    for (i = 0; i < 8; i++) {
+        ppc_set_crf(env, i, env->crf[i]);
+    }
+
     env->lr = env->spr[SPR_LR];
     env->ctr = env->spr[SPR_CTR];
     env->xer = env->spr[SPR_XER];
