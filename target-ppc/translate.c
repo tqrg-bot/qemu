@@ -777,27 +777,27 @@ static void gen_cmpli(DisasContext *ctx)
 /* isel (PowerPC 2.03 specification) */
 static void gen_isel(DisasContext *ctx)
 {
-    int l1, l2;
     uint32_t bi = rC(ctx->opcode);
     uint32_t mask;
     TCGv_i32 t0;
-
-    l1 = gen_new_label();
-    l2 = gen_new_label();
+    TCGv t1, true_op, zero;
 
     mask = 0x08 >> (bi & 0x03);
     t0 = tcg_temp_new_i32();
     tcg_gen_andi_i32(t0, cpu_crf[bi >> 2], mask);
-    tcg_gen_brcondi_i32(TCG_COND_EQ, t0, 0, l1);
-    if (rA(ctx->opcode) == 0)
-        tcg_gen_movi_tl(cpu_gpr[rD(ctx->opcode)], 0);
-    else
-        tcg_gen_mov_tl(cpu_gpr[rD(ctx->opcode)], cpu_gpr[rA(ctx->opcode)]);
-    tcg_gen_br(l2);
-    gen_set_label(l1);
-    tcg_gen_mov_tl(cpu_gpr[rD(ctx->opcode)], cpu_gpr[rB(ctx->opcode)]);
-    gen_set_label(l2);
+    t1 = tcg_temp_new();
+    tcg_gen_extu_i32_tl(t1, t0);
+    zero = tcg_const_tl(0);
+    if (rA(ctx->opcode) == 0) {
+        true_op = zero;
+    } else {
+        true_op = cpu_gpr[rA(ctx->opcode)];
+    }
+    tcg_gen_movcond_tl(TCG_COND_NE, cpu_gpr[rD(ctx->opcode)], t1, zero,
+                       true_op, cpu_gpr[rB(ctx->opcode)]);
+    tcg_temp_free(t1);
     tcg_temp_free_i32(t0);
+    tcg_temp_free(zero);
 }
 
 /* cmpb: PowerPC 2.05 specification */
