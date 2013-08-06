@@ -11128,18 +11128,19 @@ void ppc_cpu_dump_state(CPUState *cs, FILE *f, fprintf_function cpu_fprintf,
             cpu_fprintf(f, "\n");
     }
     cpu_fprintf(f, "CR ");
-    for (i = 0; i < 8; i++)
-        cpu_fprintf(f, "%01x", env->crf[i]);
+    for (i = 0; i < 8; i++) {
+        cpu_fprintf(f, "%01x", ppc_get_crf(env, i));
+    }
     cpu_fprintf(f, "  [");
     for (i = 0; i < 8; i++) {
         char a = '-';
-        if (env->crf[i] & 0x08)
+        if (ppc_get_crf(env, i) & 0x08)
             a = 'L';
-        else if (env->crf[i] & 0x04)
+        else if (ppc_get_crf(env, i) & 0x04)
             a = 'G';
-        else if (env->crf[i] & 0x02)
+        else if (ppc_get_crf(env, i) & 0x02)
             a = 'E';
-        cpu_fprintf(f, " %c%c", a, env->crf[i] & 0x01 ? 'O' : ' ');
+        cpu_fprintf(f, " %c%c", a, ppc_get_crf(env, i) & 0x01 ? 'O' : ' ');
     }
     cpu_fprintf(f, " ]             RES " TARGET_FMT_lx "\n",
                 env->reserve_addr);

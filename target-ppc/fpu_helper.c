@@ -1103,7 +1103,8 @@ void helper_fcmpu(CPUPPCState *env, uint64_t arg1, uint64_t arg2,
 
     env->fpscr &= ~(0x0F << FPSCR_FPRF);
     env->fpscr |= (0x01 << FPSCR_FPRF) << fpcc;
-    env->crf[crfD] = (1 << fpcc);
+    ppc_set_crf(env, crfD, 1 << fpcc);
+
     if (unlikely(fpcc == CRF_SO
                  && (float64_is_signaling_nan(farg1.d) ||
                      float64_is_signaling_nan(farg2.d)))) {
@@ -1134,7 +1135,8 @@ void helper_fcmpo(CPUPPCState *env, uint64_t arg1, uint64_t arg2,
 
     env->fpscr &= ~(0x0F << FPSCR_FPRF);
     env->fpscr |= (0x01 << FPSCR_FPRF) << fpcc;
-    env->crf[crfD] = (1 << fpcc);
+    ppc_set_crf(env, crfD, 1 << fpcc);
+
     if (unlikely(fpcc == CRF_SO)) {
         if (float64_is_signaling_nan(farg1.d) ||
             float64_is_signaling_nan(farg2.d)) {
@@ -2167,7 +2169,7 @@ void helper_##op(CPUPPCState *env, uint32_t opcode)                     \
         }                                                               \
     }                                                                   \
                                                                         \
-    env->crf[BF(opcode)] = (1 << CRF_LT) | fg_flag | fe_flag;           \
+    ppc_set_crf(env, BF(opcode), (1 << CRF_LT) | fg_flag | fe_flag);    \
 }
 
 VSX_TDIV(xstdivdp, 1, float64, VsrD(0), -1022, 1023, 52)
@@ -2221,7 +2223,7 @@ void helper_##op(CPUPPCState *env, uint32_t opcode)                     \
         }                                                               \
     }                                                                   \
                                                                         \
-    env->crf[BF(opcode)] = (1 << CRF_LT) | fg_flag | fe_flag;           \
+    ppc_set_crf(env, BF(opcode), (1 << CRF_LT) | fg_flag | fe_flag);    \
 }
 
 VSX_TSQRT(xstsqrtdp, 1, float64, VsrD(0), -1022, 52)
@@ -2384,7 +2386,7 @@ void helper_##op(CPUPPCState *env, uint32_t opcode)                      \
                                                                          \
     env->fpscr &= ~(0x0F << FPSCR_FPRF);                                 \
     env->fpscr |= (1 << fpcc) << FPSCR_FPRF;                             \
-    env->crf[BF(opcode)] = (1 << fpcc);                                  \
+    ppc_set_crf(env, BF(opcode), 1 << fpcc);                             \
                                                                          \
     helper_float_check_status(env);                                      \
 }
@@ -2473,7 +2475,7 @@ void helper_##op(CPUPPCState *env, uint32_t opcode)                       \
                                                                           \
     putVSR(xT(opcode), &xt, env);                                         \
     if ((opcode >> (31-21)) & 1) {                                        \
-        env->crf[6] = all_true | all_false;                               \
+        ppc_set_crf(env, 6, all_true | all_false);                        \
     }                                                                     \
     helper_float_check_status(env);                                       \
  }

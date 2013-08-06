@@ -294,7 +294,7 @@ void helper_mtcr(CPUPPCState *env, target_ulong cr, uint32_t mask)
     int i;
     for (i = ARRAY_SIZE(env->crf); --i >= 0; ) {
         if (mask & 1) {
-            env->crf[i] = cr & 0x0F;
+            ppc_set_crf(env, i, cr & 0x0F);
         }
         cr >>= 4;
         mask >>= 1;
@@ -657,7 +657,7 @@ VCF(sx, int32_to_float32, s32)
             any |= result;                                              \
         }                                                               \
         if (record) {                                                   \
-            env->crf[6] = (~any & (1 << CRF_EQ)) | all;                 \
+            ppc_set_crf(env, 6, (~any & (1 << CRF_EQ)) | all);          \
         }                                                               \
     }
 #define VCMP(suffix, compare, element)          \
@@ -703,7 +703,7 @@ VCMP(gtsd, >, s64)
             any |= result;                                              \
         }                                                               \
         if (record) {                                                   \
-            env->crf[6] = (~any & (1 << CRF_EQ)) | all;                 \
+            ppc_set_crf(env, 6, (~any & (1 << CRF_EQ)) | all);          \
         }                                                               \
     }
 #define VCMPFP(suffix, compare, order)          \
@@ -737,7 +737,7 @@ static inline void vcmpbfp_internal(CPUPPCState *env, ppc_avr_t *r,
         }
     }
     if (record) {
-        env->crf[6] = (all_in == 0) << 1;
+        ppc_set_crf(env, 6, (all_in == 0) << 1);
     }
 }
 
@@ -2558,7 +2558,7 @@ target_ulong helper_dlmzb(CPUPPCState *env, target_ulong high,
     for (mask = 0xFF000000; mask != 0; mask = mask >> 8) {
         if ((high & mask) == 0) {
             if (update_Rc) {
-                env->crf[0] = 0x4;
+                ppc_set_crf(env, 0, 0x4);
             }
             goto done;
         }
@@ -2567,7 +2567,7 @@ target_ulong helper_dlmzb(CPUPPCState *env, target_ulong high,
     for (mask = 0xFF000000; mask != 0; mask = mask >> 8) {
         if ((low & mask) == 0) {
             if (update_Rc) {
-                env->crf[0] = 0x8;
+                ppc_set_crf(env, 0, 0x8);
             }
             goto done;
         }
@@ -2575,7 +2575,7 @@ target_ulong helper_dlmzb(CPUPPCState *env, target_ulong high,
     }
     i = 8;
     if (update_Rc) {
-        env->crf[0] = 0x2;
+        ppc_set_crf(env, 0, 0x2);
     }
  done:
     env->xer = (env->xer & ~0x7F) | i;

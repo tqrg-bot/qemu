@@ -1217,6 +1217,16 @@ static inline void ppc_set_cr(CPUPPCState *env, uint32_t cr)
     }
 }
 
+static inline uint32_t ppc_get_crf(const CPUPPCState *env, int i)
+{
+    return env->crf[i];
+}
+
+static inline void ppc_set_crf(CPUPPCState *env, int i, uint32_t val)
+{
+    env->crf[i] = val;
+}
+
 static inline uint64_t ppc_dump_gpr(CPUPPCState *env, int gprn)
 {
     uint64_t gprv;

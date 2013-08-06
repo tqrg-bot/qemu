@@ -504,7 +504,7 @@ static inline void powerpc_excp(PowerPCCPU *cpu, int excp_model, int excp)
                          env->error_code);
             }
 #endif
-            msr |= env->crf[0] << 28;
+            msr |= ppc_get_crf(env, 0) << 28;
             msr |= env->error_code; /* key, D/I, S/L bits */
             /* Set way using a LRU mechanism */
             msr |= ((env->last_way + 1) & (env->nb_ways - 1)) << 17;
