@@ -1022,32 +1022,32 @@ uint32_t helper_ftdiv(uint64_t fra, uint64_t frb)
     if (unlikely(float64_is_infinity(fra) ||
                  float64_is_infinity(frb) ||
                  float64_is_zero(frb))) {
-        fe_flag = 1;
-        fg_flag = 1;
+        fe_flag = 1 << CRF_EQ;
+        fg_flag = 1 << CRF_GT;
     } else {
         int e_a = ppc_float64_get_unbiased_exp(fra);
         int e_b = ppc_float64_get_unbiased_exp(frb);
 
         if (unlikely(float64_is_any_nan(fra) ||
                      float64_is_any_nan(frb))) {
-            fe_flag = 1;
+            fe_flag = 1 << CRF_EQ;
         } else if ((e_b <= -1022) || (e_b >= 1021)) {
-            fe_flag = 1;
+            fe_flag = 1 << CRF_EQ;
         } else if (!float64_is_zero(fra) &&
                    (((e_a - e_b) >= 1023) ||
                     ((e_a - e_b) <= -1021) ||
                     (e_a <= -970))) {
-            fe_flag = 1;
+            fe_flag = 1 << CRF_EQ;
         }
 
         if (unlikely(float64_is_zero_or_denormal(frb))) {
             /* XB is not zero because of the above check and */
             /* so must be denormalized.                      */
-            fg_flag = 1;
+            fg_flag = 1 << CRF_GT;
         }
     }
 
-    return 0x8 | (fg_flag ? 4 : 0) | (fe_flag ? 2 : 0);
+    return (1 << CRF_LT) | fg_flag | fe_flag;
 }
 
 uint32_t helper_ftsqrt(uint64_t frb)
@@ -1062,49 +1062,49 @@ uint32_t helper_ftsqrt(uint64_t frb)
         int e_b = ppc_float64_get_unbiased_exp(frb);
 
         if (unlikely(float64_is_any_nan(frb))) {
-            fe_flag = 1;
+            fe_flag = 1 << CRF_EQ;
         } else if (unlikely(float64_is_zero(frb))) {
-            fe_flag = 1;
+            fe_flag = 1 << CRF_EQ;
         } else if (unlikely(float64_is_neg(frb))) {
-            fe_flag = 1;
+            fe_flag = 1 << CRF_EQ;
         } else if (!float64_is_zero(frb) && (e_b <= (-1022+52))) {
-            fe_flag = 1;
+            fe_flag = 1 << CRF_EQ;
         }
 
         if (unlikely(float64_is_zero_or_denormal(frb))) {
             /* XB is not zero because of the above check and */
             /* therefore must be denormalized.               */
-            fg_flag = 1;
+            fg_flag = 1 << CRF_GT;
         }
     }
 
-    return 0x8 | (fg_flag ? 4 : 0) | (fe_flag ? 2 : 0);
+    return (1 << CRF_LT) | fg_flag | fe_flag;
 }
 
 void helper_fcmpu(CPUPPCState *env, uint64_t arg1, uint64_t arg2,
                   uint32_t crfD)
 {
     CPU_DoubleU farg1, farg2;
-    uint32_t ret = 0;
+    uint32_t fpcc;
 
     farg1.ll = arg1;
     farg2.ll = arg2;
 
     if (unlikely(float64_is_any_nan(farg1.d) ||
                  float64_is_any_nan(farg2.d))) {
-        ret = 0x01UL;
+        fpcc = CRF_SO;
     } else if (float64_lt(farg1.d, farg2.d, &env->fp_status)) {
-        ret = 0x08UL;
+        fpcc = CRF_LT;
     } else if (!float64_le(farg1.d, farg2.d, &env->fp_status)) {
-        ret = 0x04UL;
+        fpcc = CRF_GT;
     } else {
-        ret = 0x02UL;
+        fpcc = CRF_EQ;
     }
 
     env->fpscr &= ~(0x0F << FPSCR_FPRF);
-    env->fpscr |= ret << FPSCR_FPRF;
-    env->crf[crfD] = ret;
-    if (unlikely(ret == 0x01UL
+    env->fpscr |= (0x01 << FPSCR_FPRF) << fpcc;
+    env->crf[crfD] = (1 << fpcc);
+    if (unlikely(fpcc == CRF_SO
                  && (float64_is_signaling_nan(farg1.d) ||
                      float64_is_signaling_nan(farg2.d)))) {
         /* sNaN comparison */
@@ -1116,26 +1116,26 @@ void helper_fcmpo(CPUPPCState *env, uint64_t arg1, uint64_t arg2,
                   uint32_t crfD)
 {
     CPU_DoubleU farg1, farg2;
-    uint32_t ret = 0;
+    uint32_t fpcc;
 
     farg1.ll = arg1;
     farg2.ll = arg2;
 
     if (unlikely(float64_is_any_nan(farg1.d) ||
                  float64_is_any_nan(farg2.d))) {
-        ret = 0x01UL;
+        fpcc = CRF_SO;
     } else if (float64_lt(farg1.d, farg2.d, &env->fp_status)) {
-        ret = 0x08UL;
+        fpcc = CRF_LT;
     } else if (!float64_le(farg1.d, farg2.d, &env->fp_status)) {
-        ret = 0x04UL;
+        fpcc = CRF_GT;
     } else {
-        ret = 0x02UL;
+        fpcc = CRF_EQ;
     }
 
     env->fpscr &= ~(0x0F << FPSCR_FPRF);
-    env->fpscr |= ret << FPSCR_FPRF;
-    env->crf[crfD] = ret;
-    if (unlikely(ret == 0x01UL)) {
+    env->fpscr |= (0x01 << FPSCR_FPRF) << fpcc;
+    env->crf[crfD] = (1 << fpcc);
+    if (unlikely(fpcc == CRF_SO)) {
         if (float64_is_signaling_nan(farg1.d) ||
             float64_is_signaling_nan(farg2.d)) {
             /* sNaN comparison */
@@ -2141,33 +2141,33 @@ void helper_##op(CPUPPCState *env, uint32_t opcode)                     \
         if (unlikely(tp##_is_infinity(xa.fld) ||                        \
                      tp##_is_infinity(xb.fld) ||                        \
                      tp##_is_zero(xb.fld))) {                           \
-            fe_flag = 1;                                                \
-            fg_flag = 1;                                                \
+            fe_flag = 1 << CRF_EQ;                                      \
+            fg_flag = 1 << CRF_GT;                                      \
         } else {                                                        \
             int e_a = ppc_##tp##_get_unbiased_exp(xa.fld);              \
             int e_b = ppc_##tp##_get_unbiased_exp(xb.fld);              \
                                                                         \
             if (unlikely(tp##_is_any_nan(xa.fld) ||                     \
                          tp##_is_any_nan(xb.fld))) {                    \
-                fe_flag = 1;                                            \
+                fe_flag = 1 << CRF_EQ;                                  \
             } else if ((e_b <= emin) || (e_b >= (emax-2))) {            \
-                fe_flag = 1;                                            \
+                fe_flag = 1 << CRF_EQ;                                  \
             } else if (!tp##_is_zero(xa.fld) &&                         \
                        (((e_a - e_b) >= emax) ||                        \
                         ((e_a - e_b) <= (emin+1)) ||                    \
                          (e_a <= (emin+nbits)))) {                      \
-                fe_flag = 1;                                            \
+                fe_flag = 1 << CRF_EQ;                                  \
             }                                                           \
                                                                         \
             if (unlikely(tp##_is_zero_or_denormal(xb.fld))) {           \
                 /* XB is not zero because of the above check and */     \
                 /* so must be denormalized.                      */     \
-                fg_flag = 1;                                            \
+                fg_flag = 1 << CRF_GT;                                  \
             }                                                           \
         }                                                               \
     }                                                                   \
                                                                         \
-    env->crf[BF(opcode)] = 0x8 | (fg_flag ? 4 : 0) | (fe_flag ? 2 : 0); \
+    env->crf[BF(opcode)] = (1 << CRF_LT) | fg_flag | fe_flag;           \
 }
 
 VSX_TDIV(xstdivdp, 1, float64, VsrD(0), -1022, 1023, 52)
@@ -2197,31 +2197,31 @@ void helper_##op(CPUPPCState *env, uint32_t opcode)                     \
     for (i = 0; i < nels; i++) {                                        \
         if (unlikely(tp##_is_infinity(xb.fld) ||                        \
                      tp##_is_zero(xb.fld))) {                           \
-            fe_flag = 1;                                                \
-            fg_flag = 1;                                                \
+            fe_flag = 1 << CRF_EQ;                                      \
+            fg_flag = 1 << CRF_GT;                                      \
         } else {                                                        \
             int e_b = ppc_##tp##_get_unbiased_exp(xb.fld);              \
                                                                         \
             if (unlikely(tp##_is_any_nan(xb.fld))) {                    \
-                fe_flag = 1;                                            \
+                fe_flag = 1 << CRF_EQ;                                  \
             } else if (unlikely(tp##_is_zero(xb.fld))) {                \
-                fe_flag = 1;                                            \
+                fe_flag = 1 << CRF_EQ;                                  \
             } else if (unlikely(tp##_is_neg(xb.fld))) {                 \
-                fe_flag = 1;                                            \
+                fe_flag = 1 << CRF_EQ;                                  \
             } else if (!tp##_is_zero(xb.fld) &&                         \
                       (e_b <= (emin+nbits))) {                          \
-                fe_flag = 1;                                            \
+                fe_flag = 1 << CRF_EQ;                                  \
             }                                                           \
                                                                         \
             if (unlikely(tp##_is_zero_or_denormal(xb.fld))) {           \
                 /* XB is not zero because of the above check and */     \
                 /* therefore must be denormalized.               */     \
-                fg_flag = 1;                                            \
+                fg_flag = 1 << CRF_GT;                                  \
             }                                                           \
         }                                                               \
     }                                                                   \
                                                                         \
-    env->crf[BF(opcode)] = 0x8 | (fg_flag ? 4 : 0) | (fe_flag ? 2 : 0); \
+    env->crf[BF(opcode)] = (1 << CRF_LT) | fg_flag | fe_flag;           \
 }
 
 VSX_TSQRT(xstsqrtdp, 1, float64, VsrD(0), -1022, 52)
@@ -2356,7 +2356,7 @@ VSX_MADD(xvnmsubmsp, 4, float32, VsrW(i), NMSUB_FLGS, 0, 0, 0)
 void helper_##op(CPUPPCState *env, uint32_t opcode)                      \
 {                                                                        \
     ppc_vsr_t xa, xb;                                                    \
-    uint32_t cc = 0;                                                     \
+    uint32_t fpcc;                                                       \
                                                                          \
     getVSR(xA(opcode), &xa, env);                                        \
     getVSR(xB(opcode), &xb, env);                                        \
@@ -2370,21 +2370,21 @@ void helper_##op(CPUPPCState *env, uint32_t opcode)                      \
         if (ordered) {                                                   \
             fload_invalid_op_excp(env, POWERPC_EXCP_FP_VXVC, 0);         \
         }                                                                \
-        cc = 1;                                                          \
+        fpcc = CRF_SO;                                                   \
     } else {                                                             \
         if (float64_lt(xa.VsrD(0), xb.VsrD(0), &env->fp_status)) {       \
-            cc = 8;                                                      \
+            fpcc = CRF_LT;                                               \
         } else if (!float64_le(xa.VsrD(0), xb.VsrD(0),                   \
-                               &env->fp_status)) { \
-            cc = 4;                                                      \
+                               &env->fp_status)) {                       \
+            fpcc = CRF_GT;                                               \
         } else {                                                         \
-            cc = 2;                                                      \
+            fpcc = CRF_EQ;                                               \
         }                                                                \
     }                                                                    \
                                                                          \
     env->fpscr &= ~(0x0F << FPSCR_FPRF);                                 \
-    env->fpscr |= cc << FPSCR_FPRF;                                      \
-    env->crf[BF(opcode)] = cc;                                           \
+    env->fpscr |= (1 << fpcc) << FPSCR_FPRF;                             \
+    env->crf[BF(opcode)] = (1 << fpcc);                                  \
                                                                          \
     helper_float_check_status(env);                                      \
 }
@@ -2441,8 +2441,8 @@ void helper_##op(CPUPPCState *env, uint32_t opcode)                       \
 {                                                                         \
     ppc_vsr_t xt, xa, xb;                                                 \
     int i;                                                                \
-    int all_true = 1;                                                     \
-    int all_false = 1;                                                    \
+    int all_true = 1 << CRF_LT;                                           \
+    int all_false = 1 << CRF_EQ;                                          \
                                                                           \
     getVSR(xA(opcode), &xa, env);                                         \
     getVSR(xB(opcode), &xb, env);                                         \
@@ -2473,7 +2473,7 @@ void helper_##op(CPUPPCState *env, uint32_t opcode)                       \
                                                                           \
     putVSR(xT(opcode), &xt, env);                                         \
     if ((opcode >> (31-21)) & 1) {                                        \
-        env->crf[6] = (all_true ? 0x8 : 0) | (all_false ? 0x2 : 0);       \
+        env->crf[6] = all_true | all_false;                               \
     }                                                                     \
     helper_float_check_status(env);                                       \
  }
