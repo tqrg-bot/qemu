@@ -59,6 +59,9 @@ DEF_HELPER_2(fpscr_setbit, void, env, i32)
 DEF_HELPER_2(float64_to_float32, i32, env, i64)
 DEF_HELPER_2(float32_to_float64, i64, env, i32)
 
+DEF_HELPER_1(mfcr, tl, env)
+DEF_HELPER_3(mtcr, void, env, tl, i32)
+
 DEF_HELPER_4(fcmpo, void, env, i64, i64, i32)
 DEF_HELPER_4(fcmpu, void, env, i64, i64, i32)
 

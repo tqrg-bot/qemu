@@ -289,6 +289,23 @@ target_ulong helper_popcntw(target_ulong val)
 }
 #endif
 
+void helper_mtcr(CPUPPCState *env, target_ulong cr, uint32_t mask)
+{
+    int i;
+    for (i = ARRAY_SIZE(env->crf); --i >= 0; ) {
+        if (mask & 1) {
+            env->crf[i] = cr & 0x0F;
+        }
+        cr >>= 4;
+        mask >>= 1;
+    }
+}
+
+target_ulong helper_mfcr(CPUPPCState *env)
+{
+    return ppc_get_cr(env);
+}
+
 /*****************************************************************************/
 /* PowerPC 601 specific instructions (POWER bridge) */
 target_ulong helper_div(CPUPPCState *env, target_ulong arg1, target_ulong arg2)

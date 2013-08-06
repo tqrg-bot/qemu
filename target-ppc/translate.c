@@ -4213,24 +4213,7 @@ static void gen_mfcr(DisasContext *ctx)
                             cpu_gpr[rD(ctx->opcode)], crn * 4);
         }
     } else {
-        TCGv_i32 t0 = tcg_temp_new_i32();
-        tcg_gen_mov_i32(t0, cpu_crf[0]);
-        tcg_gen_shli_i32(t0, t0, 4);
-        tcg_gen_or_i32(t0, t0, cpu_crf[1]);
-        tcg_gen_shli_i32(t0, t0, 4);
-        tcg_gen_or_i32(t0, t0, cpu_crf[2]);
-        tcg_gen_shli_i32(t0, t0, 4);
-        tcg_gen_or_i32(t0, t0, cpu_crf[3]);
-        tcg_gen_shli_i32(t0, t0, 4);
-        tcg_gen_or_i32(t0, t0, cpu_crf[4]);
-        tcg_gen_shli_i32(t0, t0, 4);
-        tcg_gen_or_i32(t0, t0, cpu_crf[5]);
-        tcg_gen_shli_i32(t0, t0, 4);
-        tcg_gen_or_i32(t0, t0, cpu_crf[6]);
-        tcg_gen_shli_i32(t0, t0, 4);
-        tcg_gen_or_i32(t0, t0, cpu_crf[7]);
-        tcg_gen_extu_i32_tl(cpu_gpr[rD(ctx->opcode)], t0);
-        tcg_temp_free_i32(t0);
+        gen_helper_mfcr(cpu_gpr[rD(ctx->opcode)], cpu_env);
     }
 }
 
@@ -4325,15 +4308,9 @@ static void gen_mtcrf(DisasContext *ctx)
             tcg_temp_free_i32(temp);
         }
     } else {
-        TCGv_i32 temp = tcg_temp_new_i32();
-        tcg_gen_trunc_tl_i32(temp, cpu_gpr[rS(ctx->opcode)]);
-        for (crn = 0 ; crn < 8 ; crn++) {
-            if (crm & (1 << crn)) {
-                    tcg_gen_shri_i32(cpu_crf[7 - crn], temp, crn * 4);
-                    tcg_gen_andi_i32(cpu_crf[7 - crn], cpu_crf[7 - crn], 0xf);
-            }
-        }
-        tcg_temp_free_i32(temp);
+        TCGv_i32 t0 = tcg_const_i32(crm);
+        gen_helper_mtcr(cpu_env, cpu_gpr[rS(ctx->opcode)], t0);
+        tcg_temp_free_i32(t0);
     }
 }
 
