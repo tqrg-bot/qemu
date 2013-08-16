@@ -368,7 +368,8 @@ static inline uintptr_t tcg_getra_ext(uintptr_t ra)
 
 #if !defined(CONFIG_USER_ONLY)
 
-struct MemoryRegion *iotlb_to_region(hwaddr index);
+struct MemoryRegion *iotlb_to_region(CPUArchState *env1,
+                                     hwaddr index);
 bool io_mem_read(struct MemoryRegion *mr, hwaddr addr,
                  uint64_t *pvalue, unsigned size);
 bool io_mem_write(struct MemoryRegion *mr, hwaddr addr,

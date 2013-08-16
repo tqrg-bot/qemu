@@ -22,6 +22,8 @@
 #include "tcg.h"
 #include "qemu/atomic.h"
 #include "sysemu/qtest.h"
+#include "exec/address-spaces.h"
+#include "exec/memory-internal.h"
 
 bool qemu_cpu_has_work(CPUState *cpu)
 {
@@ -303,6 +305,8 @@ int cpu_exec(CPUArchState *env)
                     }
 #if !defined(CONFIG_USER_ONLY)
                     if (interrupt_request & CPU_INTERRUPT_TLBFLUSH) {
+                        AddressSpaceDispatch *d = address_space_memory.dispatch;
+                        env->memory_dispatch = d;
                         cpu->interrupt_request &= ~CPU_INTERRUPT_TLBFLUSH;
                         tlb_flush(env, 1);
                     }
