@@ -1748,12 +1748,12 @@ static void tcg_commit(MemoryListener *listener)
     CPUState *cpu;
 
     /* since each CPU stores ram addresses in its TLB cache, we must
-       reset the modified entries */
-    /* XXX: slow ! */
+     * reset the modified entries.  Do this in cpu-exec.c so that
+     * the cached AddressSpaceDispatch will be updated too.
+     * RCU grace period started.
+     */
     CPU_FOREACH(cpu) {
-        CPUArchState *env = cpu->env_ptr;
-
-        tlb_flush(env, 1);
+        cpu_interrupt(cpu, CPU_INTERRUPT_TLBFLUSH|CPU_INTERRUPT_EXITTB);
     }
 }
 

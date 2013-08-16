@@ -301,6 +301,12 @@ int cpu_exec(CPUArchState *env)
                         /* Mask out external interrupts for this step. */
                         interrupt_request &= ~CPU_INTERRUPT_SSTEP_MASK;
                     }
+#if !defined(CONFIG_USER_ONLY)
+                    if (interrupt_request & CPU_INTERRUPT_TLBFLUSH) {
+                        cpu->interrupt_request &= ~CPU_INTERRUPT_TLBFLUSH;
+                        tlb_flush(env, 1);
+                    }
+#endif
                     if (interrupt_request & CPU_INTERRUPT_DEBUG) {
                         cpu->interrupt_request &= ~CPU_INTERRUPT_DEBUG;
                         env->exception_index = EXCP_DEBUG;

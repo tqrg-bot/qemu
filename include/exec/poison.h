@@ -47,6 +47,7 @@
 
 #pragma GCC poison CPU_INTERRUPT_HARD
 #pragma GCC poison CPU_INTERRUPT_EXITTB
+#pragma GCC poison CPU_INTERRUPT_TLBFLUSH
 #pragma GCC poison CPU_INTERRUPT_HALT
 #pragma GCC poison CPU_INTERRUPT_DEBUG
 #pragma GCC poison CPU_INTERRUPT_TGT_EXT_0
