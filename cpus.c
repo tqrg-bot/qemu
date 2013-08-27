@@ -38,6 +38,7 @@
 #include "qemu/main-loop.h"
 #include "qemu/bitmap.h"
 #include "qemu/rcu.h"
+#include "qemu/seqlock.h"
 
 #ifndef _WIN32
 #include "qemu/compatfd.h"
@@ -113,6 +114,13 @@ static int64_t qemu_icount;
 typedef struct TimersState {
     int64_t cpu_ticks_prev;
     int64_t cpu_ticks_offset;
+    /* cpu_clock_offset will be read out of BQL, so protect it with private
+     * lock. As for cpu_ticks_*, no requirement to read it outside BQL yet.
+     * Lock rule: innermost
+     */
+    QemuSeqLock clock_seqlock;
+    /* mutex for seqlock */
+    QemuMutex mutex;
     int64_t cpu_clock_offset;
     int32_t cpu_ticks_enabled;
     int64_t dummy;
@@ -138,6 +146,7 @@ int64_t cpu_get_icount(void)
 }
 
 /* return the host CPU cycle counter and handle stop/restart */
+/* cpu_ticks is safely if holding BQL */
 int64_t cpu_get_ticks(void)
 {
     if (use_icount) {
@@ -162,33 +171,46 @@ int64_t cpu_get_ticks(void)
 int64_t cpu_get_clock(void)
 {
     int64_t ti;
-    if (!timers_state.cpu_ticks_enabled) {
-        return timers_state.cpu_clock_offset;
-    } else {
-        ti = get_clock();
-        return ti + timers_state.cpu_clock_offset;
-    }
+    unsigned start;
+
+    do {
+        start = seqlock_read_begin(&timers_state.clock_seqlock);
+        if (!timers_state.cpu_ticks_enabled) {
+            ti = timers_state.cpu_clock_offset;
+        } else {
+            ti = get_clock();
+            ti += timers_state.cpu_clock_offset;
+        }
+    } while (seqlock_read_retry(&timers_state.clock_seqlock, start));
+
+    return ti;
 }
 
 /* enable cpu_get_ticks() */
 void cpu_enable_ticks(void)
 {
+    /* Here, the really thing protected by seqlock is cpu_clock_offset. */
+    seqlock_write_lock(&timers_state.clock_seqlock);
     if (!timers_state.cpu_ticks_enabled) {
         timers_state.cpu_ticks_offset -= cpu_get_real_ticks();
         timers_state.cpu_clock_offset -= get_clock();
         timers_state.cpu_ticks_enabled = 1;
     }
+    seqlock_write_unlock(&timers_state.clock_seqlock);
 }
 
 /* disable cpu_get_ticks() : the clock is stopped. You must not call
    cpu_get_ticks() after that.  */
 void cpu_disable_ticks(void)
 {
+    /* Here, the really thing protected by seqlock is cpu_clock_offset. */
+    seqlock_write_lock(&timers_state.clock_seqlock);
     if (timers_state.cpu_ticks_enabled) {
         timers_state.cpu_ticks_offset = cpu_get_ticks();
         timers_state.cpu_clock_offset = cpu_get_clock();
         timers_state.cpu_ticks_enabled = 0;
     }
+    seqlock_write_unlock(&timers_state.clock_seqlock);
 }
 
 /* Correlation between real and virtual time is always going to be
@@ -372,6 +394,8 @@ static const VMStateDescription vmstate_timers = {
 
 void configure_icount(const char *option)
 {
+    qemu_mutex_init(&timers_state.mutex);
+    seqlock_init(&timers_state.clock_seqlock, &timers_state.mutex);
     vmstate_register(NULL, 0, &vmstate_timers, &timers_state);
     if (!option) {
         return;
