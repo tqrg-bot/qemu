@@ -527,9 +527,9 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
             }
         }
     }
+
     last_seen_block = block;
     last_offset = offset;
-
     return bytes_sent;
 }
 
@@ -898,7 +898,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                                         "Length mismatch: %s: " RAM_ADDR_FMT
                                         " in != " RAM_ADDR_FMT "\n", id, length,
                                         block->length);
-                                ret =  -EINVAL;
+                                ret = -EINVAL;
                                 goto done;
                             }
                             break;
@@ -923,9 +923,9 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
 
             host = host_from_stream_offset(f, addr, flags);
             if (!host) {
-                return -EINVAL;
+                ret = -EINVAL;
+                goto done;
             }
-
             ch = qemu_get_byte(f);
             ram_handle_compressed(host, ch, TARGET_PAGE_SIZE);
         } else if (flags & RAM_SAVE_FLAG_PAGE) {
@@ -933,16 +933,16 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
 
             host = host_from_stream_offset(f, addr, flags);
             if (!host) {
-                return -EINVAL;
+                ret = -EINVAL;
+                goto done;
             }
-
             qemu_get_buffer(f, host, TARGET_PAGE_SIZE);
         } else if (flags & RAM_SAVE_FLAG_XBZRLE) {
             void *host = host_from_stream_offset(f, addr, flags);
             if (!host) {
-                return -EINVAL;
+                ret = -EINVAL;
+                goto done;
             }
-
             if (load_xbzrle(f, addr, host) < 0) {
                 ret = -EINVAL;
                 goto done;
