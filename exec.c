@@ -46,7 +46,7 @@
 #endif
 #include "exec/cpu-all.h"
 #include "qemu/tls.h"
-
+#include "qemu/rcu_queue.h"
 #include "exec/cputlb.h"
 #include "translate-all.h"
 
@@ -57,7 +57,10 @@
 #if !defined(CONFIG_USER_ONLY)
 static int in_migration;
 
-RAMList ram_list = { .blocks = QTAILQ_HEAD_INITIALIZER(ram_list.blocks) };
+/* ram_list is read under rcu_read_lock()/rcu_read_unlock().  Writes
+ * are protected by a lock, currently the iothread lock.
+ */
+RAMList ram_list = { .blocks = QLIST_HEAD_INITIALIZER(ram_list.blocks) };
 
 static MemoryRegion *system_memory;
 static MemoryRegion *system_io;
@@ -328,7 +331,6 @@ void cpu_exec_init_all(void)
 {
     tls_alloc_current_cpu_var();
 #if !defined(CONFIG_USER_ONLY)
-    qemu_mutex_init(&ram_list.mutex);
     memory_map_init();
     io_mem_init();
 #endif
@@ -672,16 +674,16 @@ CPUArchState *cpu_copy(CPUArchState *env)
 }
 
 #if !defined(CONFIG_USER_ONLY)
+/* Called from RCU critical section */
 static RAMBlock *qemu_get_ram_block(ram_addr_t addr)
 {
     RAMBlock *block;
 
-    /* The list is protected by the iothread lock here.  */
     block = atomic_rcu_read(&ram_list.mru_block);
     if (block && addr - block->offset < block->length) {
         goto found;
     }
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         if (addr - block->offset < block->length) {
             goto found;
         }
@@ -717,10 +719,12 @@ static void tlb_reset_dirty_range_all(ram_addr_t start, ram_addr_t end,
     RAMBlock *block;
     ram_addr_t start1;
 
+    rcu_read_lock();
     block = qemu_get_ram_block(start);
     assert(block == qemu_get_ram_block(end));
     start1 = (uintptr_t)block->host + (start - block->offset);
     cpu_tlb_reset_dirty_all(start1, length);
+    rcu_read_unlock();
 }
 
 /* Note: start and end must be within the same ram block.  */
@@ -918,16 +922,6 @@ void qemu_flush_coalesced_mmio_buffer(void)
         kvm_flush_coalesced_mmio_buffer();
 }
 
-void qemu_mutex_lock_ramlist(void)
-{
-    qemu_mutex_lock(&ram_list.mutex);
-}
-
-void qemu_mutex_unlock_ramlist(void)
-{
-    qemu_mutex_unlock(&ram_list.mutex);
-}
-
 #if defined(__linux__) && !defined(TARGET_S390X)
 
 #include <sys/vfs.h>
@@ -1038,17 +1032,24 @@ static ram_addr_t find_ram_offset(ram_addr_t size)
     RAMBlock *block, *next_block;
     ram_addr_t offset = RAM_ADDR_MAX, mingap = RAM_ADDR_MAX;
 
+    /* ram_list must be protected by a mutex (for writes), or
+     * an rcu critical section (for reads). Currently this code
+     * is called with the iothread lock held. If that changes,
+     * make sure to protect ram_list with an rcu critical section.
+     */
+
     assert(size != 0); /* it would hand out same offset multiple times */
 
-    if (QTAILQ_EMPTY(&ram_list.blocks))
+    if (QLIST_EMPTY_RCU(&ram_list.blocks)) {
         return 0;
+    }
 
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         ram_addr_t end, next = RAM_ADDR_MAX;
 
         end = block->offset + block->length;
 
-        QTAILQ_FOREACH(next_block, &ram_list.blocks, next) {
+        QLIST_FOREACH_RCU(next_block, &ram_list.blocks, next) {
             if (next_block->offset >= end) {
                 next = MIN(next, next_block->offset);
             }
@@ -1073,9 +1074,11 @@ ram_addr_t last_ram_offset(void)
     RAMBlock *block;
     ram_addr_t last = 0;
 
-    QTAILQ_FOREACH(block, &ram_list.blocks, next)
+    rcu_read_lock();
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         last = MAX(last, block->offset + block->length);
-
+    }
+    rcu_read_unlock();
     return last;
 }
 
@@ -1100,7 +1103,12 @@ void qemu_ram_set_idstr(ram_addr_t addr, const char *name, DeviceState *dev)
     RAMBlock *new_block, *block;
 
     new_block = NULL;
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+
+    /* Assumes that the iothread lock is taken ... if that changes,
+     * add an rcu_read_lock()/unlock pair when traversing the
+     * ram list
+     */
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         if (block->offset == addr) {
             new_block = block;
             break;
@@ -1119,15 +1127,13 @@ void qemu_ram_set_idstr(ram_addr_t addr, const char *name, DeviceState *dev)
     pstrcat(new_block->idstr, sizeof(new_block->idstr), name);
 
     /* This assumes the iothread lock is taken here too.  */
-    qemu_mutex_lock_ramlist();
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         if (block != new_block && !strcmp(block->idstr, new_block->idstr)) {
             fprintf(stderr, "RAMBlock \"%s\" already registered, abort!\n",
                     new_block->idstr);
             abort();
         }
     }
-    qemu_mutex_unlock_ramlist();
 }
 
 static int memory_try_enable_merging(void *addr, size_t len)
@@ -1140,16 +1146,15 @@ static int memory_try_enable_merging(void *addr, size_t len)
     return qemu_madvise(addr, len, QEMU_MADV_MERGEABLE);
 }
 
+/* Called with the iothread lock held */
 ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
                                    MemoryRegion *mr)
 {
-    RAMBlock *block, *new_block;
+    RAMBlock *block, *new_block, *last_block = 0;
 
     size = TARGET_PAGE_ALIGN(size);
     new_block = g_malloc0(sizeof(*new_block));
 
-    /* This assumes the iothread lock is taken here too.  */
-    qemu_mutex_lock_ramlist();
     new_block->mr = mr;
     new_block->offset = find_ram_offset(size);
     if (host) {
@@ -1182,20 +1187,23 @@ ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
     new_block->length = size;
 
     /* Keep the list sorted from biggest to smallest block.  */
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
+        last_block = block;
         if (block->length < new_block->length) {
             break;
         }
     }
     if (block) {
-        QTAILQ_INSERT_BEFORE(block, new_block, next);
+        QLIST_INSERT_BEFORE_RCU(block, new_block, next);
     } else {
-        QTAILQ_INSERT_TAIL(&ram_list.blocks, new_block, next);
+        if (last_block) {
+            QLIST_INSERT_AFTER_RCU(last_block, new_block, next);
+        } else { /* list is empty */
+            QLIST_INSERT_HEAD_RCU(&ram_list.blocks, new_block, next);
+        }
     }
     ram_list.mru_block = NULL;
     atomic_rcu_set(&ram_list.version, ram_list.version + 1);
-
-    qemu_mutex_unlock_ramlist();
 
     /* ram_list.phys_dirty is protected by the iothread lock.  */
     ram_list.phys_dirty = g_realloc(ram_list.phys_dirty,
@@ -1213,20 +1221,20 @@ ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
     return new_block->offset;
 }
 
+/* Called with the iothread lock held */
 ram_addr_t qemu_ram_alloc(ram_addr_t size, MemoryRegion *mr)
 {
     return qemu_ram_alloc_from_ptr(size, NULL, mr);
 }
 
+/* Called with the iothread lock held */
 void qemu_ram_free_from_ptr(ram_addr_t addr)
 {
     RAMBlock *block;
 
-    /* This assumes the iothread lock is taken here too.  */
-    qemu_mutex_lock_ramlist();
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         if (addr == block->offset) {
-            QTAILQ_REMOVE(&ram_list.blocks, block, next);
+            QLIST_REMOVE_RCU(block, next);
             ram_list.mru_block = NULL;
             atomic_rcu_set(&ram_list.version, ram_list.version + 1);
             call_rcu(block, (void (*)(struct RAMBlock *))g_free, rcu);
@@ -1265,19 +1273,15 @@ void qemu_ram_free(ram_addr_t addr)
 {
     RAMBlock *block;
 
-    /* This assumes the iothread lock is taken here too.  */
-    qemu_mutex_lock_ramlist();
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         if (addr == block->offset) {
-            QTAILQ_REMOVE(&ram_list.blocks, block, next);
+            QLIST_REMOVE_RCU(block, next);
             ram_list.mru_block = NULL;
             atomic_rcu_set(&ram_list.version, ram_list.version + 1);
             call_rcu(block, reclaim_ramblock, rcu);
             break;
         }
     }
-    qemu_mutex_unlock_ramlist();
-
 }
 
 #ifndef _WIN32
@@ -1288,7 +1292,7 @@ void qemu_ram_remap(ram_addr_t addr, ram_addr_t length)
     int flags;
     void *area, *vaddr;
 
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         offset = addr - block->offset;
         if (offset < block->length) {
             vaddr = block->host + offset;
@@ -1345,12 +1349,19 @@ void qemu_ram_remap(ram_addr_t addr, ram_addr_t length)
  * This should not be used for general purpose DMA.  Use address_space_map
  * or address_space_rw instead. For local memory (e.g. video ram) that the
  * device owns, use memory_region_get_ram_ptr.
+ *
+ * By the time this function returns, the returned pointer is not protected
+ * by RCU anymore.  If the caller is not within an RCU critical section and
+ * does not hold the iothread lock, it must have other means of protecting the
+ * pointer, such as a reference to the region that includes the incoming
+ * ram_addr_t.
  */
 void *qemu_get_ram_ptr(ram_addr_t addr)
 {
     RAMBlock *block;
     void *ptr;
 
+    rcu_read_lock();
     block = qemu_get_ram_block(addr);
 
     if (xen_enabled() && block->host == NULL) {
@@ -1360,19 +1371,26 @@ void *qemu_get_ram_ptr(ram_addr_t addr)
          */
         if (block->offset == 0) {
             ptr = xen_map_cache(addr, 0, 0);
-            goto done;
+            goto unlock;
         }
 
         block->host = xen_map_cache(block->offset, block->length, 1);
     }
     ptr = block->host + (addr - block->offset);
 
-done:
+unlock:
+    rcu_read_unlock();
     return ptr;
 }
 
 /* Return a host pointer to guest's ram. Similar to qemu_get_ram_ptr
  * but takes a size argument.
+ *
+ * By the time this function returns, the returned pointer is not protected
+ * by RCU anymore.  If the caller is not within an RCU critical section and
+ * does not hold the iothread lock, it must have other means of protecting the
+ * pointer, such as a reference to the region that includes the incoming
+ * ram_addr_t.
  */
 static void *qemu_ram_ptr_length(ram_addr_t addr, hwaddr *size)
 {
@@ -1384,11 +1402,13 @@ static void *qemu_ram_ptr_length(ram_addr_t addr, hwaddr *size)
         return xen_map_cache(addr, *size, 1);
     } else {
         RAMBlock *block;
-        QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+        rcu_read_lock();
+        QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
             if (addr - block->offset < block->length) {
                 if (addr - block->offset + *size > block->length)
                     *size = block->length - addr + block->offset;
                 ptr = block->host + (addr - block->offset);
+                rcu_read_unlock();
                 return ptr;
             }
         }
@@ -1414,17 +1434,20 @@ MemoryRegion *qemu_ram_addr_from_host(void *ptr, ram_addr_t *ram_addr)
     MemoryRegion *mr;
 
     if (xen_enabled()) {
+        rcu_read_lock();
         *ram_addr = xen_ram_addr_from_mapcache(ptr);
         mr = qemu_get_ram_block(*ram_addr)->mr;
+        rcu_read_unlock();
         return mr;
     }
 
-    block = ram_list.mru_block;
+    rcu_read_lock();
+    block = atomic_rcu_read(&ram_list.mru_block);
     if (block && block->host && host - block->host < block->length) {
         goto found;
     }
 
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         /* This case append when the block is not mapped. */
         if (block->host == NULL) {
             continue;
@@ -1439,6 +1462,7 @@ MemoryRegion *qemu_ram_addr_from_host(void *ptr, ram_addr_t *ram_addr)
 found:
     *ram_addr = block->offset + (host - block->host);
     mr = block->mr;
+    rcu_read_unlock();
     return mr;
 }
 
@@ -2696,8 +2720,10 @@ void qemu_ram_foreach_block(RAMBlockIterFunc func, void *opaque)
 {
     RAMBlock *block;
 
-    QTAILQ_FOREACH(block, &ram_list.blocks, next) {
+    rcu_read_lock();
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         func(block->host, block->offset, block->length, opaque);
     }
+    rcu_read_unlock();
 }
 #endif

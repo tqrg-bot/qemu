@@ -456,22 +456,19 @@ typedef struct RAMBlock {
     ram_addr_t length;
     uint32_t flags;
     char idstr[256];
-    /* Reads can take either the iothread or the ramlist lock.
-     * Writes must take both locks.
-     */
-    QTAILQ_ENTRY(RAMBlock) next;
+    /* Writes must hold the iothread lock */
+    QLIST_ENTRY(RAMBlock) next;
 #if defined(__linux__) && !defined(TARGET_S390X)
     int fd;
 #endif
 } RAMBlock;
 
 typedef struct RAMList {
-    QemuMutex mutex;
     /* Protected by the iothread lock.  */
     uint8_t *phys_dirty;
     RAMBlock *mru_block;
-    /* Protected by the ramlist lock.  */
-    QTAILQ_HEAD(, RAMBlock) blocks;
+    /* RCU-enabled, writes protected by the iothread lock. */
+    QLIST_HEAD(, RAMBlock) blocks;
     uint32_t version;
 } RAMList;
 extern RAMList ram_list;
