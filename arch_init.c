@@ -52,6 +52,7 @@
 #include "exec/ram_addr.h"
 #include "hw/acpi/acpi.h"
 #include "qemu/host-utils.h"
+#include "qemu/rcu_queue.h"
 
 #ifdef DEBUG_ARCH_INIT
 #define DPRINTF(fmt, ...) \
@@ -523,9 +524,12 @@ static void migration_bitmap_sync(void)
     trace_migration_bitmap_sync_start();
     address_space_sync_dirty_bitmap(&address_space_memory);
 
-    QLIST_FOREACH(block, &ram_list.blocks, next) {
+    rcu_read_lock();
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         migration_bitmap_sync_range(block->mr->ram_addr, block->used_length);
     }
+    rcu_read_unlock();
+
     trace_migration_bitmap_sync_end(migration_dirty_pages
                                     - num_dirty_pages_init);
     num_dirty_pages_period += migration_dirty_pages - num_dirty_pages_init;
@@ -648,6 +652,8 @@ static int ram_save_page(QEMUFile *f, RAMBlock* block, ram_addr_t offset,
 /*
  * ram_find_and_save_block: Finds a page to send and sends it to f
  *
+ * Called within an RCU critical section.
+ *
  * Returns:  The number of bytes written.
  *           0 means no dirty pages
  */
@@ -661,7 +667,7 @@ static int ram_find_and_save_block(QEMUFile *f, bool last_stage)
     MemoryRegion *mr;
 
     if (!block)
-        block = QLIST_FIRST(&ram_list.blocks);
+        block = QLIST_FIRST_RCU(&ram_list.blocks);
 
     while (true) {
         mr = block->mr;
@@ -672,9 +678,9 @@ static int ram_find_and_save_block(QEMUFile *f, bool last_stage)
         }
         if (offset >= block->used_length) {
             offset = 0;
-            block = QLIST_NEXT(block, next);
+            block = QLIST_NEXT_RCU(block, next);
             if (!block) {
-                block = QLIST_FIRST(&ram_list.blocks);
+                block = QLIST_FIRST_RCU(&ram_list.blocks);
                 complete_round = true;
                 ram_bulk_stage = false;
             }
@@ -728,10 +734,10 @@ uint64_t ram_bytes_total(void)
     RAMBlock *block;
     uint64_t total = 0;
 
-    QLIST_FOREACH(block, &ram_list.blocks, next) {
+    rcu_read_lock();
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next)
         total += block->used_length;
-    }
-
+    rcu_read_unlock();
     return total;
 }
 
@@ -777,6 +783,13 @@ static void reset_ram_globals(void)
 
 #define MAX_WAIT 50 /* ms, half buffered_file limit */
 
+
+/* Each of ram_save_setup, ram_save_iterate and ram_save_complete has
+ * long-running RCU critical section.  When rcu-reclaims in the code
+ * start to become numerous it will be necessary to reduce the
+ * granularity of these critical sections.
+ */
+
 static int ram_save_setup(QEMUFile *f, void *opaque)
 {
     RAMBlock *block;
@@ -818,7 +831,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     }
 
     qemu_mutex_lock_iothread();
-    qemu_mutex_lock_ramlist();
+    rcu_read_lock();
     bytes_transferred = 0;
     reset_ram_globals();
 
@@ -831,7 +844,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
      * gaps due to alignment or unplugs.
      */
     migration_dirty_pages = 0;
-    QLIST_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         uint64_t block_pages;
 
         block_pages = block->used_length >> TARGET_PAGE_BITS;
@@ -844,13 +857,13 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
 
     qemu_put_be64(f, ram_bytes_total() | RAM_SAVE_FLAG_MEM_SIZE);
 
-    QLIST_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         qemu_put_byte(f, strlen(block->idstr));
         qemu_put_buffer(f, (uint8_t *)block->idstr, strlen(block->idstr));
         qemu_put_be64(f, block->used_length);
     }
 
-    qemu_mutex_unlock_ramlist();
+    rcu_read_unlock();
 
     ram_control_before_iterate(f, RAM_CONTROL_SETUP);
     ram_control_after_iterate(f, RAM_CONTROL_SETUP);
@@ -867,9 +880,8 @@ static int ram_save_iterate(QEMUFile *f, void *opaque)
     int64_t t0;
     int total_sent = 0;
 
-    qemu_mutex_lock_ramlist();
-
-    if (ram_list.version != last_version) {
+    rcu_read_lock();
+    if (atomic_rcu_read(&ram_list.version) != last_version) {
         reset_ram_globals();
     }
 
@@ -903,8 +915,7 @@ static int ram_save_iterate(QEMUFile *f, void *opaque)
         }
         i++;
     }
-
-    qemu_mutex_unlock_ramlist();
+    rcu_read_unlock();
 
     /*
      * Must occur before EOS (or any QEMUFile operation)
@@ -931,7 +942,8 @@ static int ram_save_iterate(QEMUFile *f, void *opaque)
 
 static int ram_save_complete(QEMUFile *f, void *opaque)
 {
-    qemu_mutex_lock_ramlist();
+    rcu_read_lock();
+
     migration_bitmap_sync();
 
     ram_control_before_iterate(f, RAM_CONTROL_FINISH);
@@ -953,7 +965,7 @@ static int ram_save_complete(QEMUFile *f, void *opaque)
     ram_control_after_iterate(f, RAM_CONTROL_FINISH);
     migration_end();
 
-    qemu_mutex_unlock_ramlist();
+    rcu_read_unlock();
     qemu_put_be64(f, RAM_SAVE_FLAG_EOS);
 
     return 0;
@@ -1009,6 +1021,9 @@ static int load_xbzrle(QEMUFile *f, ram_addr_t addr, void *host)
     return 0;
 }
 
+/* Must be called from within a rcu critical section.
+ * Returns a pointer from within the RCU-protected ram_list.
+ */
 static inline void *host_from_stream_offset(QEMUFile *f,
                                             ram_addr_t offset,
                                             int flags)
@@ -1030,7 +1045,7 @@ static inline void *host_from_stream_offset(QEMUFile *f,
     qemu_get_buffer(f, (uint8_t *)id, len);
     id[len] = 0;
 
-    QLIST_FOREACH(block, &ram_list.blocks, next) {
+    QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         if (!strncmp(id, block->idstr, sizeof(id)) &&
             block->max_length > offset) {
             return memory_region_get_ram_ptr(block->mr) + offset;
@@ -1063,6 +1078,12 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
         ret = -EINVAL;
     }
 
+    /* This RCU critical section can be very long running.
+     * When RCU reclaims in the code start to become numerous,
+     * it will be necessary to reduce the granularity of this
+     * critical section.
+     */
+    rcu_read_lock();
     while (!ret && !(flags & RAM_SAVE_FLAG_EOS)) {
         ram_addr_t addr, total_ram_bytes;
         void *host;
@@ -1087,7 +1108,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                 id[len] = 0;
                 length = qemu_get_be64(f);
 
-                QLIST_FOREACH(block, &ram_list.blocks, next) {
+                QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
                     if (!strncmp(id, block->idstr, sizeof(id))) {
                         if (length != block->used_length) {
                             Error *local_err = NULL;
@@ -1161,6 +1182,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
         }
     }
 
+    rcu_read_unlock();
     DPRINTF("Completed load of VM with exit code %d seq iteration "
             "%" PRIu64 "\n", ret, seq_iter);
     return ret;
