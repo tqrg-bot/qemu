@@ -688,9 +688,9 @@ static int ram_find_and_save_block(QEMUFile *f, bool last_stage)
             }
         }
     }
+
     last_seen_block = block;
     last_offset = offset;
-
     return bytes_sent;
 }
 
@@ -1117,7 +1117,6 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                 ret = -EINVAL;
                 break;
             }
-
             ch = qemu_get_byte(f);
             ram_handle_compressed(host, ch, TARGET_PAGE_SIZE);
             break;
@@ -1128,7 +1127,6 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                 ret = -EINVAL;
                 break;
             }
-
             qemu_get_buffer(f, host, TARGET_PAGE_SIZE);
             break;
         case RAM_SAVE_FLAG_XBZRLE:
@@ -1138,7 +1136,6 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                 ret = -EINVAL;
                 break;
             }
-
             if (load_xbzrle(f, addr, host) < 0) {
                 error_report("Failed to decompress XBZRLE page at "
                              RAM_ADDR_FMT, addr);
