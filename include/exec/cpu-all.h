@@ -24,6 +24,7 @@
 #include "qemu/thread.h"
 #include "qom/cpu.h"
 #include "qemu/tls.h"
+#include "qemu/rcu.h"
 
 /* some important defines:
  *
@@ -448,6 +449,7 @@ extern ram_addr_t ram_size;
 #define RAM_PREALLOC_MASK   (1 << 0)
 
 typedef struct RAMBlock {
+    struct rcu_head rcu;
     struct MemoryRegion *mr;
     uint8_t *host;
     ram_addr_t offset;

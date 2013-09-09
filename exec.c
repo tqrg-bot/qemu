@@ -677,7 +677,7 @@ static RAMBlock *qemu_get_ram_block(ram_addr_t addr)
     RAMBlock *block;
 
     /* The list is protected by the iothread lock here.  */
-    block = ram_list.mru_block;
+    block = atomic_rcu_read(&ram_list.mru_block);
     if (block && addr - block->offset < block->length) {
         goto found;
     }
@@ -691,6 +691,22 @@ static RAMBlock *qemu_get_ram_block(ram_addr_t addr)
     abort();
 
 found:
+    /* It is safe to write mru_block outside the iothread lock.  This
+     * is what happens:
+     *
+     *     mru_block = xxx
+     *     rcu_read_unlock()
+     *                                        xxx removed from list
+     *                  rcu_read_lock()
+     *                  read mru_block
+     *                                        mru_block = NULL;
+     *                                        call_rcu(reclaim_ramblock, xxx);
+     *                  rcu_read_unlock()
+     *
+     * atomic_rcu_set is not needed here.  The block was already published
+     * when it was placed into the list.  Here we're just making an extra
+     * copy of the pointer.
+     */
     ram_list.mru_block = block;
     return block;
 }
@@ -1177,10 +1193,11 @@ ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
         QTAILQ_INSERT_TAIL(&ram_list.blocks, new_block, next);
     }
     ram_list.mru_block = NULL;
+    atomic_rcu_set(&ram_list.version, ram_list.version + 1);
 
-    ram_list.version++;
     qemu_mutex_unlock_ramlist();
 
+    /* ram_list.phys_dirty is protected by the iothread lock.  */
     ram_list.phys_dirty = g_realloc(ram_list.phys_dirty,
                                        last_ram_offset() >> TARGET_PAGE_BITS);
     memset(ram_list.phys_dirty + (new_block->offset >> TARGET_PAGE_BITS),
@@ -1211,14 +1228,39 @@ void qemu_ram_free_from_ptr(ram_addr_t addr)
         if (addr == block->offset) {
             QTAILQ_REMOVE(&ram_list.blocks, block, next);
             ram_list.mru_block = NULL;
-            ram_list.version++;
-            g_free(block);
+            atomic_rcu_set(&ram_list.version, ram_list.version + 1);
+            call_rcu(block, (void (*)(struct RAMBlock *))g_free, rcu);
             break;
         }
     }
-    qemu_mutex_unlock_ramlist();
 }
 
+static void reclaim_ramblock(RAMBlock *block)
+{
+    if (block->flags & RAM_PREALLOC_MASK) {
+        ;
+    } else if (mem_path) {
+#if defined (__linux__) && !defined(TARGET_S390X)
+        if (block->fd) {
+            munmap(block->host, block->length);
+            close(block->fd);
+        } else {
+            qemu_anon_ram_free(block->host, block->length);
+        }
+#else
+        abort();
+#endif
+    } else {
+        if (xen_enabled()) {
+            xen_invalidate_map_cache_entry(block->host);
+        } else {
+            qemu_anon_ram_free(block->host, block->length);
+        }
+    }
+    g_free(block);
+}
+
+/* Called with the iothread lock held */
 void qemu_ram_free(ram_addr_t addr)
 {
     RAMBlock *block;
@@ -1229,28 +1271,8 @@ void qemu_ram_free(ram_addr_t addr)
         if (addr == block->offset) {
             QTAILQ_REMOVE(&ram_list.blocks, block, next);
             ram_list.mru_block = NULL;
-            ram_list.version++;
-            if (block->flags & RAM_PREALLOC_MASK) {
-                ;
-            } else if (mem_path) {
-#if defined (__linux__) && !defined(TARGET_S390X)
-                if (block->fd) {
-                    munmap(block->host, block->length);
-                    close(block->fd);
-                } else {
-                    qemu_anon_ram_free(block->host, block->length);
-                }
-#else
-                abort();
-#endif
-            } else {
-                if (xen_enabled()) {
-                    xen_invalidate_map_cache_entry(block->host);
-                } else {
-                    qemu_anon_ram_free(block->host, block->length);
-                }
-            }
-            g_free(block);
+            atomic_rcu_set(&ram_list.version, ram_list.version + 1);
+            call_rcu(block, reclaim_ramblock, rcu);
             break;
         }
     }
