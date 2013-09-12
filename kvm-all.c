@@ -1665,12 +1665,11 @@ int kvm_cpu_exec(CPUState *cpu)
             break;
         case KVM_EXIT_MMIO:
             DPRINTF("handle_mmio\n");
-            qemu_mutex_lock_iothread();
-            cpu_physical_memory_rw(run->mmio.phys_addr,
-                                   run->mmio.data,
-                                   run->mmio.len,
-                                   run->mmio.is_write);
-            qemu_mutex_unlock_iothread();
+            address_space_rw_unlocked(&address_space_memory,
+                                      run->mmio.phys_addr,
+                                      run->mmio.data,
+                                      run->mmio.len,
+                                      run->mmio.is_write);
             ret = 0;
             break;
         case KVM_EXIT_IRQ_WINDOW_OPEN:
