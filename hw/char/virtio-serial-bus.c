@@ -990,7 +990,6 @@ static const TypeInfo virtio_serial_port_type_info = {
 static int virtio_serial_device_exit(DeviceState *dev)
 {
     VirtIOSerial *vser = VIRTIO_SERIAL(dev);
-    VirtIODevice *vdev = VIRTIO_DEVICE(dev);
 
     unregister_savevm(dev, "virtio-console", vser);
 
@@ -1003,7 +1002,6 @@ static int virtio_serial_device_exit(DeviceState *dev)
         timer_free(vser->post_load->timer);
         g_free(vser->post_load);
     }
-    virtio_cleanup(vdev);
     return 0;
 }
 

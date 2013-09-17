@@ -150,7 +150,6 @@ typedef struct VirtioDeviceClass {
 
 void virtio_init(VirtIODevice *vdev, const char *name,
                          uint16_t device_id, size_t config_size);
-void virtio_cleanup(VirtIODevice *vdev);
 
 /* Set the child bus name. */
 void virtio_device_set_child_bus_name(VirtIODevice *vdev, char *bus_name);

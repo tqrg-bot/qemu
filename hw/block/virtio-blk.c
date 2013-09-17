@@ -710,7 +710,6 @@ static int virtio_blk_device_init(VirtIODevice *vdev)
     s->vq = virtio_add_queue(vdev, 128, virtio_blk_handle_output);
 #ifdef CONFIG_VIRTIO_BLK_DATA_PLANE
     if (!virtio_blk_data_plane_create(vdev, blk, &s->dataplane)) {
-        virtio_cleanup(vdev);
         return -1;
     }
     s->migration_state_notifier.notify = virtio_blk_migration_state_changed;
@@ -731,7 +730,6 @@ static int virtio_blk_device_init(VirtIODevice *vdev)
 
 static int virtio_blk_device_exit(DeviceState *dev)
 {
-    VirtIODevice *vdev = VIRTIO_DEVICE(dev);
     VirtIOBlock *s = VIRTIO_BLK(dev);
 #ifdef CONFIG_VIRTIO_BLK_DATA_PLANE
     remove_migration_state_change_notifier(&s->migration_state_notifier);
@@ -741,7 +739,6 @@ static int virtio_blk_device_exit(DeviceState *dev)
     qemu_del_vm_change_state_handler(s->change);
     unregister_savevm(dev, "virtio-blk", s);
     blockdev_mark_auto_del(s->bs);
-    virtio_cleanup(vdev);
     return 0;
 }
 

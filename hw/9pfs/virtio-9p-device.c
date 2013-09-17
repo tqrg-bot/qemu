@@ -131,7 +131,6 @@ static int virtio_9p_device_init(VirtIODevice *vdev)
 out:
     g_free(s->ctx.fs_root);
     g_free(s->tag);
-    virtio_cleanup(vdev);
     v9fs_path_free(&path);
 
     return -1;

@@ -956,8 +956,10 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f)
     return 0;
 }
 
-void virtio_cleanup(VirtIODevice *vdev)
+void virtio_instance_finalize(Object *obj)
 {
+    VirtIODevice *vdev = VIRTIO_DEVICE(obj);
+
     qemu_del_vm_change_state_handler(vdev->vmstate);
     g_free(vdev->config);
     g_free(vdev->vq);
@@ -1189,6 +1191,7 @@ static const TypeInfo virtio_device_info = {
     .class_init = virtio_device_class_init,
     .abstract = true,
     .class_size = sizeof(VirtioDeviceClass),
+    .instance_finalize = virtio_instance_finalize,
 };
 
 static void virtio_register_types(void)

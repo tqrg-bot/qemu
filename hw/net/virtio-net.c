@@ -1608,7 +1608,6 @@ static int virtio_net_device_exit(DeviceState *qdev)
 
     g_free(n->vqs);
     qemu_del_nic(n->nic);
-    virtio_cleanup(vdev);
 
     return 0;
 }
