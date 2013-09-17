@@ -235,6 +235,15 @@ typedef enum {
 
 #define EEPRO100(obj) \
     OBJECT_CHECK(EEPRO100State, (obj), TYPE_EEPRO100)
+#define EEPRO100_CLASS(klass) \
+     OBJECT_CLASS_CHECK(EEPRO100Class, (klass), TYPE_EEPRO100)
+#define EEPRO100_GET_CLASS(obj) \
+     OBJECT_GET_CLASS(EEPRO100Class, (obj), TYPE_EEPRO100)
+
+typedef struct EEPRO100Class {
+    PCIDeviceClass      class;
+    E100PCIDeviceInfo *info;
+} EEPRO100Class;
 
 typedef struct {
     PCIDevice dev;
@@ -325,8 +334,6 @@ static const uint16_t eepro100_mdi_mask[] = {
 };
 
 #define POLYNOMIAL 0x04c11db6
-
-static E100PCIDeviceInfo *eepro100_get_class(EEPRO100State *s);
 
 /* From FreeBSD (locally modified). */
 static unsigned e100_compute_mcast_idx(const uint8_t *ep)
@@ -498,7 +505,8 @@ static void eepro100_fcp_interrupt(EEPRO100State * s)
 
 static void e100_pci_reset(EEPRO100State * s)
 {
-    E100PCIDeviceInfo *info = eepro100_get_class(s);
+    EEPRO100Class *e100c = EEPRO100_GET_CLASS(s);
+    E100PCIDeviceInfo *info = e100c->info;
     uint32_t device = s->device;
     uint8_t *pci_conf = s->dev.config;
 
@@ -1864,7 +1872,8 @@ static NetClientInfo net_eepro100_info = {
 static int e100_nic_init(PCIDevice *pci_dev)
 {
     EEPRO100State *s = EEPRO100(pci_dev);
-    E100PCIDeviceInfo *info = eepro100_get_class(s);
+    EEPRO100Class *e100c = EEPRO100_GET_CLASS(s);
+    E100PCIDeviceInfo *info = e100c->info;
 
     TRACE(OTHER, logout("\n"));
 
@@ -2038,34 +2047,6 @@ static E100PCIDeviceInfo e100_devices[] = {
     }
 };
 
-static E100PCIDeviceInfo *eepro100_get_class_by_name(const char *typename)
-{
-    E100PCIDeviceInfo *info = NULL;
-    int i;
-
-    /* This is admittedly awkward but also temporary.  QOM allows for
-     * parameterized typing and for subclassing both of which would suitable
-     * handle what's going on here.  But class_data is already being used as
-     * a stop-gap hack to allow incremental qdev conversion so we cannot use it
-     * right now.  Once we merge the final QOM series, we can come back here and
-     * do this in a much more elegant fashion.
-     */
-    for (i = 0; i < ARRAY_SIZE(e100_devices); i++) {
-        if (strcmp(e100_devices[i].name, typename) == 0) {
-            info = &e100_devices[i];
-            break;
-        }
-    }
-    assert(info != NULL);
-
-    return info;
-}
-
-static E100PCIDeviceInfo *eepro100_get_class(EEPRO100State *s)
-{
-    return eepro100_get_class_by_name(object_get_typename(OBJECT(s)));
-}
-
 static Property e100_properties[] = {
     DEFINE_NIC_PROPERTIES(EEPRO100State, conf),
     DEFINE_PROP_END_OF_LIST(),
@@ -2075,10 +2056,8 @@ static void eepro100_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
-    E100PCIDeviceInfo *info;
+    EEPRO100Class *e100c = EEPRO100_CLASS(klass);
     VMStateDescription *vmsd;
-
-    info = eepro100_get_class_by_name(object_class_get_name(klass));
 
     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);
     dc->props = e100_properties;
@@ -2093,12 +2072,13 @@ static void eepro100_class_init(ObjectClass *klass, void *data)
     vmsd->name = object_class_get_name(klass);
     dc->vmsd = vmsd;
 
-    if (info) {
-        dc->desc = info->desc;
-        k->device_id = info->device_id;
-        k->revision = info->revision;
-        k->subsystem_vendor_id = info->subsystem_vendor_id;
-        k->subsystem_id = info->subsystem_id;
+    if (data) {
+        e100c->info = data;
+        dc->desc = e100c->info->desc;
+        k->device_id = e100c->info->device_id;
+        k->revision = e100c->info->revision;
+        k->subsystem_vendor_id = e100c->info->subsystem_vendor_id;
+        k->subsystem_id = e100c->info->subsystem_id;
     }
 }
 
@@ -2106,6 +2086,7 @@ static const TypeInfo eepro100_info = {
     .name          = TYPE_EEPRO100,
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(EEPRO100State),
+    .class_size    = sizeof(EEPRO100Class),
     .class_init    = eepro100_class_init,
     .abstract      = true,
 };
@@ -2120,7 +2101,7 @@ static void eepro100_register_types(void)
 
         type_info.name = info->name;
         type_info.parent = TYPE_EEPRO100;
-        type_info.class_init = eepro100_class_init;
+        type_info.class_data = info;
         
         type_register(&type_info);
     }
