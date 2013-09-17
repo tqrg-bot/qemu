@@ -1043,15 +1043,21 @@ static void virtio_serial_device_unrealize(DeviceState *dev, Error **errp)
 
     unregister_savevm(dev, "virtio-console", vser);
 
-    g_free(vser->ivqs);
-    g_free(vser->ovqs);
-    g_free(vser->ports_map);
     if (vser->post_load) {
         g_free(vser->post_load->connected);
         timer_del(vser->post_load->timer);
         timer_free(vser->post_load->timer);
         g_free(vser->post_load);
     }
+}
+
+static void virtio_serial_instance_finalize(Object *obj)
+{
+    VirtIOSerial *vser = VIRTIO_SERIAL(obj);
+
+    g_free(vser->ivqs);
+    g_free(vser->ovqs);
+    g_free(vser->ports_map);
 }
 
 static Property virtio_serial_properties[] = {
@@ -1083,6 +1089,7 @@ static const TypeInfo virtio_device_info = {
     .parent = TYPE_VIRTIO_DEVICE,
     .instance_size = sizeof(VirtIOSerial),
     .class_init = virtio_serial_class_init,
+    .instance_finalize = virtio_serial_instance_finalize,
 };
 
 static void virtio_serial_register_types(void)
