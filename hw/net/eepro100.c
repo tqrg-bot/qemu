@@ -274,9 +274,6 @@ typedef struct {
     /* Configuration bytes. */
     uint8_t configuration[22];
 
-    /* vmstate for each particular nic */
-    VMStateDescription *vmstate;
-
     /* Quasi static device properties (no need to save them). */
     uint16_t stats_size;
     bool has_extended_tcb_support;
@@ -1852,7 +1849,6 @@ static void pci_nic_uninit(PCIDevice *pci_dev)
     memory_region_destroy(&s->mmio_bar);
     memory_region_destroy(&s->io_bar);
     memory_region_destroy(&s->flash_bar);
-    vmstate_unregister(&pci_dev->qdev, s->vmstate, s);
     eeprom93xx_free(&pci_dev->qdev, s->eeprom);
     qemu_del_nic(s->nic);
 }
@@ -1904,11 +1900,6 @@ static int e100_nic_init(PCIDevice *pci_dev)
     TRACE(OTHER, logout("%s\n", qemu_get_queue(s->nic)->info_str));
 
     qemu_register_reset(nic_reset, s);
-
-    s->vmstate = g_malloc(sizeof(vmstate_eepro100));
-    memcpy(s->vmstate, &vmstate_eepro100, sizeof(vmstate_eepro100));
-    s->vmstate->name = qemu_get_queue(s->nic)->model;
-    vmstate_register(&pci_dev->qdev, -1, s->vmstate, s);
 
     add_boot_device_path(s->conf.bootindex, &pci_dev->qdev, "/ethernet-phy@0");
 
@@ -2085,6 +2076,7 @@ static void eepro100_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
     E100PCIDeviceInfo *info;
+    VMStateDescription *vmsd;
 
     info = eepro100_get_class_by_name(object_class_get_name(klass));
 
@@ -2095,6 +2087,11 @@ static void eepro100_class_init(ObjectClass *klass, void *data)
     k->romfile = "pxe-eepro100.rom";
     k->init = e100_nic_init;
     k->exit = pci_nic_uninit;
+
+    vmsd = g_malloc(sizeof(vmstate_eepro100));
+    memcpy(vmsd, &vmstate_eepro100, sizeof(vmstate_eepro100));
+    vmsd->name = object_class_get_name(klass);
+    dc->vmsd = vmsd;
 
     if (info) {
         dc->desc = info->desc;
