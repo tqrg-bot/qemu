@@ -3460,10 +3460,6 @@ static void pci_rtl8139_uninit(PCIDevice *dev)
 {
     RTL8139State *s = RTL8139(dev);
 
-    if (s->cplus_txbuffer) {
-        g_free(s->cplus_txbuffer);
-        s->cplus_txbuffer = NULL;
-    }
     timer_del(s->timer);
     timer_free(s->timer);
 }
@@ -3473,6 +3469,10 @@ static void pci_rtl8139_instance_finalize(Object *obj)
 {
     RTL8139State *s = RTL8139(obj);
 
+    if (s->cplus_txbuffer) {
+        g_free(s->cplus_txbuffer);
+        s->cplus_txbuffer = NULL;
+    }
     memory_region_destroy(&s->bar_io);
     memory_region_destroy(&s->bar_mem);
     qemu_del_nic(s->nic);
