@@ -54,7 +54,7 @@ void vmxnet_rx_pkt_init(struct VmxnetRxPkt **pkt, bool has_virt_hdr)
     *pkt = p;
 }
 
-void vmxnet_rx_pkt_uninit(struct VmxnetRxPkt *pkt)
+void vmxnet_rx_pkt_free(struct VmxnetRxPkt *pkt)
 {
     g_free(pkt);
 }
