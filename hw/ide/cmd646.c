@@ -294,8 +294,9 @@ static int pci_cmd646_ide_initfn(PCIDevice *dev)
 
         bmdma_init(&d->bus[i], &d->bmdma[i], d);
         d->bmdma[i].bus = &d->bus[i];
-        qemu_add_vm_change_state_handler(d->bus[i].dma->ops->restart_cb,
-                                         &d->bmdma[i].dma);
+        d->bmdma[i].vmsentry =
+             qemu_add_vm_change_state_handler(d->bus[i].dma->ops->restart_cb,
+                                              &d->bmdma[i].dma);
     }
 
     vmstate_register(DEVICE(dev), 0, &vmstate_ide_pci, d);
@@ -315,6 +316,7 @@ static void pci_cmd646_ide_instance_finalize(Object *obj)
         memory_region_destroy(&d->bmdma[i].addr_ioport);
         memory_region_destroy(&d->cmd646_bar[i].cmd);
         memory_region_destroy(&d->cmd646_bar[i].data);
+        qemu_del_vm_change_state_handler(&d->bmdma[i].vmsentry);
     }
     memory_region_destroy(&d->bmdma_bar);
 }

@@ -23,6 +23,7 @@ typedef struct BMDMAState {
     MemoryRegion extra_io;
     QEMUBH *bh;
     qemu_irq irq;
+    VMChangeStateEntry *vmsentry;
 
     /* Bit 0-2 and 7:   BM status register
      * Bit 3-6:         bus->error_status */

@@ -166,8 +166,9 @@ static void vt82c686b_init_ports(PCIIDEState *d) {
 
         bmdma_init(&d->bus[i], &d->bmdma[i], d);
         d->bmdma[i].bus = &d->bus[i];
-        qemu_add_vm_change_state_handler(d->bus[i].dma->ops->restart_cb,
-                                         &d->bmdma[i].dma);
+        d->bmdma[i].vmsentry =
+            qemu_add_vm_change_state_handler(d->bus[i].dma->ops->restart_cb,
+                                             &d->bmdma[i].dma);
     }
 }
 
@@ -201,6 +202,7 @@ static void vt82c686b_ide_instance_finalize(Object *obj)
         memory_region_destroy(&d->bmdma[i].extra_io);
         memory_region_del_subregion(&d->bmdma_bar, &d->bmdma[i].addr_ioport);
         memory_region_destroy(&d->bmdma[i].addr_ioport);
+        qemu_del_vm_change_state_handler(&d->bmdma[i].vmsentry);
     }
     memory_region_destroy(&d->bmdma_bar);
 }
