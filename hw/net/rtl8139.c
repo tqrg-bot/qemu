@@ -3468,6 +3468,15 @@ static void pci_rtl8139_uninit(PCIDevice *dev)
     }
     timer_del(s->timer);
     timer_free(s->timer);
+}
+
+
+static void pci_rtl8139_instance_finalize(Object *obj)
+{
+    RTL8139State *s = RTL8139(obj);
+
+    memory_region_destroy(&s->bar_io);
+    memory_region_destroy(&s->bar_mem);
     qemu_del_nic(s->nic);
 }
 
@@ -3571,6 +3580,7 @@ static const TypeInfo rtl8139_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(RTL8139State),
     .class_init    = rtl8139_class_init,
+    .instance_finalize = pci_rtl8139_instance_finalize,
 };
 
 static void rtl8139_register_types(void)
