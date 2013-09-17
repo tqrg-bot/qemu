@@ -72,14 +72,14 @@ static void virtio_9p_device_realize(DeviceState *dev, Error **errp)
         error_setg(errp, "Virtio-9p device couldn't find fsdev with the "
                    "id = %s",
                    s->fsconf.fsdev_id ? s->fsconf.fsdev_id : "NULL");
-        goto out;
+        return;
     }
 
     if (!s->fsconf.tag) {
         /* we haven't specified a mount_tag */
         error_setg(errp, "fsdev with id %s needs mount_tag arguments",
                    s->fsconf.fsdev_id);
-        goto out;
+        return;
     }
 
     s->ctx.export_flags = fse->export_flags;
@@ -89,7 +89,7 @@ static void virtio_9p_device_realize(DeviceState *dev, Error **errp)
     if (len > MAX_TAG_LEN - 1) {
         error_setg(errp, "mount tag '%s' (%d bytes) is longer than "
                    "maximum (%d bytes)", s->fsconf.tag, len, MAX_TAG_LEN - 1);
-        goto out;
+        return;
     }
 
     s->tag = g_strdup(s->fsconf.tag);
@@ -103,11 +103,11 @@ static void virtio_9p_device_realize(DeviceState *dev, Error **errp)
     if (s->ops->init(&s->ctx) < 0) {
         error_setg(errp, "Virtio-9p Failed to initialize fs-driver with id:%s"
                    " and export path:%s", s->fsconf.fsdev_id, s->ctx.fs_root);
-        goto out;
+        return;
     }
     if (v9fs_init_worker_threads() < 0) {
         error_setg(errp, "worker thread initialization failed");
-        goto out;
+        return;
     }
 
     /*
@@ -118,22 +118,23 @@ static void virtio_9p_device_realize(DeviceState *dev, Error **errp)
     if (s->ops->name_to_path(&s->ctx, NULL, "/", &path) < 0) {
         error_setg(errp,
                    "error in converting name to path %s", strerror(errno));
-        goto out;
+        return;
     }
     if (s->ops->lstat(&s->ctx, &path, &stat)) {
         error_setg(errp, "share path %s does not exist", fse->path);
-        goto out;
+        return;
     } else if (!S_ISDIR(stat.st_mode)) {
         error_setg(errp, "share path %s is not a directory", fse->path);
-        goto out;
+        return;
     }
-    v9fs_path_free(&path);
+}
 
-    return;
-out:
+static int virtio_9p_instance_finalize(Object *obj)
+{
+    V9fsState *s = VIRTIO_9P(obj);
+
     g_free(s->ctx.fs_root);
     g_free(s->tag);
-    v9fs_path_free(&path);
 }
 
 /* virtio-9p device */
@@ -160,6 +161,7 @@ static const TypeInfo virtio_device_info = {
     .parent = TYPE_VIRTIO_DEVICE,
     .instance_size = sizeof(V9fsState),
     .class_init = virtio_9p_class_init,
+    .instance_finalize = virtio_9p_instance_finalize,
 };
 
 static void virtio_9p_register_types(void)
