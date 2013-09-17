@@ -199,11 +199,17 @@ static int scsi_qdev_exit(DeviceState *qdev)
 {
     SCSIDevice *dev = SCSI_DEVICE(qdev);
 
+    scsi_device_destroy(dev);
+    return 0;
+}
+
+static void scsi_device_instance_finalize(Object *obj)
+{
+    SCSIDevice *dev = SCSI_DEVICE(obj);
+
     if (dev->vmsentry) {
         qemu_del_vm_change_state_handler(dev->vmsentry);
     }
-    scsi_device_destroy(dev);
-    return 0;
 }
 
 /* handle legacy '-drive if=scsi,...' cmd line args */
@@ -1896,6 +1902,7 @@ static const TypeInfo scsi_device_type_info = {
     .abstract = true,
     .class_size = sizeof(SCSIDeviceClass),
     .class_init = scsi_device_class_init,
+    .instance_finalize = scsi_device_instance_finalize,
 };
 
 static void scsi_register_types(void)
