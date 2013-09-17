@@ -388,12 +388,6 @@ static void scsi_generic_reset(DeviceState *dev)
     scsi_device_purge_requests(s, SENSE_CODE(RESET));
 }
 
-static void scsi_destroy(SCSIDevice *s)
-{
-    scsi_device_purge_requests(s, SENSE_CODE(NO_SENSE));
-    blockdev_mark_auto_del(s->conf.bs);
-}
-
 static int scsi_generic_initfn(SCSIDevice *s)
 {
     int sg_version;
@@ -494,7 +488,6 @@ static void scsi_generic_class_initfn(ObjectClass *klass, void *data)
     SCSIDeviceClass *sc = SCSI_DEVICE_CLASS(klass);
 
     sc->init         = scsi_generic_initfn;
-    sc->destroy      = scsi_destroy;
     sc->alloc_req    = scsi_new_request;
     dc->fw_name = "disk";
     dc->desc = "pass through generic scsi device (/dev/sg*)";

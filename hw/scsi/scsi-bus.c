@@ -44,14 +44,6 @@ static int scsi_device_init(SCSIDevice *s)
     return 0;
 }
 
-static void scsi_device_destroy(SCSIDevice *s)
-{
-    SCSIDeviceClass *sc = SCSI_DEVICE_GET_CLASS(s);
-    if (sc->destroy) {
-        sc->destroy(s);
-    }
-}
-
 static SCSIRequest *scsi_device_alloc_req(SCSIDevice *s, uint32_t tag, uint32_t lun,
                                           uint8_t *buf, void *hba_private)
 {
@@ -195,12 +187,12 @@ err:
     return rc;
 }
 
-static int scsi_qdev_exit(DeviceState *qdev)
+static void scsi_qdev_exit(DeviceState *dev)
 {
-    SCSIDevice *dev = SCSI_DEVICE(qdev);
+    SCSIDiskState *s = DO_UPCAST(SCSIDiskState, qdev.qdev, dev);
 
-    scsi_device_destroy(dev);
-    return 0;
+    scsi_device_purge_requests(&s->qdev, SENSE_CODE(NO_SENSE));
+    blockdev_mark_auto_del(s->qdev.conf.bs);
 }
 
 static void scsi_device_instance_finalize(Object *obj)

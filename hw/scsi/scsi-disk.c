@@ -1990,14 +1990,6 @@ static void scsi_disk_reset(DeviceState *dev)
     s->tray_open = 0;
 }
 
-static void scsi_destroy(SCSIDevice *dev)
-{
-    SCSIDiskState *s = DO_UPCAST(SCSIDiskState, qdev, dev);
-
-    scsi_device_purge_requests(&s->qdev, SENSE_CODE(NO_SENSE));
-    blockdev_mark_auto_del(s->qdev.conf.bs);
-}
-
 static void scsi_disk_resize_cb(void *opaque)
 {
     SCSIDiskState *s = opaque;
@@ -2424,7 +2416,6 @@ static void scsi_hd_class_initfn(ObjectClass *klass, void *data)
     SCSIDeviceClass *sc = SCSI_DEVICE_CLASS(klass);
 
     sc->init         = scsi_hd_initfn;
-    sc->destroy      = scsi_destroy;
     sc->alloc_req    = scsi_new_request;
     sc->unit_attention_reported = scsi_disk_unit_attention_reported;
     dc->fw_name = "disk";
@@ -2453,7 +2444,6 @@ static void scsi_cd_class_initfn(ObjectClass *klass, void *data)
     SCSIDeviceClass *sc = SCSI_DEVICE_CLASS(klass);
 
     sc->init         = scsi_cd_initfn;
-    sc->destroy      = scsi_destroy;
     sc->alloc_req    = scsi_new_request;
     sc->unit_attention_reported = scsi_disk_unit_attention_reported;
     dc->fw_name = "disk";
@@ -2483,7 +2473,6 @@ static void scsi_block_class_initfn(ObjectClass *klass, void *data)
     SCSIDeviceClass *sc = SCSI_DEVICE_CLASS(klass);
 
     sc->init         = scsi_block_initfn;
-    sc->destroy      = scsi_destroy;
     sc->alloc_req    = scsi_block_new_request;
     dc->fw_name = "disk";
     dc->desc = "SCSI block device passthrough";
@@ -2516,7 +2505,6 @@ static void scsi_disk_class_initfn(ObjectClass *klass, void *data)
     SCSIDeviceClass *sc = SCSI_DEVICE_CLASS(klass);
 
     sc->init         = scsi_disk_initfn;
-    sc->destroy      = scsi_destroy;
     sc->alloc_req    = scsi_new_request;
     sc->unit_attention_reported = scsi_disk_unit_attention_reported;
     dc->fw_name = "disk";
