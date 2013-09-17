@@ -2840,6 +2840,13 @@ static void vfio_teardown_msi(VFIODevice *vdev)
     }
 }
 
+static void vfio_destroy_msi(VFIODevice *vdev)
+{
+    if (vdev->msix) {
+        msix_free(&vdev->pdev);
+    }
+}
+
 /*
  * Resource setup
  */
@@ -4321,6 +4328,15 @@ static void vfio_exitfn(PCIDevice *pdev)
     }
     vfio_teardown_msi(vdev);
     vfio_unmap_bars(vdev);
+}
+
+static void vfio_instance_finalize(Object *obj)
+{
+    PCIDevice *pdev = PCI_DEVICE(obj);
+    VFIODevice *vdev = DO_UPCAST(VFIODevice, pdev, pdev);
+    VFIOGroup *group = vdev->group;
+
+    vfio_destroy_msi(vdev);
     g_free(vdev->emulated_config_bits);
     g_free(vdev->rom);
     vfio_put_device(vdev);
