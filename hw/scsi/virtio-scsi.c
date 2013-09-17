@@ -743,10 +743,9 @@ static void virtio_scsi_device_realize(DeviceState *dev, Error **errp)
                     virtio_scsi_save, virtio_scsi_load, s);
 }
 
-void virtio_scsi_common_unrealize(DeviceState *dev, Error **errp)
+static void virtio_scsi_common_instance_finalize(Object *obj)
 {
-    VirtIODevice *vdev = VIRTIO_DEVICE(dev);
-    VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(dev);
+    VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(obj);
 
     g_free(vs->cmd_vqs);
 }
@@ -756,8 +755,6 @@ static void virtio_scsi_device_unrealize(DeviceState *dev, Error **errp)
     VirtIOSCSI *s = VIRTIO_SCSI(dev);
 
     unregister_savevm(dev, "virtio-scsi", s);
-
-    virtio_scsi_common_unrealize(dev, errp);
 }
 
 static Property virtio_scsi_properties[] = {
@@ -794,6 +791,7 @@ static const TypeInfo virtio_scsi_common_info = {
     .instance_size = sizeof(VirtIOSCSICommon),
     .abstract = true,
     .class_init = virtio_scsi_common_class_init,
+    .instance_finalize = virtio_scsi_common_instance_finalize,
 };
 
 static const TypeInfo virtio_scsi_info = {
