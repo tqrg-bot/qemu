@@ -790,7 +790,6 @@ static void virtio_blk_device_unrealize(DeviceState *dev, Error **errp)
     virtio_blk_data_plane_destroy(s->dataplane);
     s->dataplane = NULL;
 #endif
-    qemu_del_vm_change_state_handler(s->change);
     unregister_savevm(dev, "virtio-blk", s);
     blockdev_mark_auto_del(s->bs);
 }
@@ -803,6 +802,11 @@ static void virtio_blk_instance_init(Object *obj)
                              (Object **)&s->blk.iothread,
                              qdev_prop_allow_set_link_before_realize,
                              OBJ_PROP_LINK_UNREF_ON_RELEASE, NULL);
+}
+
+static void virtio_blk_instance_finalize(DeviceState *dev)
+{
+    qemu_del_vm_change_state_handler(s->change);
 }
 
 static Property virtio_blk_properties[] = {
@@ -843,6 +847,7 @@ static const TypeInfo virtio_device_info = {
     .instance_size = sizeof(VirtIOBlock),
     .instance_init = virtio_blk_instance_init,
     .class_init = virtio_blk_class_init,
+    .instance_finalize = virtio_blk_instance_finalize,
 };
 
 static void virtio_register_types(void)
