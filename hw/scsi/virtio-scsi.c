@@ -644,19 +644,19 @@ static int virtio_scsi_device_init(VirtIODevice *vdev)
     return 0;
 }
 
-int virtio_scsi_common_exit(VirtIOSCSICommon *vs)
+static void virtio_scsi_common_instance_finalize(Object *obj)
 {
+    VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(obj);
+
     g_free(vs->cmd_vqs);
-    return 0;
 }
 
 static int virtio_scsi_device_exit(DeviceState *qdev)
 {
     VirtIOSCSI *s = VIRTIO_SCSI(qdev);
-    VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(qdev);
 
     unregister_savevm(qdev, "virtio-scsi", s);
-    return virtio_scsi_common_exit(vs);
+    return 0;
 }
 
 static Property virtio_scsi_properties[] = {
@@ -692,6 +692,7 @@ static const TypeInfo virtio_scsi_common_info = {
     .instance_size = sizeof(VirtIOSCSICommon),
     .abstract = true,
     .class_init = virtio_scsi_common_class_init,
+    .instance_finalize = virtio_scsi_common_instance_finalize,
 };
 
 static const TypeInfo virtio_scsi_info = {
