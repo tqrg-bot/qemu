@@ -286,6 +286,13 @@ pci_testdev_uninit(PCIDevice *dev)
     int i;
 
     pci_testdev_reset(d);
+}
+
+static void
+pci_testdev_instance_finalize(Object *obj)
+{
+    PCITestDevState *d = PCI_TEST_DEV(obj);
+
     for (i = 0; i < IOTEST_MAX; ++i) {
         if (d->tests[i].hasnotifier) {
             event_notifier_cleanup(&d->tests[i].notifier);
@@ -293,12 +300,6 @@ pci_testdev_uninit(PCIDevice *dev)
         g_free(d->tests[i].hdr);
     }
     g_free(d->tests);
-}
-
-static void
-pci_testdev_instance_finalize(Object *obj)
-{
-    PCITestDevState *d = PCI_TEST_DEV(obj);
 
     memory_region_destroy(&d->mmio);
     memory_region_destroy(&d->portio);
