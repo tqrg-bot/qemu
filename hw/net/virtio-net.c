@@ -1580,18 +1580,6 @@ static int virtio_net_device_exit(DeviceState *qdev)
 
     unregister_savevm(qdev, "virtio-net", n);
 
-    if (n->netclient_name) {
-        g_free(n->netclient_name);
-        n->netclient_name = NULL;
-    }
-    if (n->netclient_type) {
-        g_free(n->netclient_type);
-        n->netclient_type = NULL;
-    }
-
-    g_free(n->mac_table.macs);
-    g_free(n->vlans);
-
     for (i = 0; i < n->max_queues; i++) {
         VirtIONetQueue *q = &n->vqs[i];
         NetClientState *nc = qemu_get_subqueue(n->nic, i);
@@ -1606,10 +1594,27 @@ static int virtio_net_device_exit(DeviceState *qdev)
         }
     }
 
+    return 0;
+}
+
+static void virtio_net_instance_finalize(Object *obj)
+{
+    VirtIONet *n = VIRTIO_NET(obj);
+
+    if (n->netclient_name) {
+        g_free(n->netclient_name);
+        n->netclient_name = NULL;
+    }
+    if (n->netclient_type) {
+        g_free(n->netclient_type);
+        n->netclient_type = NULL;
+    }
+
+    g_free(n->mac_table.macs);
+    g_free(n->vlans);
+
     g_free(n->vqs);
     qemu_del_nic(n->nic);
-
-    return 0;
 }
 
 static void virtio_net_instance_init(Object *obj)
@@ -1657,6 +1662,7 @@ static const TypeInfo virtio_net_info = {
     .instance_size = sizeof(VirtIONet),
     .instance_init = virtio_net_instance_init,
     .class_init = virtio_net_class_init,
+    .instance_finalize = virtio_net_instance_finalize,
 };
 
 static void virtio_register_types(void)
