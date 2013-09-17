@@ -231,6 +231,11 @@ typedef enum {
     ru_ready = 4
 } ru_state_t;
 
+#define TYPE_EEPRO100 "eepro100"
+
+#define EEPRO100(obj) \
+    OBJECT_CHECK(EEPRO100State, (obj), TYPE_EEPRO100)
+
 typedef struct {
     PCIDevice dev;
     /* Hash register (multicast mask array, multiple individual addresses). */
@@ -626,7 +631,7 @@ static void nic_selective_reset(EEPRO100State * s)
 
 static void nic_reset(void *opaque)
 {
-    EEPRO100State *s = opaque;
+    EEPRO100State *s = EEPRO100(opaque);
     TRACE(OTHER, logout("%p\n", s));
     /* TODO: Clearing of hash register for selective reset, too? */
     memset(&s->mult[0], 0, sizeof(s->mult));
@@ -1581,7 +1586,7 @@ static void eepro100_write4(EEPRO100State * s, uint32_t addr, uint32_t val)
 static uint64_t eepro100_read(void *opaque, hwaddr addr,
                               unsigned size)
 {
-    EEPRO100State *s = opaque;
+    EEPRO100State *s = EEPRO100(opaque);
 
     switch (size) {
     case 1: return eepro100_read1(s, addr);
@@ -1594,7 +1599,7 @@ static uint64_t eepro100_read(void *opaque, hwaddr addr,
 static void eepro100_write(void *opaque, hwaddr addr,
                            uint64_t data, unsigned size)
 {
-    EEPRO100State *s = opaque;
+    EEPRO100State *s = EEPRO100(opaque);
 
     switch (size) {
     case 1:
@@ -1842,7 +1847,7 @@ static void nic_cleanup(NetClientState *nc)
 
 static void pci_nic_uninit(PCIDevice *pci_dev)
 {
-    EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, pci_dev);
+    EEPRO100State *s = EEPRO100(pci_dev);
 
     memory_region_destroy(&s->mmio_bar);
     memory_region_destroy(&s->io_bar);
@@ -1862,7 +1867,7 @@ static NetClientInfo net_eepro100_info = {
 
 static int e100_nic_init(PCIDevice *pci_dev)
 {
-    EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, pci_dev);
+    EEPRO100State *s = EEPRO100(pci_dev);
     E100PCIDeviceInfo *info = eepro100_get_class(s);
 
     TRACE(OTHER, logout("\n"));
@@ -2085,29 +2090,40 @@ static void eepro100_class_init(ObjectClass *klass, void *data)
 
     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);
     dc->props = e100_properties;
-    dc->desc = info->desc;
     k->vendor_id = PCI_VENDOR_ID_INTEL;
     k->class_id = PCI_CLASS_NETWORK_ETHERNET;
     k->romfile = "pxe-eepro100.rom";
     k->init = e100_nic_init;
     k->exit = pci_nic_uninit;
-    k->device_id = info->device_id;
-    k->revision = info->revision;
-    k->subsystem_vendor_id = info->subsystem_vendor_id;
-    k->subsystem_id = info->subsystem_id;
+
+    if (info) {
+        dc->desc = info->desc;
+        k->device_id = info->device_id;
+        k->revision = info->revision;
+        k->subsystem_vendor_id = info->subsystem_vendor_id;
+        k->subsystem_id = info->subsystem_id;
+    }
 }
+
+static const TypeInfo eepro100_info = {
+    .name          = TYPE_EEPRO100,
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(EEPRO100State),
+    .class_init    = eepro100_class_init,
+    .abstract      = true,
+};
 
 static void eepro100_register_types(void)
 {
     size_t i;
+    type_register_static(&eepro100_info);
     for (i = 0; i < ARRAY_SIZE(e100_devices); i++) {
         TypeInfo type_info = {};
         E100PCIDeviceInfo *info = &e100_devices[i];
 
         type_info.name = info->name;
-        type_info.parent = TYPE_PCI_DEVICE;
+        type_info.parent = TYPE_EEPRO100;
         type_info.class_init = eepro100_class_init;
-        type_info.instance_size = sizeof(EEPRO100State);
         
         type_register(&type_info);
     }
