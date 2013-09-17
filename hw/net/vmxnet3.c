@@ -1945,10 +1945,7 @@ static bool vmxnet3_peer_has_vnet_hdr(VMXNET3State *s)
 
 static void vmxnet3_net_uninit(VMXNET3State *s)
 {
-    g_free(s->mcast_list);
     vmxnet_tx_pkt_reset(s->tx_pkt);
-    vmxnet_tx_pkt_uninit(s->tx_pkt);
-    vmxnet_rx_pkt_uninit(s->rx_pkt);
 }
 
 static void vmxnet3_net_init(VMXNET3State *s)
@@ -2187,6 +2184,9 @@ static void vmxnet3_pci_instance_finalize(Object *obj)
 {
     VMXNET3State *s = VMXNET3(obj);
 
+    g_free(s->mcast_list);
+    vmxnet_tx_pkt_free(s->tx_pkt);
+    vmxnet_rx_pkt_free(s->rx_pkt);
     qemu_del_nic(s->nic);
 }
 

@@ -43,7 +43,7 @@ void vmxnet_tx_pkt_init(struct VmxnetTxPkt **pkt, uint32_t max_frags,
  *
  * @pkt:            packet.
  */
-void vmxnet_tx_pkt_uninit(struct VmxnetTxPkt *pkt);
+void vmxnet_tx_pkt_free(struct VmxnetTxPkt *pkt);
 
 /**
  * get virtio header

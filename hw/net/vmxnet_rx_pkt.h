@@ -33,7 +33,7 @@ struct VmxnetRxPkt;
  * @pkt:            packet
  *
  */
-void vmxnet_rx_pkt_uninit(struct VmxnetRxPkt *pkt);
+void vmxnet_rx_pkt_free(struct VmxnetRxPkt *pkt);
 
 /**
  * Init function for rx packet functionality

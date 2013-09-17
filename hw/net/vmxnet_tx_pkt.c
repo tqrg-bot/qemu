@@ -77,7 +77,7 @@ void vmxnet_tx_pkt_init(struct VmxnetTxPkt **pkt, uint32_t max_frags,
     *pkt = p;
 }
 
-void vmxnet_tx_pkt_uninit(struct VmxnetTxPkt *pkt)
+void vmxnet_tx_pkt_free(struct VmxnetTxPkt *pkt)
 {
     if (pkt) {
         g_free(pkt->vec);
