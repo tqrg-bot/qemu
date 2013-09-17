@@ -1655,14 +1655,6 @@ static void virtio_net_device_unrealize(DeviceState *dev, Error **errp)
 
     unregister_savevm(dev, "virtio-net", n);
 
-    g_free(n->netclient_name);
-    n->netclient_name = NULL;
-    g_free(n->netclient_type);
-    n->netclient_type = NULL;
-
-    g_free(n->mac_table.macs);
-    g_free(n->vlans);
-
     for (i = 0; i < n->max_queues; i++) {
         VirtIONetQueue *q = &n->vqs[i];
         NetClientState *nc = qemu_get_subqueue(n->nic, i);
@@ -1679,6 +1671,18 @@ static void virtio_net_device_unrealize(DeviceState *dev, Error **errp)
 
     timer_del(n->announce_timer);
     timer_free(n->announce_timer);
+}
+
+static void virtio_net_instance_finalize(Object *obj)
+{
+    VirtIONet *n = VIRTIO_NET(obj);
+
+    g_free(n->netclient_name);
+    g_free(n->netclient_type);
+
+    g_free(n->mac_table.macs);
+    g_free(n->vlans);
+
     g_free(n->vqs);
     qemu_del_nic(n->nic);
 }
@@ -1731,6 +1735,7 @@ static const TypeInfo virtio_net_info = {
     .instance_size = sizeof(VirtIONet),
     .instance_init = virtio_net_instance_init,
     .class_init = virtio_net_class_init,
+    .instance_finalize = virtio_net_instance_finalize,
 };
 
 static void virtio_register_types(void)
