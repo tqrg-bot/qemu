@@ -129,12 +129,17 @@ static int virtio_9p_device_init(VirtIODevice *vdev)
 
     return 0;
 out:
-    g_free(s->ctx.fs_root);
-    g_free(s->tag);
     v9fs_path_free(&path);
 
     return -1;
+}
 
+static int virtio_9p_instance_finalize(Object *obj)
+{
+    V9fsState *s = VIRTIO_9P(obj);
+
+    g_free(s->ctx.fs_root);
+    g_free(s->tag);
 }
 
 /* virtio-9p device */
@@ -160,6 +165,7 @@ static const TypeInfo virtio_device_info = {
     .parent = TYPE_VIRTIO_DEVICE,
     .instance_size = sizeof(V9fsState),
     .class_init = virtio_9p_class_init,
+    .instance_finalize = virtio_9p_instance_finalize,
 };
 
 static void virtio_9p_register_types(void)
