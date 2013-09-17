@@ -963,6 +963,11 @@ void virtio_instance_finalize(Object *obj)
     qemu_del_vm_change_state_handler(vdev->vmstate);
     g_free(vdev->config);
     g_free(vdev->vq);
+
+    if (vdev->bus_name) {
+        g_free(vdev->bus_name);
+        vdev->bus_name = NULL;
+    }
 }
 
 static void virtio_vmstate_change(void *opaque, int running, RunState state)
@@ -1164,23 +1169,11 @@ static int virtio_device_init(DeviceState *qdev)
     return 0;
 }
 
-static int virtio_device_exit(DeviceState *qdev)
-{
-    VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
-
-    if (vdev->bus_name) {
-        g_free(vdev->bus_name);
-        vdev->bus_name = NULL;
-    }
-    return 0;
-}
-
 static void virtio_device_class_init(ObjectClass *klass, void *data)
 {
     /* Set the default value here. */
     DeviceClass *dc = DEVICE_CLASS(klass);
     dc->init = virtio_device_init;
-    dc->exit = virtio_device_exit;
     dc->bus_type = TYPE_VIRTIO_BUS;
 }
 
