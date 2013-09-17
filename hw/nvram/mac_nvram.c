@@ -120,7 +120,7 @@ static void macio_nvram_realizefn(DeviceState *dev, Error **errp)
     sysbus_init_mmio(d, &s->mem);
 }
 
-static void macio_nvram_unrealizefn(DeviceState *dev, Error **errp)
+static void macio_nvram_instance_finalize(Object *obj)
 {
     MacIONVRAMState *s = MACIO_NVRAM(dev);
 
@@ -138,7 +138,6 @@ static void macio_nvram_class_init(ObjectClass *oc, void *data)
     DeviceClass *dc = DEVICE_CLASS(oc);
 
     dc->realize = macio_nvram_realizefn;
-    dc->unrealize = macio_nvram_unrealizefn;
     dc->reset = macio_nvram_reset;
     dc->vmsd = &vmstate_macio_nvram;
     dc->props = macio_nvram_properties;
@@ -149,6 +148,7 @@ static const TypeInfo macio_nvram_type_info = {
     .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(MacIONVRAMState),
     .class_init = macio_nvram_class_init,
+    .instance_finalize = macio_nvram_instance_finalize,
 };
 
 static void macio_nvram_register_types(void)
