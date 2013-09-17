@@ -736,10 +736,14 @@ static int virtio_blk_device_exit(DeviceState *dev)
     virtio_blk_data_plane_destroy(s->dataplane);
     s->dataplane = NULL;
 #endif
-    qemu_del_vm_change_state_handler(s->change);
     unregister_savevm(dev, "virtio-blk", s);
     blockdev_mark_auto_del(s->bs);
     return 0;
+}
+
+static void virtio_blk_instance_finalize(DeviceState *dev)
+{
+    qemu_del_vm_change_state_handler(s->change);
 }
 
 static Property virtio_blk_properties[] = {
@@ -767,6 +771,7 @@ static const TypeInfo virtio_device_info = {
     .parent = TYPE_VIRTIO_DEVICE,
     .instance_size = sizeof(VirtIOBlock),
     .class_init = virtio_blk_class_init,
+    .instance_finalize = virtio_blk_instance_finalize,
 };
 
 static void virtio_register_types(void)
