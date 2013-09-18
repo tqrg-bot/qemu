@@ -910,6 +910,7 @@ static int pci_unregister_device(DeviceState *dev)
         pc->exit(pci_dev);
     }
 
+    pci_device_deassert_intx(pci_dev);
     do_pci_unregister_device(pci_dev);
     return 0;
 }
@@ -1185,6 +1186,7 @@ static void pci_set_irq(void *opaque, int irq_num, int level)
     PCIDevice *pci_dev = opaque;
     int change;
 
+    level &= pci_dev->qdev.realized;
     change = level - pci_irq_state(pci_dev, irq_num);
     if (!change)
         return;
