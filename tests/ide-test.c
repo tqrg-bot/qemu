@@ -106,6 +106,7 @@ static QPCIBus *pcibus = NULL;
 static QGuestAllocator *guest_malloc;
 
 static char tmp_path[] = "/tmp/qtest.XXXXXX";
+static char debug_path[] = "/tmp/qtest-blkdebug.XXXXXX";
 
 static void ide_test_start(const char *cmdline_fmt, ...)
 {
@@ -489,6 +490,72 @@ static void test_flush(void)
     ide_test_quit();
 }
 
+static void prepare_blkdebug_script(const char *debug_path, const char *event)
+{
+    FILE *debug_file = fopen(debug_path, "w");
+    int ret;
+
+    fprintf(debug_file, "[inject-error]\n");
+    fprintf(debug_file, "event = \"%s\"\n", event);
+    fprintf(debug_file, "errno = \"5\"\n");
+    fprintf(debug_file, "state = \"1\"\n");
+    fprintf(debug_file, "immediately = \"off\"\n");
+    fprintf(debug_file, "once = \"on\"\n");
+
+    fprintf(debug_file, "[set-state]\n");
+    fprintf(debug_file, "event = \"%s\"\n", event);
+    fprintf(debug_file, "new_state = \"2\"\n");
+    fflush(debug_file);
+    g_assert(!ferror(debug_file));
+
+    ret = fclose(debug_file);
+    g_assert(ret == 0);
+}
+
+static void test_retry_flush(void)
+{
+    uint8_t data;
+    const char *s;
+
+    prepare_blkdebug_script(debug_path, "flush_to_disk");
+
+    ide_test_start(
+        "-vnc none "
+        "-drive file=blkdebug:%s:%s,if=ide,cache=writeback,rerror=stop,werror=stop",
+        debug_path, tmp_path);
+
+    /* FLUSH CACHE command on device 0*/
+    outb(IDE_BASE + reg_device, 0);
+    outb(IDE_BASE + reg_command, CMD_FLUSH_CACHE);
+
+    /* Check status while request is in flight*/
+    data = inb(IDE_BASE + reg_status);
+    assert_bit_set(data, BSY | DRDY);
+    assert_bit_clear(data, DF | ERR | DRQ);
+
+    sleep(1);                    /* HACK: wait for event */
+
+    /* Complete the command */
+    s = "{'execute':'cont' }";
+    while (!qmp(s)) {
+        s = "";
+        sleep(1);
+    }
+
+    /* Check registers */
+    data = inb(IDE_BASE + reg_device);
+    g_assert_cmpint(data & DEV, ==, 0);
+
+    do {
+        data = inb(IDE_BASE + reg_status);
+    } while (data & BSY);
+
+    assert_bit_set(data, DRDY);
+    assert_bit_clear(data, BSY | DF | ERR | DRQ);
+
+    ide_test_quit();
+}
+
 int main(int argc, char **argv)
 {
     const char *arch = qtest_get_arch();
@@ -500,6 +567,11 @@ int main(int argc, char **argv)
         g_test_message("Skipping test for non-x86\n");
         return 0;
     }
+
+    /* Create temporary blkdebug instructions */
+    fd = mkstemp(debug_path);
+    g_assert(fd >= 0);
+    close(fd);
 
     /* Create a temporary raw image */
     fd = mkstemp(tmp_path);
@@ -521,6 +593,8 @@ int main(int argc, char **argv)
     qtest_add_func("/ide/bmdma/teardown", test_bmdma_teardown);
 
     qtest_add_func("/ide/flush", test_flush);
+
+    qtest_add_func("/ide/retry/flush", test_retry_flush);
 
     ret = g_test_run();
 
