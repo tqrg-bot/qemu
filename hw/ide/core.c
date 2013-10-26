@@ -707,7 +707,6 @@ eot:
 static void ide_sector_start_dma(IDEState *s, enum ide_dma_cmd dma_cmd)
 {
     s->status = READY_STAT | SEEK_STAT | DRQ_STAT | BUSY_STAT;
-    s->io_buffer_index = 0;
     s->io_buffer_size = 0;
     s->dma_cmd = dma_cmd;
 
@@ -729,6 +728,7 @@ static void ide_sector_start_dma(IDEState *s, enum ide_dma_cmd dma_cmd)
 
 void ide_start_dma(IDEState *s, BlockDriverCompletionFunc *cb)
 {
+    s->io_buffer_index = 0;
     s->bus->retry_unit = s->unit;
     s->bus->retry_sector_num = ide_get_sector(s);
     s->bus->retry_nsector = s->nsector;
@@ -2210,7 +2210,6 @@ static void ide_restart_dma(IDEState *s, enum ide_dma_cmd dma_cmd)
     ide_set_sector(s, s->bus->retry_sector_num);
     s->nsector = s->bus->retry_nsector;
     s->bus->dma->ops->restart_dma(s->bus->dma);
-    s->io_buffer_index = 0;
     s->io_buffer_size = 0;
     s->dma_cmd = dma_cmd;
     ide_start_dma(s, ide_dma_cb);
