@@ -118,7 +118,7 @@ static void ide_test_start(const char *cmdline_fmt, ...)
     va_end(ap);
 
     qtest_start(cmdline);
-    qtest_irq_intercept_in(global_qtest, "ioapic");
+    //qtest_irq_intercept_in(global_qtest, "ioapic");
     guest_malloc = pc_alloc_init();
 }
 
@@ -512,7 +512,7 @@ static void prepare_blkdebug_script(const char *debug_path, const char *event)
     g_assert(ret == 0);
 }
 
-static void test_retry_flush(void)
+static void test_retry_flush(const char *machine)
 {
     uint8_t data;
     const char *s;
@@ -520,9 +520,9 @@ static void test_retry_flush(void)
     prepare_blkdebug_script(debug_path, "flush_to_disk");
 
     ide_test_start(
-        "-vnc none "
+        "-vnc none -M %s "
         "-drive file=blkdebug:%s:%s,if=ide,cache=writeback,rerror=stop,werror=stop",
-        debug_path, tmp_path);
+        machine, debug_path, tmp_path);
 
     /* FLUSH CACHE command on device 0*/
     outb(IDE_BASE + reg_device, 0);
@@ -554,6 +554,16 @@ static void test_retry_flush(void)
     assert_bit_clear(data, BSY | DF | ERR | DRQ);
 
     ide_test_quit();
+}
+
+static void test_pci_retry_flush(const char *machine)
+{
+    test_retry_flush("pc");
+}
+
+static void test_isa_retry_flush(const char *machine)
+{
+    test_retry_flush("isapc");
 }
 
 int main(int argc, char **argv)
@@ -594,7 +604,8 @@ int main(int argc, char **argv)
 
     qtest_add_func("/ide/flush", test_flush);
 
-    qtest_add_func("/ide/retry/flush", test_retry_flush);
+    qtest_add_func("/ide/pci/retry/flush", test_pci_retry_flush);
+    qtest_add_func("/ide/isa/retry/flush", test_isa_retry_flush);
 
     ret = g_test_run();
 
