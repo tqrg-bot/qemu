@@ -48,6 +48,10 @@ struct QEMUMachine {
     const char *hw_version;
 };
 
+void memory_region_allocate_system_memory(MemoryRegion *mr, Object *owner,
+                                          const char *name,
+                                          QEMUMachineInitArgs *args);
+
 int qemu_register_machine(QEMUMachine *m);
 QEMUMachine *find_default_machine(void);
 
