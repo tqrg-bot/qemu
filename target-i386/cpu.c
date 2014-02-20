@@ -1242,10 +1242,12 @@ static void x86_cpuid_version_set_family(Object *obj, Visitor *v, void *opaque,
     CPUX86State *env = &cpu->env;
     const int64_t min = 0;
     const int64_t max = 0xff + 0xf;
+    Error *local_err = NULL;
     int64_t value;
 
-    visit_type_int(v, &value, name, errp);
-    if (error_is_set(errp)) {
+    visit_type_int(v, &value, name, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
         return;
     }
     if (value < min || value > max) {
@@ -1282,9 +1284,11 @@ static void x86_cpuid_version_set_model(Object *obj, Visitor *v, void *opaque,
     const int64_t min = 0;
     const int64_t max = 0xff;
     int64_t value;
+    Error *local_err = NULL;
 
-    visit_type_int(v, &value, name, errp);
-    if (error_is_set(errp)) {
+    visit_type_int(v, &value, name, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
         return;
     }
     if (value < min || value > max) {
@@ -1318,9 +1322,11 @@ static void x86_cpuid_version_set_stepping(Object *obj, Visitor *v,
     const int64_t min = 0;
     const int64_t max = 0xf;
     int64_t value;
+    Error *local_err = NULL;
 
-    visit_type_int(v, &value, name, errp);
-    if (error_is_set(errp)) {
+    visit_type_int(v, &value, name, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
         return;
     }
     if (value < min || value > max) {
@@ -1454,9 +1460,11 @@ static void x86_cpuid_set_tsc_freq(Object *obj, Visitor *v, void *opaque,
     const int64_t min = 0;
     const int64_t max = INT64_MAX;
     int64_t value;
+    Error *local_err = NULL;
 
-    visit_type_int(v, &value, name, errp);
-    if (error_is_set(errp)) {
+    visit_type_int(v, &value, name, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
         return;
     }
     if (value < min || value > max) {
@@ -1629,6 +1637,7 @@ static void cpu_x86_parse_featurestr(X86CPU *cpu, char *features, Error **errp)
     FeatureWordArray minus_features = { 0 };
     uint32_t numvalue;
     CPUX86State *env = &cpu->env;
+    Error *local_err = NULL;
 
     featurestr = features ? strtok(features, ",") : NULL;
 
@@ -1648,7 +1657,7 @@ static void cpu_x86_parse_featurestr(X86CPU *cpu, char *features, Error **errp)
                 numvalue = strtoul(val, &err, 0);
                 if (!*val || *err) {
                     error_setg(errp, "bad numerical value %s", val);
-                    goto out;
+                    return;
                 }
                 if (numvalue < 0x80000000) {
                     fprintf(stderr, "xlevel value shall always be >= 0x80000000"
@@ -1656,7 +1665,7 @@ static void cpu_x86_parse_featurestr(X86CPU *cpu, char *features, Error **errp)
                     numvalue += 0x80000000;
                 }
                 snprintf(num, sizeof(num), "%" PRIu32, numvalue);
-                object_property_parse(OBJECT(cpu), num, featurestr, errp);
+                object_property_parse(OBJECT(cpu), num, featurestr, &local_err);
             } else if (!strcmp(featurestr, "tsc-freq")) {
                 int64_t tsc_freq;
                 char *err;
@@ -1666,10 +1675,10 @@ static void cpu_x86_parse_featurestr(X86CPU *cpu, char *features, Error **errp)
                                                STRTOSZ_DEFSUFFIX_B, 1000);
                 if (tsc_freq < 0 || *err) {
                     error_setg(errp, "bad numerical value %s", val);
-                    goto out;
+                    return;
                 }
                 snprintf(num, sizeof(num), "%" PRId64, tsc_freq);
-                object_property_parse(OBJECT(cpu), num, "tsc-frequency", errp);
+                object_property_parse(OBJECT(cpu), num, "tsc-frequency", &local_err);
             } else if (!strcmp(featurestr, "hv-spinlocks")) {
                 char *err;
                 const int min = 0xFFF;
@@ -1677,7 +1686,7 @@ static void cpu_x86_parse_featurestr(X86CPU *cpu, char *features, Error **errp)
                 numvalue = strtoul(val, &err, 0);
                 if (!*val || *err) {
                     error_setg(errp, "bad numerical value %s", val);
-                    goto out;
+                    return;
                 }
                 if (numvalue < min) {
                     fprintf(stderr, "hv-spinlocks value shall always be >= 0x%x"
@@ -1686,16 +1695,17 @@ static void cpu_x86_parse_featurestr(X86CPU *cpu, char *features, Error **errp)
                     numvalue = min;
                 }
                 snprintf(num, sizeof(num), "%" PRId32, numvalue);
-                object_property_parse(OBJECT(cpu), num, featurestr, errp);
+                object_property_parse(OBJECT(cpu), num, featurestr, &local_err);
             } else {
-                object_property_parse(OBJECT(cpu), val, featurestr, errp);
+                object_property_parse(OBJECT(cpu), val, featurestr, &local_err);
             }
         } else {
             feat2prop(featurestr);
-            object_property_parse(OBJECT(cpu), "on", featurestr, errp);
+            object_property_parse(OBJECT(cpu), "on", featurestr, &local_err);
         }
-        if (error_is_set(errp)) {
-            goto out;
+        if (local_err) {
+            error_propagate(errp, local_err);
+            return;
         }
         featurestr = strtok(NULL, ",");
     }
@@ -1715,9 +1725,6 @@ static void cpu_x86_parse_featurestr(X86CPU *cpu, char *features, Error **errp)
     env->features[FEAT_KVM] &= ~minus_features[FEAT_KVM];
     env->features[FEAT_SVM] &= ~minus_features[FEAT_SVM];
     env->features[FEAT_7_0_EBX] &= ~minus_features[FEAT_7_0_EBX];
-
-out:
-    return;
 }
 
 /* generate a composite string into buf of all cpuid names in featureset
