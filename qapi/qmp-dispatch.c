@@ -66,10 +66,10 @@ static QObject *do_qmp_dispatch(QObject *request, Error **errp)
     QDict *args, *dict;
     QmpCommand *cmd;
     QObject *ret = NULL;
-
+    Error *local_err = NULL;
 
     dict = qmp_dispatch_check_obj(request, errp);
-    if (!dict || error_is_set(errp)) {
+    if (!dict) {
         return NULL;
     }
 
@@ -93,13 +93,16 @@ static QObject *do_qmp_dispatch(QObject *request, Error **errp)
 
     switch (cmd->type) {
     case QCT_NORMAL:
-        cmd->fn(args, &ret, errp);
-        if (!error_is_set(errp)) {
-            if (cmd->options & QCO_NO_SUCCESS_RESP) {
-                g_assert(!ret);
-            } else if (!ret) {
-                ret = QOBJECT(qdict_new());
-            }
+        cmd->fn(args, &ret, &local_err);
+        if (local_err) {
+            error_propagate(errp, local_err);
+            break;
+        }
+
+        if (cmd->options & QCO_NO_SUCCESS_RESP) {
+            g_assert(!ret);
+        } else if (!ret) {
+            ret = QOBJECT(qdict_new());
         }
         break;
     }
