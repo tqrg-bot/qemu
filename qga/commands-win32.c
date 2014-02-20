@@ -31,9 +31,8 @@
 
 static void acquire_privilege(const char *name, Error **err)
 {
-    HANDLE token;
+    HANDLE token = INVALID_HANDLE;
     TOKEN_PRIVILEGES priv;
-    Error *local_err = NULL;
 
     if (error_is_set(err)) {
         return;
@@ -43,7 +42,7 @@ static void acquire_privilege(const char *name, Error **err)
         TOKEN_ADJUST_PRIVILEGES|TOKEN_QUERY, &token))
     {
         if (!LookupPrivilegeValue(NULL, name, &priv.Privileges[0].Luid)) {
-            error_set(&local_err, QERR_QGA_COMMAND_FAILED,
+            error_set(err, QERR_QGA_COMMAND_FAILED,
                       "no luid for requested privilege");
             goto out;
         }
@@ -52,35 +51,32 @@ static void acquire_privilege(const char *name, Error **err)
         priv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
 
         if (!AdjustTokenPrivileges(token, FALSE, &priv, 0, NULL, 0)) {
-            error_set(&local_err, QERR_QGA_COMMAND_FAILED,
+            error_set(err, QERR_QGA_COMMAND_FAILED,
                       "unable to acquire requested privilege");
-            goto out;
         }
 
-        CloseHandle(token);
     } else {
-        error_set(&local_err, QERR_QGA_COMMAND_FAILED,
+        error_set(err, QERR_QGA_COMMAND_FAILED,
                   "failed to open privilege token");
     }
 
 out:
-    if (local_err) {
-        error_propagate(err, local_err);
+    if (token != INVALID_HANDLE) {
+        CloseHandle(token);
     }
 }
 
 static void execute_async(DWORD WINAPI (*func)(LPVOID), LPVOID opaque, Error **err)
 {
-    Error *local_err = NULL;
+    HANDLE thread;
 
     if (error_is_set(err)) {
         return;
     }
-    HANDLE thread = CreateThread(NULL, 0, func, opaque, 0, NULL);
+    thread = CreateThread(NULL, 0, func, opaque, 0, NULL);
     if (!thread) {
-        error_set(&local_err, QERR_QGA_COMMAND_FAILED,
+        error_set(err, QERR_QGA_COMMAND_FAILED,
                   "failed to dispatch asynchronous command");
-        error_propagate(err, local_err);
     }
 }
 
@@ -259,39 +255,33 @@ typedef enum {
 static void check_suspend_mode(GuestSuspendMode mode, Error **err)
 {
     SYSTEM_POWER_CAPABILITIES sys_pwr_caps;
-    Error *local_err = NULL;
 
     if (error_is_set(err)) {
         return;
     }
     ZeroMemory(&sys_pwr_caps, sizeof(sys_pwr_caps));
     if (!GetPwrCapabilities(&sys_pwr_caps)) {
-        error_set(&local_err, QERR_QGA_COMMAND_FAILED,
+        error_set(err, QERR_QGA_COMMAND_FAILED,
                   "failed to determine guest suspend capabilities");
-        goto out;
+        return;
     }
 
     switch (mode) {
     case GUEST_SUSPEND_MODE_DISK:
         if (!sys_pwr_caps.SystemS4) {
-            error_set(&local_err, QERR_QGA_COMMAND_FAILED,
+            error_set(err, QERR_QGA_COMMAND_FAILED,
                       "suspend-to-disk not supported by OS");
         }
         break;
     case GUEST_SUSPEND_MODE_RAM:
         if (!sys_pwr_caps.SystemS3) {
-            error_set(&local_err, QERR_QGA_COMMAND_FAILED,
+            error_set(err, QERR_QGA_COMMAND_FAILED,
                       "suspend-to-ram not supported by OS");
         }
         break;
     default:
-        error_set(&local_err, QERR_INVALID_PARAMETER_VALUE, "mode",
+        error_set(err, QERR_INVALID_PARAMETER_VALUE, "mode",
                   "GuestSuspendMode");
-    }
-
-out:
-    if (local_err) {
-        error_propagate(err, local_err);
     }
 }
 
