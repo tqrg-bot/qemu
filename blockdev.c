@@ -1124,6 +1124,7 @@ static void internal_snapshot_prepare(BlkTransactionState *common,
     qemu_timeval tv;
     BlockdevSnapshotInternal *internal;
     InternalSnapshotState *state;
+    Error *local_err = NULL;
     int ret1;
 
     g_assert(common->action->kind ==
@@ -1164,10 +1165,12 @@ static void internal_snapshot_prepare(BlkTransactionState *common,
     }
 
     /* check whether a snapshot with name exist */
-    ret = bdrv_snapshot_find_by_id_and_name(bs, NULL, name, &old_sn, errp);
-    if (error_is_set(errp)) {
+    ret = bdrv_snapshot_find_by_id_and_name(bs, NULL, name, &old_sn, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
         return;
-    } else if (ret) {
+    }
+    if (ret) {
         error_setg(errp,
                    "Snapshot with name '%s' already exists on device '%s'",
                    name, device);

@@ -127,6 +127,7 @@ static void nbd_parse_filename(const char *filename, QDict *options,
     char *export_name;
     const char *host_spec;
     const char *unixpath;
+    Error *local_err = NULL;
 
     if (qdict_haskey(options, "host")
         || qdict_haskey(options, "port")
@@ -174,8 +175,9 @@ static void nbd_parse_filename(const char *filename, QDict *options,
     } else {
         InetSocketAddress *addr = NULL;
 
-        addr = inet_parse(host_spec, errp);
-        if (error_is_set(errp)) {
+        addr = inet_parse(host_spec, &local_err);
+        if (local_err) {
+            error_propagate(errp, local_err);
             goto out;
         }
 
