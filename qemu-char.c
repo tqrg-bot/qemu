@@ -3191,6 +3191,7 @@ CharDriverState *qemu_chr_new_from_opts(QemuOpts *opts,
                                     void (*init)(struct CharDriverState *s),
                                     Error **errp)
 {
+    Error *local_err = NULL;
     CharDriver *cd;
     CharDriverState *chr;
     GSList *i;
@@ -3232,13 +3233,15 @@ CharDriverState *qemu_chr_new_from_opts(QemuOpts *opts,
         chr = NULL;
         backend->kind = cd->kind;
         if (cd->parse) {
-            cd->parse(opts, backend, errp);
-            if (error_is_set(errp)) {
+            cd->parse(opts, backend, &local_err);
+            if (local_err) {
+                error_propagate(errp, local_err);
                 goto qapi_out;
             }
         }
-        ret = qmp_chardev_add(bid ? bid : id, backend, errp);
-        if (error_is_set(errp)) {
+        ret = qmp_chardev_add(bid ? bid : id, backend, &local_err);
+        if (local_err) {
+            error_propagate(errp, local_err);
             goto qapi_out;
         }
 
@@ -3249,8 +3252,9 @@ CharDriverState *qemu_chr_new_from_opts(QemuOpts *opts,
             backend->mux = g_new0(ChardevMux, 1);
             backend->kind = CHARDEV_BACKEND_KIND_MUX;
             backend->mux->chardev = g_strdup(bid);
-            ret = qmp_chardev_add(id, backend, errp);
-            if (error_is_set(errp)) {
+            ret = qmp_chardev_add(id, backend, &local_err);
+            if (local_err) {
+                error_propagate(errp, local_err);
                 chr = qemu_chr_find(bid);
                 qemu_chr_delete(chr);
                 chr = NULL;
@@ -3607,18 +3611,18 @@ static int qmp_chardev_open_file_source(char *src, int flags,
 
 static CharDriverState *qmp_chardev_open_file(ChardevFile *file, Error **errp)
 {
-    int flags, in = -1, out = -1;
+    int flags, in = -1, out;
 
     flags = O_WRONLY | O_TRUNC | O_CREAT | O_BINARY;
     out = qmp_chardev_open_file_source(file->out, flags, errp);
-    if (error_is_set(errp)) {
+    if (out == -1) {
         return NULL;
     }
 
     if (file->has_in) {
         flags = O_RDONLY;
         in = qmp_chardev_open_file_source(file->in, flags, errp);
-        if (error_is_set(errp)) {
+        if (in == -1) {
             qemu_close(out);
             return NULL;
         }
@@ -3634,7 +3638,7 @@ static CharDriverState *qmp_chardev_open_serial(ChardevHostdev *serial,
     int fd;
 
     fd = qmp_chardev_open_file_source(serial->device, O_RDWR, errp);
-    if (error_is_set(errp)) {
+    if (fd == -1) {
         return NULL;
     }
     qemu_set_nonblock(fd);
@@ -3652,7 +3656,7 @@ static CharDriverState *qmp_chardev_open_parallel(ChardevHostdev *parallel,
     int fd;
 
     fd = qmp_chardev_open_file_source(parallel->device, O_RDWR, errp);
-    if (error_is_set(errp)) {
+    if (fd == -1) {
         return NULL;
     }
     return qemu_chr_open_pp_fd(fd);
@@ -3679,7 +3683,7 @@ static CharDriverState *qmp_chardev_open_socket(ChardevSocket *sock,
     } else {
         fd = socket_connect(addr, errp, NULL, NULL);
     }
-    if (error_is_set(errp)) {
+    if (fd == -1) {
         return NULL;
     }
     return qemu_chr_open_socket_fd(fd, do_nodelay, is_listen,
@@ -3692,7 +3696,7 @@ static CharDriverState *qmp_chardev_open_udp(ChardevUdp *udp,
     int fd;
 
     fd = socket_dgram(udp->remote, udp->local, errp);
-    if (error_is_set(errp)) {
+    if (fd == -1) {
         return NULL;
     }
     return qemu_chr_open_udp_fd(fd);
@@ -3703,6 +3707,7 @@ ChardevReturn *qmp_chardev_add(const char *id, ChardevBackend *backend,
 {
     ChardevReturn *ret = g_new0(ChardevReturn, 1);
     CharDriverState *base, *chr = NULL;
+    Error *local_err = NULL;
 
     chr = qemu_chr_find(id);
     if (chr) {
@@ -3713,22 +3718,22 @@ ChardevReturn *qmp_chardev_add(const char *id, ChardevBackend *backend,
 
     switch (backend->kind) {
     case CHARDEV_BACKEND_KIND_FILE:
-        chr = qmp_chardev_open_file(backend->file, errp);
+        chr = qmp_chardev_open_file(backend->file, &local_err);
         break;
     case CHARDEV_BACKEND_KIND_SERIAL:
-        chr = qmp_chardev_open_serial(backend->serial, errp);
+        chr = qmp_chardev_open_serial(backend->serial, &local_err);
         break;
     case CHARDEV_BACKEND_KIND_PARALLEL:
-        chr = qmp_chardev_open_parallel(backend->parallel, errp);
+        chr = qmp_chardev_open_parallel(backend->parallel, &local_err);
         break;
     case CHARDEV_BACKEND_KIND_PIPE:
         chr = qemu_chr_open_pipe(backend->pipe);
         break;
     case CHARDEV_BACKEND_KIND_SOCKET:
-        chr = qmp_chardev_open_socket(backend->socket, errp);
+        chr = qmp_chardev_open_socket(backend->socket, &local_err);
         break;
     case CHARDEV_BACKEND_KIND_UDP:
-        chr = qmp_chardev_open_udp(backend->udp, errp);
+        chr = qmp_chardev_open_udp(backend->udp, &local_err);
         break;
 #ifdef HAVE_CHARDEV_TTY
     case CHARDEV_BACKEND_KIND_PTY:
@@ -3741,7 +3746,7 @@ ChardevReturn *qmp_chardev_add(const char *id, ChardevBackend *backend,
     case CHARDEV_BACKEND_KIND_MUX:
         base = qemu_chr_find(backend->mux->chardev);
         if (base == NULL) {
-            error_setg(errp, "mux: base chardev %s not found",
+            error_setg(&local_err, "mux: base chardev %s not found",
                        backend->mux->chardev);
             break;
         }
@@ -3776,15 +3781,15 @@ ChardevReturn *qmp_chardev_add(const char *id, ChardevBackend *backend,
         break;
     case CHARDEV_BACKEND_KIND_RINGBUF:
     case CHARDEV_BACKEND_KIND_MEMORY:
-        chr = qemu_chr_open_ringbuf(backend->ringbuf, errp);
+        chr = qemu_chr_open_ringbuf(backend->ringbuf, &local_err);
         break;
     default:
-        error_setg(errp, "unknown chardev backend (%d)", backend->kind);
+        error_setg(&local_err, "unknown chardev backend (%d)", backend->kind);
         break;
     }
 
-    if (chr == NULL && !error_is_set(errp)) {
-        error_setg(errp, "Failed to create chardev");
+    if (chr == NULL && !local_err) {
+        error_setg(&local_err, "Failed to create chardev");
     }
     if (chr) {
         chr->label = g_strdup(id);
@@ -3799,6 +3804,7 @@ ChardevReturn *qmp_chardev_add(const char *id, ChardevBackend *backend,
         QTAILQ_INSERT_TAIL(&chardevs, chr, next);
         return ret;
     } else {
+        error_propagate(errp, local_err);
         g_free(ret);
         return NULL;
     }
