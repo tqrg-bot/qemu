@@ -213,8 +213,8 @@ static int64_t guest_file_handle_add(FILE *fh, Error **errp)
     int64_t handle;
 
     handle = ga_get_fd_handle(ga_state, errp);
-    if (error_is_set(errp)) {
-        return 0;
+    if (handle < 0) {
+        return -1;
     }
 
     gfh = g_malloc0(sizeof(GuestFileHandle));
@@ -396,7 +396,7 @@ int64_t qmp_guest_file_open(const char *path, bool has_mode, const char *mode, E
     }
 
     handle = guest_file_handle_add(fh, err);
-    if (error_is_set(err)) {
+    if (handle < 0) {
         fclose(fh);
         return -1;
     }
@@ -1055,8 +1055,10 @@ out:
 
 void qmp_guest_suspend_disk(Error **err)
 {
+    Error *local_err = NULL;
     bios_supports_mode("pm-is-supported", "--hibernate", "disk", err);
-    if (error_is_set(err)) {
+    if (local_err) {
+        error_propagate(err, local_err);
         return;
     }
 
@@ -1065,8 +1067,10 @@ void qmp_guest_suspend_disk(Error **err)
 
 void qmp_guest_suspend_ram(Error **err)
 {
+    Error *local_err = NULL;
     bios_supports_mode("pm-is-supported", "--suspend", "mem", err);
-    if (error_is_set(err)) {
+    if (local_err) {
+        error_propagate(err, local_err);
         return;
     }
 
@@ -1075,8 +1079,10 @@ void qmp_guest_suspend_ram(Error **err)
 
 void qmp_guest_suspend_hybrid(Error **err)
 {
+    Error *local_err = NULL;
     bios_supports_mode("pm-is-supported", "--suspend-hybrid", NULL, err);
-    if (error_is_set(err)) {
+    if (local_err) {
+        error_propagate(err, local_err);
         return;
     }
 
