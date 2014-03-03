@@ -438,9 +438,6 @@ void cpu_watchpoint_remove_all(CPUArchState *env, int mask);
 
 /* memory API */
 
-/* RAM is pre-allocated and passed into qemu_ram_alloc_from_ptr */
-#define RAM_PREALLOC_MASK   (1 << 0)
-
 typedef struct RAMBlock {
     struct MemoryRegion *mr;
     uint8_t *host;
