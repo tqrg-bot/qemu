@@ -30,9 +30,12 @@
 #include "qapi-visit.h"
 #include "qapi/opts-visitor.h"
 #include "qapi/dealloc-visitor.h"
+#include "qapi/qmp-output-visitor.h"
+#include "qapi/qmp-input-visitor.h"
 #include "qapi/qmp/qerror.h"
 #include "hw/boards.h"
 #include "sysemu/hostmem.h"
+#include "qmp-commands.h"
 
 QemuOptsList qemu_numa_opts = {
     .name = "numa",
@@ -281,4 +284,66 @@ void memory_region_allocate_system_memory(MemoryRegion *mr, Object *owner,
         vmstate_register_ram_global(seg);
         addr += size;
     }
+}
+
+MemdevList *qmp_query_memdev(Error **errp)
+{
+    QmpOutputVisitor *ov;
+    QmpInputVisitor *iv;
+    QObject *obj;
+    MemdevList *list = NULL, *m;
+    HostMemoryBackend *backend;
+    Error *err = NULL;
+    int i;
+
+    for (i = 0; i < nb_numa_nodes; i++) {
+        backend = numa_info[i].node_memdev;
+
+        m = g_malloc0(sizeof(*m));
+        m->value = g_malloc0(sizeof(*m->value));
+        m->value->size = object_property_get_int(OBJECT(backend), "size",
+                                                 &err);
+        if (err) {
+            goto error;
+        }
+        m->value->policy = object_property_get_str(OBJECT(backend), "policy",
+                                                   &err);
+        if (err) {
+            goto error;
+        }
+
+        ov = qmp_output_visitor_new();
+        object_property_get(OBJECT(backend), qmp_output_get_visitor(ov),
+                            "host-nodes", &err);
+        if (err) {
+            qmp_output_visitor_cleanup(ov);
+            goto error;
+        }
+        obj = qmp_output_get_qobject(ov);
+        qmp_output_visitor_cleanup(ov);
+
+        iv = qmp_input_visitor_new(obj);
+        qobject_decref(obj);
+        visit_type_uint16List(qmp_input_get_visitor(iv),
+                              &m->value->host_nodes, NULL, &err);
+        qmp_input_visitor_cleanup(iv);
+        if (err) {
+            goto error;
+        }
+
+        m->next = list;
+        list = m;
+    }
+
+    return list;
+
+error:
+    while (list) {
+        m = list;
+        list = list->next;
+        g_free(m->value);
+        g_free(m);
+    }
+    qerror_report_err(err);
+    return NULL;
 }
