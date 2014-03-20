@@ -1736,8 +1736,10 @@ static inline bool arm_singlestep_active(CPUARMState *env)
  */
 #define ARM_TBFLAG_AARCH64_STATE_SHIFT 31
 #define ARM_TBFLAG_AARCH64_STATE_MASK  (1U << ARM_TBFLAG_AARCH64_STATE_SHIFT)
-#define ARM_TBFLAG_MMUIDX_SHIFT 28
-#define ARM_TBFLAG_MMUIDX_MASK (0x7 << ARM_TBFLAG_MMUIDX_SHIFT)
+#define ARM_TBFLAG_MMUIDX_SHIFT        28
+#define ARM_TBFLAG_MMUIDX_MASK         (0x7 << ARM_TBFLAG_MMUIDX_SHIFT)
+#define ARM_TBFLAG_BE8_SHIFT           27
+#define ARM_TBFLAG_BE8_MASK            (1 << ARM_TBFLAG_BE8_SHIFT)
 
 /* Bit usage when in AArch32 state: */
 #define ARM_TBFLAG_THUMB_SHIFT      0
@@ -1783,6 +1785,8 @@ static inline bool arm_singlestep_active(CPUARMState *env)
     (((F) & ARM_TBFLAG_AARCH64_STATE_MASK) >> ARM_TBFLAG_AARCH64_STATE_SHIFT)
 #define ARM_TBFLAG_MMUIDX(F) \
     (((F) & ARM_TBFLAG_MMUIDX_MASK) >> ARM_TBFLAG_MMUIDX_SHIFT)
+#define ARM_TBFLAG_BE8(F) \
+    (((F) & ARM_TBFLAG_BE8_MASK) >> ARM_TBFLAG_BE8_SHIFT)
 #define ARM_TBFLAG_THUMB(F) \
     (((F) & ARM_TBFLAG_THUMB_MASK) >> ARM_TBFLAG_THUMB_SHIFT)
 #define ARM_TBFLAG_VECLEN(F) \
@@ -1811,6 +1815,15 @@ static inline bool arm_singlestep_active(CPUARMState *env)
     (((F) & ARM_TBFLAG_AA64_PSTATE_SS_MASK) >> ARM_TBFLAG_AA64_PSTATE_SS_SHIFT)
 #define ARM_TBFLAG_NS(F) \
     (((F) & ARM_TBFLAG_NS_MASK) >> ARM_TBFLAG_NS_SHIFT)
+
+static inline bool arm_tbflag_is_data_be(uint32_t tbflag)
+{
+    return
+#ifdef CONFIG_USER_ONLY
+        ARM_TBFLAG_SCTLR_B(tbflag) ^
+#endif
+        ARM_TBFLAG_BE8(tbflag);
+}
 
 static inline bool arm_sctlr_b(CPUARMState *env)
 {
@@ -1958,6 +1971,9 @@ static inline void cpu_get_tb_cpu_state(CPUARMState *env, target_ulong *pc,
         }
         *flags |= (extract32(env->cp15.c15_cpar, 0, 2)
                    << ARM_TBFLAG_XSCALE_CPAR_SHIFT);
+        if (arm_env_is_big_endian(env)) {
+            *flags |= ARM_TBFLAG_BE8_MASK;
+        }
     }
 
     *flags |= (cpu_mmu_index(env) << ARM_TBFLAG_MMUIDX_SHIFT);
