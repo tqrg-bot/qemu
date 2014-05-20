@@ -1254,7 +1254,13 @@ static inline void cpu_load_efer(CPUX86State *env, uint64_t val)
 }
 
 /* fpu_helper.c */
-void cpu_set_mxcsr(CPUX86State *env, uint32_t val);
+void tcg_update_mxcsr(CPUX86State *env);
+
+static inline void cpu_set_mxcsr(CPUX86State *env, uint32_t mxcsr)
+{
+    env->mxcsr = mxcsr;
+    tcg_update_mcsr(env);
+}
 
 /* svm_helper.c */
 void cpu_svm_check_intercept_param(CPUX86State *env1, uint32_t type,

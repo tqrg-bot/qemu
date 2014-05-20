@@ -1211,11 +1211,10 @@ void helper_fxrstor(CPUX86State *env, target_ulong ptr, int data64)
 #define SSE_RC_CHOP         0x6000
 #define SSE_FZ              0x8000
 
-void cpu_set_mxcsr(CPUX86State *env, uint32_t mxcsr)
+void tcg_update_mxcsr(CPUX86State *env)
 {
+    uint32_t mxcsr = env->mxcsr;
     int rnd_type;
-
-    env->mxcsr = mxcsr;
 
     /* set rounding mode */
     switch (mxcsr & SSE_RC_MASK) {
