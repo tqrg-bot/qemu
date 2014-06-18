@@ -91,6 +91,12 @@
 static QTAILQ_HEAD(CharDriverStateHead, CharDriverState) chardevs =
     QTAILQ_HEAD_INITIALIZER(chardevs);
 
+CharDriverState *qemu_chr_alloc(void)
+{
+    CharDriverState *chr = g_malloc0(sizeof(CharDriverState));
+    return chr;
+}
+
 void qemu_chr_be_event(CharDriverState *s, int event)
 {
     /* Keep track if the char device is open */
@@ -236,7 +242,7 @@ static CharDriverState *qemu_chr_open_null(void)
 {
     CharDriverState *chr;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     chr->chr_write = null_chr_write;
     chr->explicit_be_open = true;
     return chr;
@@ -524,7 +530,7 @@ static CharDriverState *qemu_chr_open_mux(CharDriverState *drv)
     CharDriverState *chr;
     MuxDriver *d;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     d = g_malloc0(sizeof(MuxDriver));
 
     chr->opaque = d;
@@ -899,7 +905,7 @@ static CharDriverState *qemu_chr_open_fd(int fd_in, int fd_out)
     CharDriverState *chr;
     FDCharDriver *s;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     s = g_malloc0(sizeof(FDCharDriver));
     s->fd_in = io_channel_from_fd(fd_in);
     s->fd_out = io_channel_from_fd(fd_out);
@@ -1176,7 +1182,7 @@ static CharDriverState *qemu_chr_open_pty(const char *id,
 
     close(slave_fd);
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
 
     chr->filename = g_strdup_printf("pty:%s", pty_name);
     ret->pty = g_strdup(pty_name);
@@ -1538,7 +1544,7 @@ static CharDriverState *qemu_chr_open_pp_fd(int fd)
     drv->fd = fd;
     drv->mode = IEEE1284_MODE_COMPAT;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     chr->chr_write = null_chr_write;
     chr->chr_ioctl = pp_ioctl;
     chr->chr_close = pp_close;
@@ -1593,7 +1599,7 @@ static CharDriverState *qemu_chr_open_pp_fd(int fd)
 {
     CharDriverState *chr;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     chr->opaque = (void *)(intptr_t)fd;
     chr->chr_write = null_chr_write;
     chr->chr_ioctl = pp_ioctl;
@@ -1817,7 +1823,7 @@ static CharDriverState *qemu_chr_open_win_path(const char *filename)
     CharDriverState *chr;
     WinCharState *s;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     s = g_malloc0(sizeof(WinCharState));
     chr->opaque = s;
     chr->chr_write = win_chr_write;
@@ -1916,7 +1922,7 @@ static CharDriverState *qemu_chr_open_pipe(ChardevHostdev *opts)
     CharDriverState *chr;
     WinCharState *s;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     s = g_malloc0(sizeof(WinCharState));
     chr->opaque = s;
     chr->chr_write = win_chr_write;
@@ -1935,7 +1941,7 @@ static CharDriverState *qemu_chr_open_win_file(HANDLE fd_out)
     CharDriverState *chr;
     WinCharState *s;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     s = g_malloc0(sizeof(WinCharState));
     s->hcom = fd_out;
     chr->opaque = s;
@@ -2091,7 +2097,7 @@ static CharDriverState *qemu_chr_open_stdio(ChardevStdio *opts)
     DWORD              dwMode;
     int                is_console = 0;
 
-    chr   = g_malloc0(sizeof(CharDriverState));
+    chr   = qemu_chr_alloc();
     stdio = g_malloc0(sizeof(WinStdioCharState));
 
     stdio->hStdIn = GetStdHandle(STD_INPUT_HANDLE);
@@ -2253,7 +2259,7 @@ static CharDriverState *qemu_chr_open_udp_fd(int fd)
     CharDriverState *chr = NULL;
     NetCharDriver *s = NULL;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     s = g_malloc0(sizeof(NetCharDriver));
 
     s->fd = fd;
@@ -2643,7 +2649,7 @@ static CharDriverState *qemu_chr_open_socket_fd(int fd, bool do_nodelay,
         return NULL;
     }
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     s = g_malloc0(sizeof(TCPCharDriver));
 
     s->connected = 0;
@@ -2828,7 +2834,7 @@ static CharDriverState *qemu_chr_open_ringbuf(ChardevRingbuf *opts,
     CharDriverState *chr;
     RingBufCharDriver *d;
 
-    chr = g_malloc0(sizeof(CharDriverState));
+    chr = qemu_chr_alloc();
     d = g_malloc(sizeof(*d));
 
     d->size = opts->has_size ? opts->size : 65536;
