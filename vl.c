@@ -117,6 +117,7 @@ int main(int argc, char **argv)
 #include "ui/qemu-spice.h"
 #include "qapi/string-input-visitor.h"
 #include "qom/object_interfaces.h"
+#include "qapi-event.h"
 
 #define DEFAULT_RAM_SIZE 128
 
@@ -2028,7 +2029,7 @@ static bool main_loop_should_exit(void)
     }
     if (qemu_shutdown_requested()) {
         qemu_kill_report();
-        monitor_protocol_event(QEVENT_SHUTDOWN, NULL);
+        qapi_event_send_shutdown(&error_abort);
         if (no_shutdown) {
             vm_stop(RUN_STATE_SHUTDOWN);
         } else {
