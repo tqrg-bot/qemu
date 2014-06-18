@@ -24,7 +24,6 @@
 #include "config-host.h"
 #include "qemu-common.h"
 #include "trace.h"
-#include "monitor/monitor.h"
 #include "block/block_int.h"
 #include "block/blockjob.h"
 #include "qemu/module.h"
@@ -2133,36 +2132,6 @@ void bdrv_set_dev_ops(BlockDriverState *bs, const BlockDevOps *ops,
     bs->dev_opaque = opaque;
 }
 
-void bdrv_emit_qmp_error_event(const BlockDriverState *bdrv,
-                               enum MonitorEvent ev,
-                               BlockErrorAction action, bool is_read)
-{
-    QObject *data;
-    const char *action_str;
-
-    switch (action) {
-    case BLOCK_ERROR_ACTION_REPORT:
-        action_str = "report";
-        break;
-    case BLOCK_ERROR_ACTION_IGNORE:
-        action_str = "ignore";
-        break;
-    case BLOCK_ERROR_ACTION_STOP:
-        action_str = "stop";
-        break;
-    default:
-        abort();
-    }
-
-    data = qobject_from_jsonf("{ 'device': %s, 'action': %s, 'operation': %s }",
-                              bdrv->device_name,
-                              action_str,
-                              is_read ? "read" : "write");
-    monitor_protocol_event(ev, data);
-
-    qobject_decref(data);
-}
-
 static void bdrv_dev_change_media_cb(BlockDriverState *bs, bool load)
 {
     if (bs->dev_ops && bs->dev_ops->change_media_cb) {
@@ -3619,7 +3588,10 @@ void bdrv_error_action(BlockDriverState *bs, BlockErrorAction action,
                        bool is_read, int error)
 {
     assert(error >= 0);
-    bdrv_emit_qmp_error_event(bs, QEVENT_BLOCK_IO_ERROR, action, is_read);
+    qapi_event_send_block_io_error(bdrv_get_device_name(bs),
+                                   is_read ? IO_OPERATION_TYPE_READ :
+                                   IO_OPERATION_TYPE_WRITE,
+                                   action, &error_abort);
     if (action == BLOCK_ERROR_ACTION_STOP) {
         vm_stop(RUN_STATE_IO_ERROR);
         bdrv_iostatus_set_err(bs, error);
