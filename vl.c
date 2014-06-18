@@ -1667,7 +1667,7 @@ void vm_start(void)
         runstate_set(RUN_STATE_RUNNING);
         vm_state_notify(1, RUN_STATE_RUNNING);
         resume_all_vcpus();
-        monitor_protocol_event(QEVENT_RESUME, NULL);
+        qapi_event_send_resume(&error_abort);
     }
 }
 
