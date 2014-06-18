@@ -32,8 +32,8 @@
 #include "qapi/qmp/qerror.h"
 #include "qapi/visitor.h"
 #include "qapi/qmp/qjson.h"
-#include "monitor/monitor.h"
 #include "hw/hotplug.h"
+#include "qapi-event.h"
 
 int qdev_hotplug = 0;
 static bool qdev_hot_added = false;
@@ -939,7 +939,6 @@ static void device_unparent(Object *obj)
 {
     DeviceState *dev = DEVICE(obj);
     BusState *bus;
-    QObject *event_data;
     bool have_realized = dev->realized;
 
     if (dev->realized) {
@@ -959,14 +958,7 @@ static void device_unparent(Object *obj)
     if (have_realized) {
         gchar *path = object_get_canonical_path(OBJECT(dev));
 
-        if (dev->id) {
-            event_data = qobject_from_jsonf("{ 'device': %s, 'path': %s }",
-                                            dev->id, path);
-        } else {
-            event_data = qobject_from_jsonf("{ 'path': %s }", path);
-        }
-        monitor_protocol_event(QEVENT_DEVICE_DELETED, event_data);
-        qobject_decref(event_data);
+        qapi_event_send_device_deleted(!!dev->id, dev->id, path, &error_abort);
         g_free(path);
     }
 }
