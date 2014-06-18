@@ -3140,3 +3140,5 @@
               'btn'     : 'InputBtnEvent',
               'rel'     : 'InputMoveEvent',
               'abs'     : 'InputMoveEvent' } }
+
+{ 'include': 'qapi-event.json' }
