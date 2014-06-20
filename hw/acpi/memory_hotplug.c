@@ -3,6 +3,7 @@
 #include "hw/mem/pc-dimm.h"
 #include "hw/boards.h"
 #include "trace.h"
+#include "qapi-event.h"
 
 static ACPIOSTInfo *acpi_memory_device_status(int slot, MemStatus *mdev)
 {
@@ -88,6 +89,7 @@ static void acpi_memory_hotplug_write(void *opaque, hwaddr addr, uint64_t data,
 {
     MemHotplugState *mem_st = opaque;
     MemStatus *mdev;
+    ACPIOSTInfo *info;
 
     if (!mem_st->dev_count) {
         return;
@@ -119,8 +121,11 @@ static void acpi_memory_hotplug_write(void *opaque, hwaddr addr, uint64_t data,
         mdev = &mem_st->devs[mem_st->selector];
         mdev->ost_status = data;
         trace_mhp_acpi_write_ost_status(mem_st->selector, mdev->ost_status);
-        /* TODO: report async error */
         /* TODO: implement memory removal on guest signal */
+
+        info = acpi_memory_device_status(mem_st->selector, mdev);
+        qapi_event_send_acpi_device_ost(info, &error_abort);
+        qapi_free_ACPIOSTInfo(info);
         break;
     case 0x14:
         mdev = &mem_st->devs[mem_st->selector];

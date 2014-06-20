@@ -304,3 +304,13 @@
 { 'event': 'QUORUM_REPORT_BAD',
   'data': { '*error': 'str', 'node-name': 'str',
             'sector-num': 'int', 'sector-count': 'int' } }
+
+## @ACPI_DEVICE_OST
+#
+# Emitted when the guest executes the ACPI _OST method.
+# For the description of data, see @ACPIOSTInfo.
+#
+# Since: 2.1
+##
+{ 'event': 'ACPI_DEVICE_OST',
+     'data': { 'info': 'ACPIOSTInfo' } }
