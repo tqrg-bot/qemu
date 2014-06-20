@@ -4,6 +4,7 @@
 #include "hw/boards.h"
 #include "trace.h"
 #include "qapi-visit.h"
+#include "qapi-event.h"
 #include "monitor/monitor.h"
 #include "qapi/dealloc-visitor.h"
 #include "qapi/qmp-output-visitor.h"
@@ -41,25 +42,18 @@ void acpi_memory_ospm_status(MemHotplugState *mem_st, ACPIOSTInfoList ***list)
 
 static void acpi_memory_ost_mon_event(const MemHotplugState *mem_st)
 {
-    Visitor *v;
-    QObject *out_info;
-    QapiDeallocVisitor *md;
-    QmpOutputVisitor *mo = qmp_output_visitor_new();
     MemStatus *mdev = &mem_st->devs[mem_st->selector];
     ACPIOSTInfo *info = acpi_memory_device_status(mem_st->selector, mdev);
 
-    v = qmp_output_get_visitor(mo);
-    visit_type_ACPIOSTInfo(v, &info, "unused", NULL);
+    /* QAPI event declarations support struct names in the 'data',
+     * field, but we have to list all the fields of ACPIOSTInfo.
+     */
+    qapi_event_send_acpi_device_ost(info->has_device, info->device,
+                                    info->slot, info->slot_type,
+                                    info->source, info->status,
+                                    NULL);
 
-    out_info = qmp_output_get_qobject(mo);
-    monitor_protocol_event(QEVENT_ACPI_OST, out_info);
-    qobject_decref(out_info);
-
-    qmp_output_visitor_cleanup(mo);
-    md = qapi_dealloc_visitor_new();
-    v = qapi_dealloc_get_visitor(md);
-    visit_type_ACPIOSTInfo(v, &info, "unused", NULL);
-    qapi_dealloc_visitor_cleanup(md);
+    qapi_free_ACPIOSTInfo(info);
 }
 
 static uint64_t acpi_memory_hotplug_read(void *opaque, hwaddr addr,

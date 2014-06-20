@@ -24,7 +24,6 @@
 #include "config-host.h"
 #include "qemu-common.h"
 #include "trace.h"
-#include "monitor/monitor.h"
 #include "block/block_int.h"
 #include "block/blockjob.h"
 #include "qemu/module.h"
@@ -35,6 +34,7 @@
 #include "block/qapi.h"
 #include "qmp-commands.h"
 #include "qemu/timer.h"
+#include "qapi-event.h"
 
 #ifdef CONFIG_BSD
 #include <sys/types.h>
@@ -2132,47 +2132,6 @@ void bdrv_set_dev_ops(BlockDriverState *bs, const BlockDevOps *ops,
     bs->dev_opaque = opaque;
 }
 
-void bdrv_emit_qmp_error_event(const BlockDriverState *bdrv,
-                               enum MonitorEvent ev,
-                               BlockErrorAction action, bool is_read)
-{
-    QObject *data;
-    const char *action_str;
-
-    switch (action) {
-    case BDRV_ACTION_REPORT:
-        action_str = "report";
-        break;
-    case BDRV_ACTION_IGNORE:
-        action_str = "ignore";
-        break;
-    case BDRV_ACTION_STOP:
-        action_str = "stop";
-        break;
-    default:
-        abort();
-    }
-
-    data = qobject_from_jsonf("{ 'device': %s, 'action': %s, 'operation': %s }",
-                              bdrv->device_name,
-                              action_str,
-                              is_read ? "read" : "write");
-    monitor_protocol_event(ev, data);
-
-    qobject_decref(data);
-}
-
-static void bdrv_emit_qmp_eject_event(BlockDriverState *bs, bool ejected)
-{
-    QObject *data;
-
-    data = qobject_from_jsonf("{ 'device': %s, 'tray-open': %i }",
-                              bdrv_get_device_name(bs), ejected);
-    monitor_protocol_event(QEVENT_DEVICE_TRAY_MOVED, data);
-
-    qobject_decref(data);
-}
-
 static void bdrv_dev_change_media_cb(BlockDriverState *bs, bool load)
 {
     if (bs->dev_ops && bs->dev_ops->change_media_cb) {
@@ -2180,11 +2139,13 @@ static void bdrv_dev_change_media_cb(BlockDriverState *bs, bool load)
         bs->dev_ops->change_media_cb(bs->dev_opaque, load);
         if (tray_was_closed) {
             /* tray open */
-            bdrv_emit_qmp_eject_event(bs, true);
+            qapi_event_send_device_tray_moved(bdrv_get_device_name(bs),
+                                              true, &error_abort);
         }
         if (load) {
             /* tray close */
-            bdrv_emit_qmp_eject_event(bs, false);
+            qapi_event_send_device_tray_moved(bdrv_get_device_name(bs),
+                                              false, &error_abort);
         }
     }
 }
@@ -3606,13 +3567,14 @@ BlockErrorAction bdrv_get_error_action(BlockDriverState *bs, bool is_read, int e
 
     switch (on_err) {
     case BLOCKDEV_ON_ERROR_ENOSPC:
-        return (error == ENOSPC) ? BDRV_ACTION_STOP : BDRV_ACTION_REPORT;
+        return (error == ENOSPC) ?
+               BLOCK_ERROR_ACTION_STOP : BLOCK_ERROR_ACTION_REPORT;
     case BLOCKDEV_ON_ERROR_STOP:
-        return BDRV_ACTION_STOP;
+        return BLOCK_ERROR_ACTION_STOP;
     case BLOCKDEV_ON_ERROR_REPORT:
-        return BDRV_ACTION_REPORT;
+        return BLOCK_ERROR_ACTION_REPORT;
     case BLOCKDEV_ON_ERROR_IGNORE:
-        return BDRV_ACTION_IGNORE;
+        return BLOCK_ERROR_ACTION_IGNORE;
     default:
         abort();
     }
@@ -3626,8 +3588,11 @@ void bdrv_error_action(BlockDriverState *bs, BlockErrorAction action,
                        bool is_read, int error)
 {
     assert(error >= 0);
-    bdrv_emit_qmp_error_event(bs, QEVENT_BLOCK_IO_ERROR, action, is_read);
-    if (action == BDRV_ACTION_STOP) {
+    qapi_event_send_block_io_error(bdrv_get_device_name(bs),
+                                   is_read ? IO_OPERATION_TYPE_READ :
+                                   IO_OPERATION_TYPE_WRITE,
+                                   action, &error_abort);
+    if (action == BLOCK_ERROR_ACTION_STOP) {
         vm_stop(RUN_STATE_IO_ERROR);
         bdrv_iostatus_set_err(bs, error);
     }
@@ -5199,7 +5164,8 @@ void bdrv_eject(BlockDriverState *bs, bool eject_flag)
     }
 
     if (bs->device_name[0] != '\0') {
-        bdrv_emit_qmp_eject_event(bs, eject_flag);
+        qapi_event_send_device_tray_moved(bdrv_get_device_name(bs),
+                                          eject_flag, &error_abort);
     }
 }
 
