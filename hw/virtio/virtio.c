@@ -1098,8 +1098,15 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 void virtio_cleanup(VirtIODevice *vdev)
 {
     qemu_del_vm_change_state_handler(vdev->vmstate);
+}
+
+void virtio_instance_finalize(Object *obj)
+{
+    VirtIODevice *vdev = VIRTIO_DEVICE(obj);
+
     g_free(vdev->config);
     g_free(vdev->vq);
+    g_free(vdev->bus_name);
 }
 
 static void virtio_vmstate_change(void *opaque, int running, RunState state)
@@ -1315,9 +1322,6 @@ static void virtio_device_unrealize(DeviceState *dev, Error **errp)
             return;
         }
     }
-
-    g_free(vdev->bus_name);
-    vdev->bus_name = NULL;
 }
 
 static void virtio_device_class_init(ObjectClass *klass, void *data)
@@ -1337,6 +1341,7 @@ static const TypeInfo virtio_device_info = {
     .class_init = virtio_device_class_init,
     .abstract = true,
     .class_size = sizeof(VirtioDeviceClass),
+    .instance_finalize = virtio_instance_finalize,
 };
 
 static void virtio_register_types(void)
