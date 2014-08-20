@@ -1831,7 +1831,6 @@ int xen_pt_config_init(XenPCIPassthroughState *s)
                                                   reg_grp_offset,
                                                   &reg_grp_entry->size);
             if (rc < 0) {
-                xen_pt_config_delete(s);
                 return rc;
             }
         }
@@ -1845,7 +1844,6 @@ int xen_pt_config_init(XenPCIPassthroughState *s)
                     /* initialize capability register */
                     rc = xen_pt_config_reg_init(s, reg_grp_entry, regs);
                     if (rc < 0) {
-                        xen_pt_config_delete(s);
                         return rc;
                     }
                 }
@@ -1856,16 +1854,13 @@ int xen_pt_config_init(XenPCIPassthroughState *s)
     return 0;
 }
 
-/* delete all emulate register */
-void xen_pt_config_delete(XenPCIPassthroughState *s)
+/* free all emulate register */
+void xen_pt_config_free(XenPCIPassthroughState *s)
 {
     struct XenPTRegGroup *reg_group, *next_grp;
     struct XenPTReg *reg, *next_reg;
 
     /* free MSI/MSI-X info table */
-    if (s->msix) {
-        xen_pt_msix_delete(s);
-    }
     if (s->msi) {
         g_free(s->msi);
     }

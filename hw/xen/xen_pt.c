@@ -788,8 +788,17 @@ static void xen_pt_unregister_device(PCIDevice *d)
         }
     }
 
-    /* delete all emulated config registers */
-    xen_pt_config_delete(s);
+    xen_pt_msix_delete(s);
+}
+
+static void xen_pt_instance_finalize(Object *obj)
+{
+    PCIDevice *d = PCI_DEVICE(obj);
+    XenPCIPassthroughState *s = DO_UPCAST(XenPCIPassthroughState, dev, d);
+
+    /* free all emulated config registers */
+    xen_pt_msix_free(s);
+    xen_pt_config_free(s);
 
     memory_listener_unregister(&s->memory_listener);
     memory_listener_unregister(&s->io_listener);
@@ -821,6 +830,7 @@ static const TypeInfo xen_pci_passthrough_info = {
     .parent = TYPE_PCI_DEVICE,
     .instance_size = sizeof(XenPCIPassthroughState),
     .class_init = xen_pci_passthrough_class_init,
+    .instance_finalize = xen_pt_instance_finalize,
 };
 
 static void xen_pci_passthrough_register_types(void)

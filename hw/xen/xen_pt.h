@@ -213,7 +213,7 @@ struct XenPCIPassthroughState {
 };
 
 int xen_pt_config_init(XenPCIPassthroughState *s);
-void xen_pt_config_delete(XenPCIPassthroughState *s);
+void xen_pt_config_free(XenPCIPassthroughState *s);
 XenPTRegGroup *xen_pt_find_reg_grp(XenPCIPassthroughState *s, uint32_t address);
 XenPTReg *xen_pt_find_reg(XenPTRegGroup *reg_grp, uint32_t address);
 int xen_pt_bar_offset_to_index(uint32_t offset);
@@ -289,6 +289,7 @@ void xen_pt_msi_disable(XenPCIPassthroughState *s);
 
 int xen_pt_msix_init(XenPCIPassthroughState *s, uint32_t base);
 void xen_pt_msix_delete(XenPCIPassthroughState *s);
+void xen_pt_msix_free(XenPCIPassthroughState *s);
 int xen_pt_msix_update(XenPCIPassthroughState *s);
 int xen_pt_msix_update_remap(XenPCIPassthroughState *s, int bar_index);
 void xen_pt_msix_disable(XenPCIPassthroughState *s);
