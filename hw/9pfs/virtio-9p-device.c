@@ -133,7 +133,6 @@ static void virtio_9p_device_realize(DeviceState *dev, Error **errp)
 out:
     g_free(s->ctx.fs_root);
     g_free(s->tag);
-    virtio_cleanup(vdev);
     v9fs_path_free(&path);
 }
 

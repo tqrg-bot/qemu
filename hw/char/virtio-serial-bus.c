@@ -1052,7 +1052,6 @@ static void virtio_serial_device_unrealize(DeviceState *dev, Error **errp)
         timer_free(vser->post_load->timer);
         g_free(vser->post_load);
     }
-    virtio_cleanup(vdev);
 }
 
 static Property virtio_serial_properties[] = {

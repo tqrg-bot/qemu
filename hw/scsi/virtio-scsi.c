@@ -749,7 +749,6 @@ void virtio_scsi_common_unrealize(DeviceState *dev, Error **errp)
     VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(dev);
 
     g_free(vs->cmd_vqs);
-    virtio_cleanup(vdev);
 }
 
 static void virtio_scsi_device_unrealize(DeviceState *dev, Error **errp)

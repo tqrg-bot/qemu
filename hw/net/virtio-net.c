@@ -1681,7 +1681,6 @@ static void virtio_net_device_unrealize(DeviceState *dev, Error **errp)
     timer_free(n->announce_timer);
     g_free(n->vqs);
     qemu_del_nic(n->nic);
-    virtio_cleanup(vdev);
 }
 
 static void virtio_net_instance_init(Object *obj)

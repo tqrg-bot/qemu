@@ -213,7 +213,6 @@ static void virtio_rng_device_unrealize(DeviceState *dev, Error **errp)
     timer_del(vrng->rate_limit_timer);
     timer_free(vrng->rate_limit_timer);
     unregister_savevm(dev, "virtio-rng", vrng);
-    virtio_cleanup(vdev);
 }
 
 static Property virtio_rng_properties[] = {

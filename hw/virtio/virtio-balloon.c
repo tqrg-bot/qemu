@@ -370,7 +370,6 @@ static void virtio_balloon_device_realize(DeviceState *dev, Error **errp)
 
     if (ret < 0) {
         error_setg(errp, "Adding balloon handler failed");
-        virtio_cleanup(vdev);
         return;
     }
 
@@ -400,7 +399,6 @@ static void virtio_balloon_device_unrealize(DeviceState *dev, Error **errp)
     balloon_stats_destroy_timer(s);
     qemu_remove_balloon_handler(s);
     unregister_savevm(dev, "virtio-balloon", s);
-    virtio_cleanup(vdev);
 }
 
 static Property virtio_balloon_properties[] = {

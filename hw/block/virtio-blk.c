@@ -763,7 +763,6 @@ static void virtio_blk_device_realize(DeviceState *dev, Error **errp)
     virtio_blk_data_plane_create(vdev, blk, &s->dataplane, &err);
     if (err != NULL) {
         error_propagate(errp, err);
-        virtio_cleanup(vdev);
         return;
     }
     s->migration_state_notifier.notify = virtio_blk_migration_state_changed;
@@ -794,7 +793,6 @@ static void virtio_blk_device_unrealize(DeviceState *dev, Error **errp)
     qemu_del_vm_change_state_handler(s->change);
     unregister_savevm(dev, "virtio-blk", s);
     blockdev_mark_auto_del(s->bs);
-    virtio_cleanup(vdev);
 }
 
 static void virtio_blk_instance_init(Object *obj)

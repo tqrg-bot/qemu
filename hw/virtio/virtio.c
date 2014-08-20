@@ -1095,11 +1095,6 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
     return 0;
 }
 
-void virtio_cleanup(VirtIODevice *vdev)
-{
-    qemu_del_vm_change_state_handler(vdev->vmstate);
-}
-
 void virtio_instance_finalize(Object *obj)
 {
     VirtIODevice *vdev = VIRTIO_DEVICE(obj);
@@ -1154,8 +1149,6 @@ void virtio_init(VirtIODevice *vdev, const char *name,
     } else {
         vdev->config = NULL;
     }
-    vdev->vmstate = qemu_add_vm_change_state_handler(virtio_vmstate_change,
-                                                     vdev);
     vdev->device_endian = virtio_default_endian();
 }
 
@@ -1305,6 +1298,8 @@ static void virtio_device_realize(DeviceState *dev, Error **errp)
         }
     }
     virtio_bus_device_plugged(vdev);
+    vdev->vmstate = qemu_add_vm_change_state_handler(virtio_vmstate_change,
+                                                     vdev);
 }
 
 static void virtio_device_unrealize(DeviceState *dev, Error **errp)
@@ -1314,6 +1309,7 @@ static void virtio_device_unrealize(DeviceState *dev, Error **errp)
     Error *err = NULL;
 
     virtio_bus_device_unplugged(vdev);
+    qemu_del_vm_change_state_handler(vdev->vmstate);
 
     if (vdc->unrealize != NULL) {
         vdc->unrealize(dev, &err);
