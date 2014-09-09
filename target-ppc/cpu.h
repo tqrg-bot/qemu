@@ -1197,6 +1197,26 @@ void ppc_tlb_invalidate_one (CPUPPCState *env, target_ulong addr);
 
 void store_fpscr(CPUPPCState *env, uint64_t arg, uint32_t mask);
 
+static inline uint32_t ppc_get_cr(const CPUPPCState *env)
+{
+    uint32_t cr = 0;
+    int i;
+
+    for (i = 0; i < ARRAY_SIZE(env->crf); i++) {
+        cr |= env->crf[i] << (32 - ((i + 1) * 4));
+    }
+    return cr;
+}
+
+static inline void ppc_set_cr(CPUPPCState *env, uint32_t cr)
+{
+    int i;
+
+    for (i = 0; i < ARRAY_SIZE(env->crf); i++) {
+        env->crf[i] = (cr >> (32 - ((i + 1) * 4))) & 0xF;
+    }
+}
+
 static inline uint64_t ppc_dump_gpr(CPUPPCState *env, int gprn)
 {
     uint64_t gprv;

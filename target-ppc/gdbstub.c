@@ -135,15 +135,8 @@ int ppc_cpu_gdb_read_register(CPUState *cs, uint8_t *mem_buf, int n)
             gdb_get_regl(mem_buf, env->msr);
             break;
         case 66:
-            {
-                uint32_t cr = 0;
-                int i;
-                for (i = 0; i < 8; i++) {
-                    cr |= env->crf[i] << (32 - ((i + 1) * 4));
-                }
-                gdb_get_reg32(mem_buf, cr);
-                break;
-            }
+            gdb_get_reg32(mem_buf, ppc_get_cr(env));
+            break;
         case 67:
             gdb_get_regl(mem_buf, env->lr);
             break;
@@ -191,15 +184,8 @@ int ppc_cpu_gdb_read_register_apple(CPUState *cs, uint8_t *mem_buf, int n)
             gdb_get_reg64(mem_buf, env->msr);
             break;
         case 66 + 32:
-            {
-                uint32_t cr = 0;
-                int i;
-                for (i = 0; i < 8; i++) {
-                    cr |= env->crf[i] << (32 - ((i + 1) * 4));
-                }
-                gdb_get_reg32(mem_buf, cr);
-                break;
-            }
+            gdb_get_reg32(mem_buf, ppc_get_cr(env));
+            break;
         case 67 + 32:
             gdb_get_reg64(mem_buf, env->lr);
             break;
@@ -243,14 +229,8 @@ int ppc_cpu_gdb_write_register(CPUState *cs, uint8_t *mem_buf, int n)
             ppc_store_msr(env, ldtul_p(mem_buf));
             break;
         case 66:
-            {
-                uint32_t cr = ldl_p(mem_buf);
-                int i;
-                for (i = 0; i < 8; i++) {
-                    env->crf[i] = (cr >> (32 - ((i + 1) * 4))) & 0xF;
-                }
-                break;
-            }
+            ppc_set_cr(env, ldl_p(mem_buf));
+            break;
         case 67:
             env->lr = ldtul_p(mem_buf);
             break;
@@ -293,14 +273,8 @@ int ppc_cpu_gdb_write_register_apple(CPUState *cs, uint8_t *mem_buf, int n)
             ppc_store_msr(env, ldq_p(mem_buf));
             break;
         case 66 + 32:
-            {
-                uint32_t cr = ldl_p(mem_buf);
-                int i;
-                for (i = 0; i < 8; i++) {
-                    env->crf[i] = (cr >> (32 - ((i + 1) * 4))) & 0xF;
-                }
-                break;
-            }
+            ppc_set_cr(env, ldl_p(mem_buf));
+            break;
         case 67 + 32:
             env->lr = ldq_p(mem_buf);
             break;

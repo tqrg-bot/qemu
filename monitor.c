@@ -2963,14 +2963,7 @@ static target_long monitor_get_pc (const struct MonitorDef *md, int val)
 static target_long monitor_get_ccr (const struct MonitorDef *md, int val)
 {
     CPUArchState *env = mon_get_cpu();
-    unsigned int u;
-    int i;
-
-    u = 0;
-    for (i = 0; i < 8; i++)
-        u |= env->crf[i] << (32 - (4 * (i + 1)));
-
-    return u;
+    return ppc_get_cr(env);
 }
 
 static target_long monitor_get_msr (const struct MonitorDef *md, int val)
