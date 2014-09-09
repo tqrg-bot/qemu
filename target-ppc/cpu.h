@@ -922,7 +922,8 @@ struct ppc_segment_page_sizes {
 
 /*****************************************************************************/
 /* The whole PowerPC CPU context */
-#define NB_MMU_MODES 3
+#define NB_MMU_MODES 12
+#define MMU_USER_IDX 3  /* PR=IR=DR=1 */
 
 #define PPC_CPU_OPCODES_LEN 0x40
 
@@ -1231,10 +1232,6 @@ static inline CPUPPCState *cpu_init(const char *cpu_model)
 #define cpu_list ppc_cpu_list
 
 /* MMU modes definitions */
-#define MMU_MODE0_SUFFIX _user
-#define MMU_MODE1_SUFFIX _kernel
-#define MMU_MODE2_SUFFIX _hypv
-#define MMU_USER_IDX 0
 static inline int cpu_mmu_index (CPUPPCState *env)
 {
     return env->mmu_idx;

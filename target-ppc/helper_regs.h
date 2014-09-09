@@ -41,12 +41,15 @@ static inline void hreg_swap_gpr_tgpr(CPUPPCState *env)
 
 static inline void hreg_compute_mem_idx(CPUPPCState *env)
 {
+    int high;
+
     /* Precompute MMU index */
     if (msr_pr == 0 && msr_hv != 0) {
-        env->mmu_idx = 2;
+        high = 2;
     } else {
-        env->mmu_idx = 1 - msr_pr;
+        high = 1 - msr_pr;
     }
+    env->mmu_idx = (high << 2) | (msr_ir << 1) | msr_dr;
 }
 
 static inline void hreg_compute_hflags(CPUPPCState *env)
@@ -56,7 +59,7 @@ static inline void hreg_compute_hflags(CPUPPCState *env)
     /* We 'forget' FE0 & FE1: we'll never generate imprecise exceptions */
     hflags_mask = (1 << MSR_VR) | (1 << MSR_AP) | (1 << MSR_SA) |
         (1 << MSR_PR) | (1 << MSR_FP) | (1 << MSR_SE) | (1 << MSR_BE) |
-        (1 << MSR_LE) | (1 << MSR_VSX);
+        (1 << MSR_LE) | (1 << MSR_VSX) | (1 << MSR_IR) | (1 << MSR_DR);
     hflags_mask |= (1ULL << MSR_CM) | (1ULL << MSR_SF) | MSR_HVB;
     hreg_compute_mem_idx(env);
     env->hflags = env->msr & hflags_mask;
@@ -82,8 +85,6 @@ static inline int hreg_store_msr(CPUPPCState *env, target_ulong value,
     }
     if (((value >> MSR_IR) & 1) != msr_ir ||
         ((value >> MSR_DR) & 1) != msr_dr) {
-        /* Flush all tlb when changing translation mode */
-        tlb_flush(cs, 1);
         excp = POWERPC_EXCP_NONE;
         cs->interrupt_request |= CPU_INTERRUPT_EXITTB;
     }
