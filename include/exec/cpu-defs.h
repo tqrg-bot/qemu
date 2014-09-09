@@ -27,6 +27,7 @@
 #include <inttypes.h>
 #include "qemu/osdep.h"
 #include "qemu/queue.h"
+#include "tcg-target.h"
 #ifndef CONFIG_USER_ONLY
 #include "exec/hwaddr.h"
 #endif
@@ -69,8 +70,6 @@ typedef uint64_t target_ulong;
 #define TB_JMP_PAGE_MASK (TB_JMP_CACHE_SIZE - TB_JMP_PAGE_SIZE)
 
 #if !defined(CONFIG_USER_ONLY)
-#define CPU_TLB_BITS 8
-#define CPU_TLB_SIZE (1 << CPU_TLB_BITS)
 /* use a fully associative victim tlb of 8 entries */
 #define CPU_VTLB_SIZE 8
 
@@ -79,6 +78,27 @@ typedef uint64_t target_ulong;
 #else
 #define CPU_TLB_ENTRY_BITS 5
 #endif
+
+/* All the TLBs together must fit into the kind of operand that TCG
+ * uses to compile the TLB lookup.
+ *
+ * Strictly speaking, the operand must fit the offset between
+ * tlb_table[0][0] and the tlb_table[NB_MMU_MODES - 1][0].addend.
+ * It is simpler however to just round everything up to the next
+ * power of two, and count bits.  It works because each TLB size
+ * is a power of two, and because the limit of the displacement is
+ * really close to 2^n-1.  For example it is 0xFFF0 on PPC and MIPS,
+ * but the backends just say "the width is 16 bits".
+ */
+#define CPU_TLB_BITS                                             \
+    MIN(8,                                                       \
+        TCG_TARGET_TLB_DISPLACEMENT_BITS - CPU_TLB_ENTRY_BITS -  \
+        (NB_MMU_MODES <= 1 ? 0 :                                 \
+         NB_MMU_MODES <= 2 ? 1 :                                 \
+         NB_MMU_MODES <= 4 ? 2 :                                 \
+         NB_MMU_MODES <= 8 ? 3 : 4))
+
+#define CPU_TLB_SIZE (1 << CPU_TLB_BITS)
 
 typedef struct CPUTLBEntry {
     /* bit TARGET_LONG_BITS to TARGET_PAGE_BITS : virtual address

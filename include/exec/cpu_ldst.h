@@ -290,9 +290,123 @@ uint64_t helper_ldq_cmmu(CPUArchState *env, target_ulong addr, int mmu_idx);
 #undef MEMSUFFIX
 #endif /* (NB_MMU_MODES >= 6) */
 
-#if (NB_MMU_MODES > 6)
-#error "NB_MMU_MODES > 6 is not supported for now"
-#endif /* (NB_MMU_MODES > 6) */
+#if (NB_MMU_MODES >= 7)
+
+#define CPU_MMU_INDEX 6
+#define MEMSUFFIX MMU_MODE6_SUFFIX
+#define DATA_SIZE 1
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 2
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 4
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 8
+#include "exec/cpu_ldst_template.h"
+#undef CPU_MMU_INDEX
+#undef MEMSUFFIX
+#endif /* (NB_MMU_MODES >= 7) */
+
+#if (NB_MMU_MODES >= 8)
+
+#define CPU_MMU_INDEX 7
+#define MEMSUFFIX MMU_MODE7_SUFFIX
+#define DATA_SIZE 1
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 2
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 4
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 8
+#include "exec/cpu_ldst_template.h"
+#undef CPU_MMU_INDEX
+#undef MEMSUFFIX
+#endif /* (NB_MMU_MODES >= 8) */
+
+#if (NB_MMU_MODES >= 9)
+
+#define CPU_MMU_INDEX 8
+#define MEMSUFFIX MMU_MODE8_SUFFIX
+#define DATA_SIZE 1
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 2
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 4
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 8
+#include "exec/cpu_ldst_template.h"
+#undef CPU_MMU_INDEX
+#undef MEMSUFFIX
+#endif /* (NB_MMU_MODES >= 9) */
+
+#if (NB_MMU_MODES >= 10)
+
+#define CPU_MMU_INDEX 9
+#define MEMSUFFIX MMU_MODE9_SUFFIX
+#define DATA_SIZE 1
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 2
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 4
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 8
+#include "exec/cpu_ldst_template.h"
+#undef CPU_MMU_INDEX
+#undef MEMSUFFIX
+#endif /* (NB_MMU_MODES >= 10) */
+
+#if (NB_MMU_MODES >= 11)
+
+#define CPU_MMU_INDEX 10
+#define MEMSUFFIX MMU_MODE10_SUFFIX
+#define DATA_SIZE 1
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 2
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 4
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 8
+#include "exec/cpu_ldst_template.h"
+#undef CPU_MMU_INDEX
+#undef MEMSUFFIX
+#endif /* (NB_MMU_MODES >= 11) */
+
+#if (NB_MMU_MODES >= 12)
+
+#define CPU_MMU_INDEX 11
+#define MEMSUFFIX MMU_MODE11_SUFFIX
+#define DATA_SIZE 1
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 2
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 4
+#include "exec/cpu_ldst_template.h"
+
+#define DATA_SIZE 8
+#include "exec/cpu_ldst_template.h"
+#undef CPU_MMU_INDEX
+#undef MEMSUFFIX
+#endif /* (NB_MMU_MODES >= 12) */
+
+#if (NB_MMU_MODES > 12)
+#error "NB_MMU_MODES > 12 is not supported for now"
+#endif /* (NB_MMU_MODES > 12) */
 
 /* these access are slower, they must be as rare as possible */
 #define CPU_MMU_INDEX (cpu_mmu_index(env))
