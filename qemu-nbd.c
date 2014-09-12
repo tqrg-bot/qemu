@@ -769,7 +769,7 @@ int main(int argc, char **argv)
         }
     } while (state != TERMINATED);
 
-    bdrv_close(bs);
+    bdrv_unref(bs);
     if (sockpath) {
         unlink(sockpath);
     }
