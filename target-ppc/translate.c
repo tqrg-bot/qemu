@@ -8824,24 +8824,19 @@ static inline void gen_evsplatfi(DisasContext *ctx)
 
 static inline void gen_evsel(DisasContext *ctx)
 {
-    int l1 = gen_new_label();
-    int l2 = gen_new_label();
-    int l3 = gen_new_label();
-    int l4 = gen_new_label();
+    TCGv tmp = tcg_temp_new();
+    TCGv zero = tcg_const_tl(0);
 
-    tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_cr[(ctx->opcode & 0x07) * 4], 0, l1);
-    tcg_gen_mov_tl(cpu_gprh[rD(ctx->opcode)], cpu_gprh[rA(ctx->opcode)]);
-    tcg_gen_br(l2);
-    gen_set_label(l1);
-    tcg_gen_mov_tl(cpu_gprh[rD(ctx->opcode)], cpu_gprh[rB(ctx->opcode)]);
-    gen_set_label(l2);
+    tcg_gen_extu_i32_tl(tmp, cpu_cr[(ctx->opcode & 0x07) * 4 + CRF_CH]);
+    tcg_gen_movcond_tl(TCG_COND_NE, cpu_gprh[rD(ctx->opcode)], tmp, zero,
+                       cpu_gprh[rA(ctx->opcode)], cpu_gprh[rB(ctx->opcode)]);
 
-    tcg_gen_brcondi_i32(TCG_COND_EQ, cpu_cr[(ctx->opcode & 0x07) * 4 + 1], 0, l3);
-    tcg_gen_mov_tl(cpu_gpr[rD(ctx->opcode)], cpu_gpr[rA(ctx->opcode)]);
-    tcg_gen_br(l4);
-    gen_set_label(l3);
-    tcg_gen_mov_tl(cpu_gpr[rD(ctx->opcode)], cpu_gpr[rB(ctx->opcode)]);
-    gen_set_label(l4);
+    tcg_gen_extu_i32_tl(tmp, cpu_cr[(ctx->opcode & 0x07) * 4 + CRF_CL]);
+    tcg_gen_movcond_tl(TCG_COND_NE, cpu_gpr[rD(ctx->opcode)], tmp, zero,
+                       cpu_gpr[rA(ctx->opcode)], cpu_gpr[rB(ctx->opcode)]);
+
+    tcg_temp_free(zero);
+    tcg_temp_free(tmp);
 }
 
 static void gen_evsel0(DisasContext *ctx)
