@@ -286,9 +286,7 @@ typedef tcg_target_ulong TCGArg;
    are aliases for target_ulong and host pointer sized values respectively.
  */
 
-#ifdef CONFIG_DEBUG_TCG
 #define DEBUG_TCGV 1
-#endif
 
 #ifdef DEBUG_TCGV
 
