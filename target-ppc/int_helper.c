@@ -615,8 +615,8 @@ VCF(sx, int32_to_float32, s32)
                              ppc_avr_t *a, ppc_avr_t *b)                \
     {                                                                   \
         uint64_t ones = (uint64_t)-1;                                   \
-        uint64_t all = ones;                                            \
-        uint64_t none = 0;                                              \
+        uint64_t all = 1 << CRF_LT;                                     \
+        uint64_t any = 0;                                               \
         int i;                                                          \
                                                                         \
         for (i = 0; i < ARRAY_SIZE(r->element); i++) {                  \
@@ -637,10 +637,10 @@ VCF(sx, int32_to_float32, s32)
                 break;                                                  \
             }                                                           \
             all &= result;                                              \
-            none |= result;                                             \
+            any |= result;                                              \
         }                                                               \
         if (record) {                                                   \
-            env->crf[6] = ((all != 0) << 3) | ((none == 0) << 1);       \
+            env->crf[6] = (~any & (1 << CRF_EQ)) | all;                 \
         }                                                               \
     }
 #define VCMP(suffix, compare, element)          \
@@ -666,8 +666,8 @@ VCMP(gtsd, >, s64)
                              ppc_avr_t *a, ppc_avr_t *b)                \
     {                                                                   \
         uint32_t ones = (uint32_t)-1;                                   \
-        uint32_t all = ones;                                            \
-        uint32_t none = 0;                                              \
+        uint32_t all = 1 << CRF_LT;                                     \
+        uint32_t any = 0;                                               \
         int i;                                                          \
                                                                         \
         for (i = 0; i < ARRAY_SIZE(r->f); i++) {                        \
@@ -683,10 +683,10 @@ VCMP(gtsd, >, s64)
             }                                                           \
             r->u32[i] = result;                                         \
             all &= result;                                              \
-            none |= result;                                             \
+            any |= result;                                              \
         }                                                               \
         if (record) {                                                   \
-            env->crf[6] = ((all != 0) << 3) | ((none == 0) << 1);       \
+            env->crf[6] = (~any & (1 << CRF_EQ)) | all;                 \
         }                                                               \
     }
 #define VCMPFP(suffix, compare, order)          \
