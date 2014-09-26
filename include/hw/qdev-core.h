@@ -137,7 +137,6 @@ struct NamedGPIOList {
     char *name;
     qemu_irq *in;
     int num_in;
-    qemu_irq *out;
     int num_out;
     QLIST_ENTRY(NamedGPIOList) node;
 };
