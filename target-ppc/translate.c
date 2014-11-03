@@ -2387,7 +2387,9 @@ static void gen_fabs(DisasContext *ctx)
     }
     tcg_gen_andi_i64(cpu_fpr[rD(ctx->opcode)], cpu_fpr[rB(ctx->opcode)],
                      ~(1ULL << 63));
-    gen_compute_fprf(cpu_fpr[rD(ctx->opcode)], 0, Rc(ctx->opcode) != 0);
+    if (unlikely(Rc(ctx->opcode))) {
+        gen_set_cr1_from_fpscr(ctx);
+    }
 }
 
 /* fmr  - fmr. */
@@ -2399,7 +2401,9 @@ static void gen_fmr(DisasContext *ctx)
         return;
     }
     tcg_gen_mov_i64(cpu_fpr[rD(ctx->opcode)], cpu_fpr[rB(ctx->opcode)]);
-    gen_compute_fprf(cpu_fpr[rD(ctx->opcode)], 0, Rc(ctx->opcode) != 0);
+    if (unlikely(Rc(ctx->opcode))) {
+        gen_set_cr1_from_fpscr(ctx);
+    }
 }
 
 /* fnabs */
@@ -2412,7 +2416,9 @@ static void gen_fnabs(DisasContext *ctx)
     }
     tcg_gen_ori_i64(cpu_fpr[rD(ctx->opcode)], cpu_fpr[rB(ctx->opcode)],
                     1ULL << 63);
-    gen_compute_fprf(cpu_fpr[rD(ctx->opcode)], 0, Rc(ctx->opcode) != 0);
+    if (unlikely(Rc(ctx->opcode))) {
+        gen_set_cr1_from_fpscr(ctx);
+    }
 }
 
 /* fneg */
@@ -2425,7 +2431,9 @@ static void gen_fneg(DisasContext *ctx)
     }
     tcg_gen_xori_i64(cpu_fpr[rD(ctx->opcode)], cpu_fpr[rB(ctx->opcode)],
                      1ULL << 63);
-    gen_compute_fprf(cpu_fpr[rD(ctx->opcode)], 0, Rc(ctx->opcode) != 0);
+    if (unlikely(Rc(ctx->opcode))) {
+        gen_set_cr1_from_fpscr(ctx);
+    }
 }
 
 /* fcpsgn: PowerPC 2.05 specification */
@@ -2438,7 +2446,9 @@ static void gen_fcpsgn(DisasContext *ctx)
     }
     tcg_gen_deposit_i64(cpu_fpr[rD(ctx->opcode)], cpu_fpr[rA(ctx->opcode)],
                         cpu_fpr[rB(ctx->opcode)], 0, 63);
-    gen_compute_fprf(cpu_fpr[rD(ctx->opcode)], 0, Rc(ctx->opcode) != 0);
+    if (unlikely(Rc(ctx->opcode))) {
+        gen_set_cr1_from_fpscr(ctx);
+    }
 }
 
 static void gen_fmrgew(DisasContext *ctx)
