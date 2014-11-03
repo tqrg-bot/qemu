@@ -250,6 +250,21 @@ static inline void gen_reset_fpstatus(void)
     gen_helper_reset_fpstatus(cpu_env);
 }
 
+#if defined(TARGET_PPC64)
+static void gen_set_cr1_from_fpscr(DisasContext *ctx)
+{
+    TCGv_i32 tmp = tcg_temp_new_i32();
+    tcg_gen_trunc_tl_i32(tmp, cpu_fpscr);
+    tcg_gen_shri_i32(cpu_crf[1], tmp, 28);
+    tcg_temp_free_i32(tmp);
+}
+#else
+static void gen_set_cr1_from_fpscr(DisasContext *ctx)
+{
+        tcg_gen_shri_tl(cpu_crf[1], cpu_fpscr, 28);
+}
+#endif
+
 static inline void gen_compute_fprf(TCGv_i64 arg, int set_fprf, int set_rc)
 {
     TCGv_i32 t0 = tcg_temp_new_i32();
@@ -8206,21 +8221,6 @@ static inline TCGv_ptr gen_fprp_ptr(int reg)
     tcg_gen_addi_ptr(r, cpu_env, offsetof(CPUPPCState, fpr[reg]));
     return r;
 }
-
-#if defined(TARGET_PPC64)
-static void gen_set_cr1_from_fpscr(DisasContext *ctx)
-{
-    TCGv_i32 tmp = tcg_temp_new_i32();
-    tcg_gen_trunc_tl_i32(tmp, cpu_fpscr);
-    tcg_gen_shri_i32(cpu_crf[1], tmp, 28);
-    tcg_temp_free_i32(tmp);
-}
-#else
-static void gen_set_cr1_from_fpscr(DisasContext *ctx)
-{
-        tcg_gen_shri_tl(cpu_crf[1], cpu_fpscr, 28);
-}
-#endif
 
 #define GEN_DFP_T_A_B_Rc(name)                   \
 static void gen_##name(DisasContext *ctx)        \
