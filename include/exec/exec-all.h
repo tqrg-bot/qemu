@@ -147,6 +147,7 @@ struct TranslationBlock {
 #define CF_COUNT_MASK  0x7fff
 #define CF_LAST_IO     0x8000 /* Last insn may be an IO access.  */
 #define CF_USE_ICOUNT  0x10000
+#define CF_IGNORE_ICOUNT 0x20000 /* Do not generate icount code */
 
     void *tc_ptr;    /* pointer to the translated code */
     /* next matching tb for physical address. */
