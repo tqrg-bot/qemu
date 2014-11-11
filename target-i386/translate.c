@@ -1167,8 +1167,9 @@ static inline void gen_cmps(DisasContext *s, TCGMemOp ot)
 
 static inline void gen_ins(DisasContext *s, TCGMemOp ot)
 {
-    if (use_icount)
+    if (s->tb->cflags & CF_USE_ICOUNT) {
         gen_io_start();
+    }
     gen_string_movl_A0_EDI(s);
     /* Note: we must do this dummy write first to be restartable in
        case of page fault. */
@@ -1180,14 +1181,16 @@ static inline void gen_ins(DisasContext *s, TCGMemOp ot)
     gen_op_st_v(s, ot, cpu_T[0], cpu_A0);
     gen_op_movl_T0_Dshift(ot);
     gen_op_add_reg_T0(s->aflag, R_EDI);
-    if (use_icount)
+    if (s->tb->cflags & CF_USE_ICOUNT) {
         gen_io_end();
+    }
 }
 
 static inline void gen_outs(DisasContext *s, TCGMemOp ot)
 {
-    if (use_icount)
+    if (s->tb->cflags & CF_USE_ICOUNT) {
         gen_io_start();
+    }
     gen_string_movl_A0_ESI(s);
     gen_op_ld_v(s, ot, cpu_T[0], cpu_A0);
 
@@ -1198,8 +1201,9 @@ static inline void gen_outs(DisasContext *s, TCGMemOp ot)
 
     gen_op_movl_T0_Dshift(ot);
     gen_op_add_reg_T0(s->aflag, R_ESI);
-    if (use_icount)
+    if (s->tb->cflags & CF_USE_ICOUNT) {
         gen_io_end();
+    }
 }
 
 /* same method as Valgrind : we generate jumps to current or next
@@ -6277,7 +6281,7 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             gen_repz_ins(s, ot, pc_start - s->cs_base, s->pc - s->cs_base);
         } else {
             gen_ins(s, ot);
-            if (use_icount) {
+            if (s->tb->cflags & CF_USE_ICOUNT) {
                 gen_jmp(s, s->pc - s->cs_base);
             }
         }
@@ -6292,7 +6296,7 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             gen_repz_outs(s, ot, pc_start - s->cs_base, s->pc - s->cs_base);
         } else {
             gen_outs(s, ot);
-            if (use_icount) {
+            if (s->tb->cflags & CF_USE_ICOUNT) {
                 gen_jmp(s, s->pc - s->cs_base);
             }
         }
@@ -6308,12 +6312,13 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         tcg_gen_movi_tl(cpu_T[0], val);
         gen_check_io(s, ot, pc_start - s->cs_base,
                      SVM_IOIO_TYPE_MASK | svm_is_rep(prefixes));
-        if (use_icount)
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_start();
+	}
         tcg_gen_movi_i32(cpu_tmp2_i32, val);
         gen_helper_in_func(ot, cpu_T[1], cpu_tmp2_i32);
         gen_op_mov_reg_v(ot, R_EAX, cpu_T[1]);
-        if (use_icount) {
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_end();
             gen_jmp(s, s->pc - s->cs_base);
         }
@@ -6327,12 +6332,13 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                      svm_is_rep(prefixes));
         gen_op_mov_v_reg(ot, cpu_T[1], R_EAX);
 
-        if (use_icount)
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_start();
+	}
         tcg_gen_movi_i32(cpu_tmp2_i32, val);
         tcg_gen_trunc_tl_i32(cpu_tmp3_i32, cpu_T[1]);
         gen_helper_out_func(ot, cpu_tmp2_i32, cpu_tmp3_i32);
-        if (use_icount) {
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_end();
             gen_jmp(s, s->pc - s->cs_base);
         }
@@ -6343,12 +6349,13 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         tcg_gen_ext16u_tl(cpu_T[0], cpu_regs[R_EDX]);
         gen_check_io(s, ot, pc_start - s->cs_base,
                      SVM_IOIO_TYPE_MASK | svm_is_rep(prefixes));
-        if (use_icount)
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_start();
+	}
         tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
         gen_helper_in_func(ot, cpu_T[1], cpu_tmp2_i32);
         gen_op_mov_reg_v(ot, R_EAX, cpu_T[1]);
-        if (use_icount) {
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_end();
             gen_jmp(s, s->pc - s->cs_base);
         }
@@ -6361,12 +6368,13 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                      svm_is_rep(prefixes));
         gen_op_mov_v_reg(ot, cpu_T[1], R_EAX);
 
-        if (use_icount)
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_start();
+	}
         tcg_gen_trunc_tl_i32(cpu_tmp2_i32, cpu_T[0]);
         tcg_gen_trunc_tl_i32(cpu_tmp3_i32, cpu_T[1]);
         gen_helper_out_func(ot, cpu_tmp2_i32, cpu_tmp3_i32);
-        if (use_icount) {
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_end();
             gen_jmp(s, s->pc - s->cs_base);
         }
@@ -7064,10 +7072,11 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
     case 0x131: /* rdtsc */
         gen_update_cc_op(s);
         gen_jmp_im(pc_start - s->cs_base);
-        if (use_icount)
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_start();
+	}
         gen_helper_rdtsc(cpu_env);
-        if (use_icount) {
+        if (s->tb->cflags & CF_USE_ICOUNT) {
             gen_io_end();
             gen_jmp(s, s->pc - s->cs_base);
         }
@@ -7450,10 +7459,11 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                         goto illegal_op;
                     gen_update_cc_op(s);
                     gen_jmp_im(pc_start - s->cs_base);
-                    if (use_icount)
+                    if (s->tb->cflags & CF_USE_ICOUNT) {
                         gen_io_start();
+		    }
                     gen_helper_rdtscp(cpu_env);
-                    if (use_icount) {
+                    if (s->tb->cflags & CF_USE_ICOUNT) {
                         gen_io_end();
                         gen_jmp(s, s->pc - s->cs_base);
                     }
