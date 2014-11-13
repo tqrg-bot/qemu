@@ -209,7 +209,7 @@ static void cpu_exec_nocache(CPUArchState *env, int max_cycles,
         max_cycles = CF_COUNT_MASK;
 
     tb = tb_gen_code(cpu, orig_tb->pc, orig_tb->cs_base, orig_tb->flags,
-                     max_cycles | (ignore_icount ? CF_IGNORE_ICOUNT : 0));
+                     max_cycles | CF_NOCACHE | (ignore_icount ? CF_IGNORE_ICOUNT : 0));
     cpu->current_tb = tb;
     /* execute the generated code */
     trace_exec_tb_nocache(tb, tb->pc);
