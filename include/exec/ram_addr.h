@@ -110,7 +110,7 @@ static inline void cpu_physical_memory_set_dirty_flag(ram_addr_t addr,
                                                       unsigned client)
 {
     assert(client < DIRTY_MEMORY_NUM);
-    set_bit(addr >> TARGET_PAGE_BITS, ram_list.dirty_memory[client]);
+    set_bit_atomic(addr >> TARGET_PAGE_BITS, ram_list.dirty_memory[client]);
 }
 
 static inline void cpu_physical_memory_set_dirty_range(ram_addr_t start,
@@ -118,17 +118,18 @@ static inline void cpu_physical_memory_set_dirty_range(ram_addr_t start,
                                                        uint8_t mask)
 {
     unsigned long end, page;
+    unsigned long **d = ram_list.dirty_memory;
 
     end = TARGET_PAGE_ALIGN(start + length) >> TARGET_PAGE_BITS;
     page = start >> TARGET_PAGE_BITS;
     if (likely(mask & DIRTY_MEMORY_MIGRATION)) {
-        bitmap_set(ram_list.dirty_memory[DIRTY_MEMORY_MIGRATION], page, end - page);
+        bitmap_set_atomic(d[DIRTY_MEMORY_MIGRATION], page, end - page);
     }
     if (unlikely(mask & DIRTY_MEMORY_VGA)) {
-        bitmap_set(ram_list.dirty_memory[DIRTY_MEMORY_VGA], page, end - page);
+        bitmap_set_atomic(d[DIRTY_MEMORY_VGA], page, end - page);
     }
     if (unlikely(mask & DIRTY_MEMORY_CODE)) {
-        bitmap_set(ram_list.dirty_memory[DIRTY_MEMORY_CODE], page, end - page);
+        bitmap_set_atomic(d[DIRTY_MEMORY_CODE], page, end - page);
     }
     xen_modified_memory(start, length);
 }
@@ -155,11 +156,12 @@ static inline void cpu_physical_memory_set_dirty_lebitmap(unsigned long *bitmap,
         for (k = 0; k < nr; k++) {
             if (bitmap[k]) {
                 unsigned long temp = leul_to_cpu(bitmap[k]);
+                unsigned long **d = ram_list.dirty_memory;
 
-                ram_list.dirty_memory[DIRTY_MEMORY_MIGRATION][page + k] |= temp;
-                ram_list.dirty_memory[DIRTY_MEMORY_VGA][page + k] |= temp;
+                atomic_or(&d[DIRTY_MEMORY_MIGRATION][page + k], temp);
+                atomic_or(&d[DIRTY_MEMORY_VGA][page + k], temp);
                 if (tcg_enabled()) {
-                    ram_list.dirty_memory[DIRTY_MEMORY_CODE][page + k] |= temp;
+                    atomic_or(&d[DIRTY_MEMORY_CODE][page + k], temp);
                 }
             }
         }
