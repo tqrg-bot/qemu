@@ -642,18 +642,6 @@ extern const VMStateInfo vmstate_info_bitmap;
 #define VMSTATE_FLOAT64(_f, _s)                                       \
     VMSTATE_FLOAT64_V(_f, _s, 0)
 
-#define VMSTATE_TIMER_PTR_TEST(_f, _s, _test)                             \
-    VMSTATE_POINTER_TEST(_f, _s, _test, vmstate_info_timer, QEMUTimer *)
-
-#define VMSTATE_TIMER_PTR_V(_f, _s, _v)                                   \
-    VMSTATE_POINTER(_f, _s, _v, vmstate_info_timer, QEMUTimer *)
-
-#define VMSTATE_TIMER_PTR(_f, _s)                                         \
-    VMSTATE_TIMER_PTR_V(_f, _s, 0)
-
-#define VMSTATE_TIMER_PTR_ARRAY(_f, _s, _n)                              \
-    VMSTATE_ARRAY_OF_POINTER(_f, _s, _n, 0, vmstate_info_timer, QEMUTimer *)
-
 #define VMSTATE_TIMER_TEST(_f, _s, _test)                             \
     VMSTATE_SINGLE_TEST(_f, _s, _test, 0, vmstate_info_timer, QEMUTimer)
 

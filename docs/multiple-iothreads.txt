@@ -57,7 +57,7 @@ AioContext supports the following services:
  * Bottom Halves (BH) deferred callbacks
 
 There are several old APIs that use the main loop AioContext:
- * LEGACY timer_new_ns()/timer_new_ms() - create a timer
+ * LEGACY timer_init_ns()/timer_init_ms() - create a timer
  * LEGACY qemu_bh_new() - create a BH
 
 These are used by device models, but they cannot be used in code that

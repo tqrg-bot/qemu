@@ -501,100 +501,6 @@ static inline void timer_init_ms(QEMUTimer *ts, QEMUClockType type,
 }
 
 /**
- * timer_new_tl:
- * @timer_list: the timer list to attach the timer to
- * @scale: the scale value for the timer
- * @cb: the callback to be called when the timer expires
- * @opaque: the opaque pointer to be passed to the callback
- *
- * Creeate a new timer and associate it with @timer_list.
- * The memory is allocated by the function.
- *
- * This is not the preferred interface unless you know you
- * are going to call timer_free. Use timer_init instead.
- *
- * Returns: a pointer to the timer
- */
-static inline QEMUTimer *timer_new_tl(QEMUTimerList *timer_list,
-                                      int scale,
-                                      QEMUTimerCB *cb,
-                                      void *opaque)
-{
-    QEMUTimer *ts = g_malloc0(sizeof(QEMUTimer));
-    timer_init_tl(ts, timer_list, scale, cb, opaque);
-    return ts;
-}
-
-/**
- * timer_new:
- * @type: the clock type to use
- * @scale: the scale value for the timer
- * @cb: the callback to be called when the timer expires
- * @opaque: the opaque pointer to be passed to the callback
- *
- * Creeate a new timer and associate it with the default
- * timer list for the clock type @type.
- *
- * Returns: a pointer to the timer
- */
-static inline QEMUTimer *timer_new(QEMUClockType type, int scale,
-                                   QEMUTimerCB *cb, void *opaque)
-{
-    return timer_new_tl(main_loop_tlg.tl[type], scale, cb, opaque);
-}
-
-/**
- * timer_new_ns:
- * @clock: the clock to associate with the timer
- * @callback: the callback to call when the timer expires
- * @opaque: the opaque pointer to pass to the callback
- *
- * Create a new timer with nanosecond scale on the default timer list
- * associated with the clock.
- *
- * Returns: a pointer to the newly created timer
- */
-static inline QEMUTimer *timer_new_ns(QEMUClockType type, QEMUTimerCB *cb,
-                                      void *opaque)
-{
-    return timer_new(type, SCALE_NS, cb, opaque);
-}
-
-/**
- * timer_new_us:
- * @clock: the clock to associate with the timer
- * @callback: the callback to call when the timer expires
- * @opaque: the opaque pointer to pass to the callback
- *
- * Create a new timer with microsecond scale on the default timer list
- * associated with the clock.
- *
- * Returns: a pointer to the newly created timer
- */
-static inline QEMUTimer *timer_new_us(QEMUClockType type, QEMUTimerCB *cb,
-                                      void *opaque)
-{
-    return timer_new(type, SCALE_US, cb, opaque);
-}
-
-/**
- * timer_new_ms:
- * @clock: the clock to associate with the timer
- * @callback: the callback to call when the timer expires
- * @opaque: the opaque pointer to pass to the callback
- *
- * Create a new timer with millisecond scale on the default timer list
- * associated with the clock.
- *
- * Returns: a pointer to the newly created timer
- */
-static inline QEMUTimer *timer_new_ms(QEMUClockType type, QEMUTimerCB *cb,
-                                      void *opaque)
-{
-    return timer_new(type, SCALE_MS, cb, opaque);
-}
-
-/**
  * timer_deinit:
  * @ts: the timer to be de-initialised
  *
@@ -604,14 +510,6 @@ static inline QEMUTimer *timer_new_ms(QEMUClockType type, QEMUTimerCB *cb,
  * even if the previously used timerlist is freed.
  */
 void timer_deinit(QEMUTimer *ts);
-
-/**
- * timer_free:
- * @ts: the timer
- *
- * Free a timer (it must not be on the active list)
- */
-void timer_free(QEMUTimer *ts);
 
 /**
  * timer_del:
