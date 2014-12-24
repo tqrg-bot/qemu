@@ -57,20 +57,18 @@ AioContext supports the following services:
  * Bottom Halves (BH) deferred callbacks
 
 There are several old APIs that use the main loop AioContext:
- * LEGACY qemu_aio_set_fd_handler() - monitor a file descriptor
- * LEGACY qemu_aio_set_event_notifier() - monitor an event notifier
- * LEGACY timer_new_ms() - create a timer
+ * LEGACY timer_new_ns()/timer_new_ms() - create a timer
  * LEGACY qemu_bh_new() - create a BH
- * LEGACY qemu_aio_wait() - run an event loop iteration
 
-Since they implicitly work on the main loop they cannot be used in code that
-runs in an IOThread.  They might cause a crash or deadlock if called from an
-IOThread since the QEMU global mutex is not held.
+These are used by device models, but they cannot be used in code that
+runs in an IOThread because they implicitly work on the main loop.
+They might cause a crash or deadlock if called from an IOThread since
+the QEMU global mutex is not held.
 
 Instead, use the AioContext functions directly (see include/block/aio.h):
  * aio_set_fd_handler() - monitor a file descriptor
  * aio_set_event_notifier() - monitor an event notifier
- * aio_timer_new() - create a timer
+ * aio_timer_init() - create a timer
  * aio_bh_new() - create a BH
  * aio_poll() - run an event loop iteration
 
