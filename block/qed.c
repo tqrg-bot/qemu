@@ -343,7 +343,7 @@ static void qed_start_need_check_timer(BDRVQEDState *s)
     /* Use QEMU_CLOCK_VIRTUAL so we don't alter the image file while suspended for
      * migration.
      */
-    timer_mod(s->need_check_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+    timer_mod(&s->need_check_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    get_ticks_per_sec() * QED_NEED_CHECK_TIMEOUT);
 }
 
@@ -351,7 +351,7 @@ static void qed_start_need_check_timer(BDRVQEDState *s)
 static void qed_cancel_need_check_timer(BDRVQEDState *s)
 {
     trace_qed_cancel_need_check_timer(s);
-    timer_del(s->need_check_timer);
+    timer_del(&s->need_check_timer);
 }
 
 static void bdrv_qed_rebind(BlockDriverState *bs)
@@ -365,7 +365,7 @@ static void bdrv_qed_detach_aio_context(BlockDriverState *bs)
     BDRVQEDState *s = bs->opaque;
 
     qed_cancel_need_check_timer(s);
-    timer_free(s->need_check_timer);
+    timer_deinit(&s->need_check_timer);
 }
 
 static void bdrv_qed_attach_aio_context(BlockDriverState *bs,
@@ -373,9 +373,9 @@ static void bdrv_qed_attach_aio_context(BlockDriverState *bs,
 {
     BDRVQEDState *s = bs->opaque;
 
-    s->need_check_timer = aio_timer_new(new_context,
-                                        QEMU_CLOCK_VIRTUAL, SCALE_NS,
-                                        qed_need_check_timer_cb, s);
+    aio_timer_init(new_context, &s->need_check_timer,
+                   QEMU_CLOCK_VIRTUAL, SCALE_NS,
+                   qed_need_check_timer_cb, s);
     if (s->header.features & QED_F_NEED_CHECK) {
         qed_start_need_check_timer(s);
     }

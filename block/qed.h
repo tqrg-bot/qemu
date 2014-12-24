@@ -168,7 +168,7 @@ typedef struct {
     bool allocating_write_reqs_plugged;
 
     /* Periodic flush and clear need check flag */
-    QEMUTimer *need_check_timer;
+    QEMUTimer need_check_timer;
 } BDRVQEDState;
 
 enum {
