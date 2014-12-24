@@ -56,6 +56,7 @@ typedef struct {
     int num_ports;
     const char *name;
 
+    bool started;
     QEMUTimer *eof_timer;
     int64_t sof_time;
 
@@ -1331,15 +1332,10 @@ static void ohci_frame_boundary(void *opaque)
  */
 static int ohci_bus_start(OHCIState *ohci)
 {
+    ohci->started = true;
     ohci->eof_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
                     ohci_frame_boundary,
                     ohci);
-
-    if (ohci->eof_timer == NULL) {
-        trace_usb_ohci_bus_eof_timer_failed(ohci->name);
-        ohci_die(ohci);
-        return 0;
-    }
 
     trace_usb_ohci_start(ohci->name);
 
@@ -1357,6 +1353,7 @@ static void ohci_bus_stop(OHCIState *ohci)
         timer_free(ohci->eof_timer);
     }
     ohci->eof_timer = NULL;
+    ohci->started = false;
 }
 
 /* Sets a flag in a port status register but only set it if the port is
@@ -1997,7 +1994,7 @@ static bool ohci_eof_timer_needed(void *opaque)
 {
     OHCIState *ohci = opaque;
 
-    return ohci->eof_timer != NULL;
+    return ohci->started;
 }
 
 static int ohci_eof_timer_pre_load(void *opaque)
