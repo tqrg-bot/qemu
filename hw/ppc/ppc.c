@@ -785,13 +785,14 @@ static void cpu_ppc_decr_cb(void *opaque)
 static inline void _cpu_ppc_store_hdecr(PowerPCCPU *cpu, uint32_t hdecr,
                                         uint32_t value)
 {
+#if 0
+    /* XXX: find a suitable condition to enable the hypervisor decrementer */
     ppc_tb_t *tb_env = cpu->env.tb_env;
 
-    if (tb_env->hdecr_timer != NULL) {
-        __cpu_ppc_store_decr(cpu, &tb_env->hdecr_next, tb_env->hdecr_timer,
-                             tb_env->hdecr_timer->cb, &cpu_ppc_hdecr_lower,
-                             hdecr, value);
-    }
+    __cpu_ppc_store_decr(cpu, &tb_env->hdecr_next, &tb_env->hdecr_timer,
+                         tb_env->hdecr_timer->cb, &cpu_ppc_hdecr_lower,
+                         hdecr, value);
+#endif
 }
 
 void cpu_ppc_store_hdecr (CPUPPCState *env, uint32_t value)
@@ -923,14 +924,10 @@ clk_setup_cb cpu_ppc_tb_init (CPUPPCState *env, uint32_t freq)
     }
     /* Create new timer */
     tb_env->decr_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &cpu_ppc_decr_cb, cpu);
-    if (0) {
-        /* XXX: find a suitable condition to enable the hypervisor decrementer
-         */
-        tb_env->hdecr_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &cpu_ppc_hdecr_cb,
-                                                cpu);
-    } else {
-        tb_env->hdecr_timer = NULL;
-    }
+#if 0
+    /* XXX: find a suitable condition to enable the hypervisor decrementer */
+    tb_env->hdecr_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &cpu_ppc_hdecr_cb, cpu);
+#endif
     cpu_ppc_set_tb_clk(env, freq);
 
     return &cpu_ppc_set_tb_clk;
