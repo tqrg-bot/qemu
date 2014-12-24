@@ -145,7 +145,7 @@ static void alarm_cb (void *opaque)
 static void set_alarm(M48t59State *NVRAM)
 {
     int diff;
-    if (NVRAM->alrm_timer != NULL) {
+    if (NVRAM->model == 59) {
         timer_del(NVRAM->alrm_timer);
         diff = qemu_timedate_diff(&NVRAM->alarm) - NVRAM->time_offset;
         if (diff > 0)
@@ -187,7 +187,7 @@ static void set_up_watchdog(M48t59State *NVRAM, uint8_t value)
     uint64_t interval; /* in 1/16 seconds */
 
     NVRAM->buffer[0x1FF0] &= ~0x80;
-    if (NVRAM->wd_timer != NULL) {
+    if (NVRAM->model == 59) {
         timer_del(NVRAM->wd_timer);
         if (value != 0) {
             interval = (1 << (2 * (value & 0x03))) * ((value >> 2) & 0x1F);
@@ -607,11 +607,10 @@ static void m48t59_reset_common(M48t59State *NVRAM)
 {
     NVRAM->addr = 0;
     NVRAM->lock = 0;
-    if (NVRAM->alrm_timer != NULL)
+    if (NVRAM->model == 59) {
         timer_del(NVRAM->alrm_timer);
-
-    if (NVRAM->wd_timer != NULL)
         timer_del(NVRAM->wd_timer);
+    }
 }
 
 static void m48t59_reset_isa(DeviceState *d)
