@@ -184,7 +184,7 @@ typedef struct MonitorQAPIEventState {
     QAPIEvent event;    /* Event being tracked */
     int64_t rate;       /* Minimum time (in ns) between two events */
     int64_t last;       /* QEMU_CLOCK_REALTIME value at last emission */
-    QEMUTimer *timer;   /* Timer for handling delayed events */
+    QEMUTimer timer;    /* Timer for handling delayed events */
     QObject *data;      /* Event pending delayed dispatch */
 } MonitorQAPIEventState;
 
@@ -516,7 +516,7 @@ monitor_qapi_event_queue(QAPIEvent event, QDict *data, Error **errp)
                 qobject_decref(evstate->data);
             } else {
                 int64_t then = evstate->last + evstate->rate;
-                timer_mod_ns(evstate->timer, then);
+                timer_mod(&evstate->timer, then);
             }
             evstate->data = QOBJECT(data);
             qobject_incref(evstate->data);
@@ -573,10 +573,9 @@ monitor_qapi_event_throttle(QAPIEvent event, int64_t rate)
     evstate->rate = rate * SCALE_MS;
     evstate->last = 0;
     evstate->data = NULL;
-    evstate->timer = timer_new(QEMU_CLOCK_REALTIME,
-                               SCALE_MS,
-                               monitor_qapi_event_handler,
-                               evstate);
+    timer_init_ns(&evstate->timer, QEMU_CLOCK_REALTIME,
+                  monitor_qapi_event_handler,
+                  evstate);
 }
 
 static void monitor_qapi_event_init(void)
