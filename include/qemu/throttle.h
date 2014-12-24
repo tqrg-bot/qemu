@@ -65,7 +65,7 @@ typedef struct ThrottleConfig {
 typedef struct ThrottleState {
     ThrottleConfig cfg;       /* configuration */
     int64_t previous_leak;    /* timestamp of the last leak done */
-    QEMUTimer * timers[2];    /* timers used to do the throttling */
+    QEMUTimer timers[2];    /* timers used to do the throttling */
     QEMUClockType clock_type; /* the clock used */
 
     /* Callbacks */

@@ -161,10 +161,10 @@ bool throttle_compute_timer(ThrottleState *ts,
 /* Add timers to event loop */
 void throttle_attach_aio_context(ThrottleState *ts, AioContext *new_context)
 {
-    ts->timers[0] = aio_timer_new(new_context, ts->clock_type, SCALE_NS,
-                                  ts->read_timer_cb, ts->timer_opaque);
-    ts->timers[1] = aio_timer_new(new_context, ts->clock_type, SCALE_NS,
-                                  ts->write_timer_cb, ts->timer_opaque);
+    aio_timer_init(new_context, &ts->timers[0], ts->clock_type, SCALE_NS,
+                   ts->read_timer_cb, ts->timer_opaque);
+    aio_timer_init(new_context, &ts->timers[1], ts->clock_type, SCALE_NS,
+                   ts->write_timer_cb, ts->timer_opaque);
 }
 
 /* To be called first on the ThrottleState */
@@ -185,13 +185,10 @@ void throttle_init(ThrottleState *ts,
 }
 
 /* destroy a timer */
-static void throttle_timer_destroy(QEMUTimer **timer)
+static void throttle_timer_destroy(QEMUTimer *timer)
 {
-    assert(*timer != NULL);
-
-    timer_del(*timer);
-    timer_free(*timer);
-    *timer = NULL;
+    timer_del(timer);
+    timer_deinit(timer);
 }
 
 /* Remove timers from event loop */
@@ -213,7 +210,7 @@ void throttle_destroy(ThrottleState *ts)
 /* is any throttling timer configured */
 bool throttle_have_timer(ThrottleState *ts)
 {
-    if (ts->timers[0]) {
+    if (ts->timers[0].timer_list) {
         return true;
     }
 
@@ -316,8 +313,6 @@ static void throttle_fix_bucket(LeakyBucket *bkt)
 /* take care of canceling a timer */
 static void throttle_cancel_timer(QEMUTimer *timer)
 {
-    assert(timer != NULL);
-
     timer_del(timer);
 }
 
@@ -339,7 +334,7 @@ void throttle_config(ThrottleState *ts, ThrottleConfig *cfg)
     ts->previous_leak = qemu_clock_get_ns(ts->clock_type);
 
     for (i = 0; i < 2; i++) {
-        throttle_cancel_timer(ts->timers[i]);
+        throttle_cancel_timer(&ts->timers[i]);
     }
 }
 
@@ -378,12 +373,12 @@ bool throttle_schedule_timer(ThrottleState *ts, bool is_write)
     }
 
     /* request throttled and timer pending -> do nothing */
-    if (timer_pending(ts->timers[is_write])) {
+    if (timer_pending(&ts->timers[is_write])) {
         return true;
     }
 
     /* request throttled and timer not pending -> arm timer */
-    timer_mod(ts->timers[is_write], next_timestamp);
+    timer_mod(&ts->timers[is_write], next_timestamp);
     return true;
 }
 
