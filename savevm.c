@@ -91,7 +91,7 @@ static void qemu_announce_self_iter(NICState *nic, void *opaque)
 static void qemu_announce_self_once(void *opaque)
 {
     static int count = SELF_ANNOUNCE_ROUNDS;
-    QEMUTimer *timer = *(QEMUTimer **)opaque;
+    QEMUTimer *timer = opaque;
 
     qemu_foreach_nic(qemu_announce_self_iter, NULL);
 
@@ -100,15 +100,14 @@ static void qemu_announce_self_once(void *opaque)
         timer_mod(timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) +
                   self_announce_delay(count));
     } else {
-            timer_del(timer);
-            timer_free(timer);
+        timer_del(timer);
     }
 }
 
 void qemu_announce_self(void)
 {
-    static QEMUTimer *timer;
-    timer = timer_new_ms(QEMU_CLOCK_REALTIME, qemu_announce_self_once, &timer);
+    static QEMUTimer timer;
+    timer = timer_init_ms(QEMU_CLOCK_REALTIME, qemu_announce_self_once, &timer);
     qemu_announce_self_once(&timer);
 }
 

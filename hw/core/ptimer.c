@@ -20,7 +20,7 @@ struct ptimer_state
     int64_t last_event;
     int64_t next_event;
     QEMUBH *bh;
-    QEMUTimer *timer;
+    QEMUTimer timer;
 };
 
 /* Use a bottom-half routine to avoid reentrancy issues.  */
@@ -48,7 +48,7 @@ static void ptimer_reload(ptimer_state *s)
     if (s->period_frac) {
         s->next_event += ((int64_t)s->period_frac * s->delta) >> 32;
     }
-    timer_mod(s->timer, s->next_event);
+    timer_mod(&s->timer, s->next_event);
 }
 
 static void ptimer_tick(void *opaque)
@@ -150,7 +150,7 @@ void ptimer_stop(ptimer_state *s)
         return;
 
     s->delta = ptimer_get_count(s);
-    timer_del(s->timer);
+    timer_del(&s->timer);
     s->enabled = 0;
 }
 
@@ -214,7 +214,7 @@ const VMStateDescription vmstate_ptimer = {
         VMSTATE_INT64(period, ptimer_state),
         VMSTATE_INT64(last_event, ptimer_state),
         VMSTATE_INT64(next_event, ptimer_state),
-        VMSTATE_TIMER_PTR(timer, ptimer_state),
+        VMSTATE_TIMER(timer, ptimer_state),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -225,6 +225,6 @@ ptimer_state *ptimer_init(QEMUBH *bh)
 
     s = (ptimer_state *)g_malloc0(sizeof(ptimer_state));
     s->bh = bh;
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, ptimer_tick, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, ptimer_tick, s);
     return s;
 }

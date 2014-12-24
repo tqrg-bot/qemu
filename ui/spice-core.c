@@ -53,7 +53,7 @@ int using_spice = 0;
 static QemuThread me;
 
 struct SpiceTimer {
-    QEMUTimer *timer;
+    QEMUTimer timer;
     QTAILQ_ENTRY(SpiceTimer) next;
 };
 static QTAILQ_HEAD(, SpiceTimer) timers = QTAILQ_HEAD_INITIALIZER(timers);
@@ -63,25 +63,24 @@ static SpiceTimer *timer_add(SpiceTimerFunc func, void *opaque)
     SpiceTimer *timer;
 
     timer = g_malloc0(sizeof(*timer));
-    timer->timer = timer_new_ms(QEMU_CLOCK_REALTIME, func, opaque);
+    timer_init_ms(&timer->timer, QEMU_CLOCK_REALTIME, func, opaque);
     QTAILQ_INSERT_TAIL(&timers, timer, next);
     return timer;
 }
 
 static void timer_start(SpiceTimer *timer, uint32_t ms)
 {
-    timer_mod(timer->timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + ms);
+    timer_mod(&timer->timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + ms);
 }
 
 static void timer_cancel(SpiceTimer *timer)
 {
-    timer_del(timer->timer);
+    timer_del(&timer->timer);
 }
 
 static void timer_remove(SpiceTimer *timer)
 {
-    timer_del(timer->timer);
-    timer_free(timer->timer);
+    timer_del(&timer->timer);
     QTAILQ_REMOVE(&timers, timer, next);
     g_free(timer);
 }

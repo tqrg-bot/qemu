@@ -2103,7 +2103,7 @@ static int sleep_f(BlockDriverState *bs, int argc, char **argv)
 {
     char *endptr;
     long ms;
-    struct QEMUTimer *timer;
+    QEMUTimer timer;
     bool expired = false;
 
     ms = strtol(argv[1], &endptr, 0);
@@ -2112,14 +2112,12 @@ static int sleep_f(BlockDriverState *bs, int argc, char **argv)
         return 0;
     }
 
-    timer = timer_new_ns(QEMU_CLOCK_HOST, sleep_cb, &expired);
-    timer_mod(timer, qemu_clock_get_ns(QEMU_CLOCK_HOST) + SCALE_MS * ms);
+    timer_init_ns(&timer, QEMU_CLOCK_HOST, sleep_cb, &expired);
+    timer_mod(&timer, qemu_clock_get_ns(QEMU_CLOCK_HOST) + SCALE_MS * ms);
 
     while (!expired) {
         main_loop_wait(false);
     }
-
-    timer_free(timer);
 
     return 0;
 }

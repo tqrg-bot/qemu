@@ -24,6 +24,8 @@
 #ifndef QEMU_AUDIO_INT_H
 #define QEMU_AUDIO_INT_H
 
+#include "qemu/timer.h"
+
 #ifdef CONFIG_COREAUDIO
 #define FLOAT_MIXENG
 /* #define RECIPROCAL */
@@ -192,7 +194,7 @@ struct AudioState {
     struct audio_driver *drv;
     void *drv_opaque;
 
-    QEMUTimer *ts;
+    QEMUTimer ts;
     QLIST_HEAD (card_listhead, QEMUSoundCard) card_head;
     QLIST_HEAD (hw_in_listhead, HWVoiceIn) hw_head_in;
     QLIST_HEAD (hw_out_listhead, HWVoiceOut) hw_head_out;

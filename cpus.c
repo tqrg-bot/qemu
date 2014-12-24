@@ -111,9 +111,9 @@ static int icount_time_shift;
 /* Arbitrarily pick 1MIPS as the minimum allowable speed.  */
 #define MAX_ICOUNT_SHIFT 10
 
-static QEMUTimer *icount_rt_timer;
-static QEMUTimer *icount_vm_timer;
-static QEMUTimer *icount_warp_timer;
+static QEMUTimer icount_rt_timer;
+static QEMUTimer icount_vm_timer;
+static QEMUTimer icount_warp_timer;
 
 typedef struct TimersState {
     /* Protected by BQL.  */
@@ -323,14 +323,14 @@ static void icount_adjust(void)
 
 static void icount_adjust_rt(void *opaque)
 {
-    timer_mod(icount_rt_timer,
+    timer_mod(&icount_rt_timer,
                    qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 1000);
     icount_adjust();
 }
 
 static void icount_adjust_vm(void *opaque)
 {
-    timer_mod(icount_vm_timer,
+    timer_mod(&icount_vm_timer,
                    qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    get_ticks_per_sec() / 10);
     icount_adjust();
@@ -414,7 +414,7 @@ void qemu_clock_warp(QEMUClockType type)
      * the earliest QEMU_CLOCK_VIRTUAL timer.
      */
     icount_warp_rt(NULL);
-    timer_del(icount_warp_timer);
+    timer_del(&icount_warp_timer);
     if (!all_cpu_threads_idle()) {
         return;
     }
@@ -454,7 +454,7 @@ void qemu_clock_warp(QEMUClockType type)
             vm_clock_warp_start = clock;
         }
         seqlock_write_unlock(&timers_state.vm_clock_seqlock);
-        timer_mod_anticipate(icount_warp_timer, clock + deadline);
+        timer_mod_anticipate(&icount_warp_timer, clock + deadline);
     } else if (deadline == 0) {
         qemu_clock_notify(QEMU_CLOCK_VIRTUAL);
     }
@@ -518,7 +518,7 @@ void configure_icount(QemuOpts *opts, Error **errp)
         return;
     }
     icount_align_option = qemu_opt_get_bool(opts, "align", false);
-    icount_warp_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL_RT,
+    timer_init_ns(&icount_warp_timer, QEMU_CLOCK_VIRTUAL_RT,
                                      icount_warp_rt, NULL);
     if (strcmp(option, "auto") != 0) {
         errno = 0;
@@ -543,13 +543,13 @@ void configure_icount(QemuOpts *opts, Error **errp)
        the virtual time trigger catches emulated time passing too fast.
        Realtime triggers occur even when idle, so use them less frequently
        than VM triggers.  */
-    icount_rt_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL_RT,
+    timer_init_ms(&icount_rt_timer, QEMU_CLOCK_VIRTUAL_RT,
                                    icount_adjust_rt, NULL);
-    timer_mod(icount_rt_timer,
+    timer_mod(&icount_rt_timer,
                    qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL_RT) + 1000);
-    icount_vm_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+    timer_init_ns(&icount_vm_timer, QEMU_CLOCK_VIRTUAL,
                                         icount_adjust_vm, NULL);
-    timer_mod(icount_vm_timer,
+    timer_mod(&icount_vm_timer,
                    qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    get_ticks_per_sec() / 10);
 }

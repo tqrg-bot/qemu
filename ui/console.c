@@ -157,7 +157,7 @@ struct QemuConsole {
     /* fifo for key pressed */
     QEMUFIFO out_fifo;
     uint8_t out_fifo_buf[16];
-    QEMUTimer *kbd_timer;
+    QEMUTimer kbd_timer;
 };
 
 struct DisplayState {
@@ -176,7 +176,7 @@ static QemuConsole *active_console;
 static QemuConsole **consoles;
 static int nb_consoles = 0;
 static bool cursor_visible_phase;
-static QEMUTimer *cursor_timer;
+static QEMUTimer cursor_timer;
 
 static void text_console_do_init(CharDriverState *chr, DisplayState *ds);
 static void dpy_refresh(DisplayState *s);
@@ -1045,7 +1045,7 @@ static void kbd_send_chars(void *opaque)
     /* characters are pending: we send them a bit later (XXX:
        horrible, should change char device API) */
     if (s->out_fifo.count > 0) {
-        timer_mod(s->kbd_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 1);
+        timer_mod(&s->kbd_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 1);
     }
 }
 
@@ -1365,7 +1365,7 @@ void update_displaychangelistener(DisplayChangeListener *dcl,
 
     dcl->update_interval = interval;
     if (!ds->refreshing && ds->update_interval > interval) {
-        timer_mod(ds->gui_timer, ds->last_update + interval);
+        timer_mod(&ds->gui_timer, ds->last_update + interval);
     }
 }
 
@@ -1640,7 +1640,7 @@ static DisplayState *get_alloc_displaystate(void)
 {
     if (!display_state) {
         display_state = g_new0(DisplayState, 1);
-        cursor_timer = timer_new_ms(QEMU_CLOCK_REALTIME,
+        timer_init_ms(&cursor_timer, QEMU_CLOCK_REALTIME,
                                     text_console_update_cursor, NULL);
         timer_init_ms(&display_state->gui_timer, QEMU_CLOCK_REALTIME,
                       gui_update, display_state);
@@ -1809,7 +1809,7 @@ static void text_console_set_echo(CharDriverState *chr, bool echo)
 
 static void text_console_update_cursor_timer(void)
 {
-    timer_mod(cursor_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME)
+    timer_mod(&cursor_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME)
               + CONSOLE_CURSOR_PERIOD / 2);
 }
 
@@ -1852,7 +1852,7 @@ static void text_console_do_init(CharDriverState *chr, DisplayState *ds)
 
     s->out_fifo.buf = s->out_fifo_buf;
     s->out_fifo.buf_size = sizeof(s->out_fifo_buf);
-    s->kbd_timer = timer_new_ms(QEMU_CLOCK_REALTIME, kbd_send_chars, s);
+    timer_init_ms(&s->kbd_timer, QEMU_CLOCK_REALTIME, kbd_send_chars, s);
     s->ds = ds;
 
     s->y_displayed = 0;

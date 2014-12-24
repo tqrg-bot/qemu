@@ -110,7 +110,7 @@ typedef struct XenIOState {
     shared_iopage_t *shared_page;
     shared_vmport_iopage_t *shared_vmport_page;
     buffered_iopage_t *buffered_io_page;
-    QEMUTimer *buffered_io_timer;
+    QEMUTimer buffered_io_timer;
     CPUState **cpu_by_vcpu_id;
     /* the evtchn port for polling the notification, */
     evtchn_port_t *ioreq_local_port;
@@ -669,7 +669,7 @@ static ioreq_t *cpu_get_ioreq(XenIOState *state)
 
     port = xc_evtchn_pending(state->xce_handle);
     if (port == state->bufioreq_local_port) {
-        timer_mod(state->buffered_io_timer,
+        timer_mod(&state->buffered_io_timer,
                 BUFFER_IO_MAX_DELAY + qemu_clock_get_ms(QEMU_CLOCK_REALTIME));
         return NULL;
     }
@@ -937,10 +937,10 @@ static void handle_buffered_io(void *opaque)
     XenIOState *state = opaque;
 
     if (handle_buffered_iopage(state)) {
-        timer_mod(state->buffered_io_timer,
+        timer_mod(&state->buffered_io_timer,
                 BUFFER_IO_MAX_DELAY + qemu_clock_get_ms(QEMU_CLOCK_REALTIME));
     } else {
-        timer_del(state->buffered_io_timer);
+        timer_del(&state->buffered_io_timer);
         xc_evtchn_unmask(state->xce_handle, state->bufioreq_local_port);
     }
 }
@@ -997,7 +997,7 @@ static void xen_main_loop_prepare(XenIOState *state)
         evtchn_fd = xc_evtchn_fd(state->xce_handle);
     }
 
-    state->buffered_io_timer = timer_new_ms(QEMU_CLOCK_REALTIME, handle_buffered_io,
+    timer_init_ms(&state->buffered_io_timer, QEMU_CLOCK_REALTIME, handle_buffered_io,
                                                  state);
 
     if (evtchn_fd != -1) {

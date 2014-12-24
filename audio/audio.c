@@ -1124,11 +1124,11 @@ static int audio_is_timer_needed (void)
 static void audio_reset_timer (AudioState *s)
 {
     if (audio_is_timer_needed ()) {
-        timer_mod (s->ts,
+        timer_mod(&s->ts,
             qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + conf.period.ticks);
     }
     else {
-        timer_del (s->ts);
+        timer_del (&s->ts);
     }
 }
 
@@ -1834,7 +1834,7 @@ static void audio_init (void)
     QLIST_INIT (&s->cap_head);
     atexit (audio_atexit);
 
-    s->ts = timer_new_ns(QEMU_CLOCK_VIRTUAL, audio_timer, s);
+    timer_init_ns(&s->ts, QEMU_CLOCK_VIRTUAL, audio_timer, s);
 
     audio_process_options ("AUDIO", audio_options);
 

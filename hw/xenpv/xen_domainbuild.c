@@ -128,7 +128,7 @@ int xenstore_domain_init2(int xenstore_port, int xenstore_mfn,
 
 /* ------------------------------------------------------------- */
 
-static QEMUTimer *xen_poll;
+static QEMUTimer xen_poll;
 
 /* check domain state once per second */
 static void xen_domain_poll(void *opaque)
@@ -148,7 +148,7 @@ static void xen_domain_poll(void *opaque)
         goto quit;
     }
 
-    timer_mod(xen_poll, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 1000);
+    timer_mod(&xen_poll, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 1000);
     return;
 
 quit:
@@ -290,8 +290,8 @@ int xen_domain_build_pv(const char *kernel, const char *ramdisk,
         goto err;
     }
 
-    xen_poll = timer_new_ms(QEMU_CLOCK_REALTIME, xen_domain_poll, NULL);
-    timer_mod(xen_poll, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 1000);
+    timer_init_ms(&xen_poll, QEMU_CLOCK_REALTIME, xen_domain_poll, NULL);
+    timer_mod(&xen_poll, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 1000);
     return 0;
 
 err:
