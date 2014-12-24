@@ -161,7 +161,7 @@ struct QemuConsole {
 };
 
 struct DisplayState {
-    QEMUTimer *gui_timer;
+    QEMUTimer gui_timer;
     uint64_t last_update;
     uint64_t update_interval;
     bool refreshing;
@@ -213,7 +213,7 @@ static void gui_update(void *opaque)
         trace_console_refresh(interval);
     }
     ds->last_update = qemu_clock_get_ms(QEMU_CLOCK_REALTIME);
-    timer_mod(ds->gui_timer, ds->last_update + interval);
+    timer_mod(&ds->gui_timer, ds->last_update + interval);
 }
 
 static void gui_setup_refresh(DisplayState *ds)
@@ -235,14 +235,11 @@ static void gui_setup_refresh(DisplayState *ds)
         }
     }
 
-    if (need_timer && ds->gui_timer == NULL) {
-        ds->gui_timer = timer_new_ms(QEMU_CLOCK_REALTIME, gui_update, ds);
-        timer_mod(ds->gui_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME));
+    if (need_timer && !timer_pending(&ds->gui_timer)) {
+        timer_mod(&ds->gui_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME));
     }
-    if (!need_timer && ds->gui_timer != NULL) {
-        timer_del(ds->gui_timer);
-        timer_free(ds->gui_timer);
-        ds->gui_timer = NULL;
+    if (!need_timer && timer_pending(&ds->gui_timer)) {
+        timer_del(&ds->gui_timer);
     }
 
     ds->have_gfx = have_gfx;
@@ -1645,6 +1642,8 @@ static DisplayState *get_alloc_displaystate(void)
         display_state = g_new0(DisplayState, 1);
         cursor_timer = timer_new_ms(QEMU_CLOCK_REALTIME,
                                     text_console_update_cursor, NULL);
+        timer_init_ms(&display_state->gui_timer, QEMU_CLOCK_REALTIME,
+                      gui_update, display_state);
     }
     return display_state;
 }
