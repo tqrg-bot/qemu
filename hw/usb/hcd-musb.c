@@ -265,6 +265,9 @@ static void musb_child_detach(USBPort *port, USBDevice *child);
 static void musb_schedule_cb(USBPort *port, USBPacket *p);
 static void musb_async_cancel_device(MUSBState *s, USBDevice *dev);
 
+static void musb_cb_tick0(void *opaque);
+static void musb_cb_tick1(void *opaque);
+
 static USBPortOps musb_port_ops = {
     .attach = musb_attach,
     .detach = musb_detach,
@@ -381,6 +384,12 @@ struct MUSBState *musb_init(DeviceState *parent_device, int gpio_base)
         s->irqs[i] = qdev_get_gpio_in(parent_device, gpio_base + i);
     }
 
+    for (i = 0; i < 16; i ++) {
+        s->ep[i].intv_timer[0] = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                      musb_cb_tick0, &s->ep[i]);
+        s->ep[i].intv_timer[1] = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+                      musb_cb_tick1, &s->ep[i]);
+    }
     musb_reset(s);
 
     usb_bus_new(&s->bus, sizeof(s->bus), &musb_bus_ops, parent_device);
@@ -556,9 +565,6 @@ static void musb_schedule_cb(USBPort *port, USBPacket *packey)
         timeout = 8;
     else
         return musb_cb_tick(ep);
-
-    if (!ep->intv_timer[dir])
-        ep->intv_timer[dir] = timer_new_ns(QEMU_CLOCK_VIRTUAL, musb_cb_tick, ep);
 
     timer_mod(ep->intv_timer[dir], qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    muldiv64(timeout, get_ticks_per_sec(), 8000));
@@ -965,8 +971,7 @@ static void musb_write_fifo(MUSBEndPoint *ep, uint8_t value)
 
 static void musb_ep_frame_cancel(MUSBEndPoint *ep, int dir)
 {
-    if (ep->intv_timer[dir])
-        timer_del(ep->intv_timer[dir]);
+    timer_del(&ep->intv_timer[dir]);
 }
 
 /* Bus control */
