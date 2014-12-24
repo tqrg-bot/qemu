@@ -44,7 +44,7 @@ struct HIDState {
     int32_t protocol;
     uint8_t idle;
     bool idle_pending;
-    QEMUTimer *idle_timer;
+    QEMUTimer idle_timer;
     HIDEventFunc event;
     QemuInputHandlerState *s;
 };
