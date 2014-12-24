@@ -767,12 +767,8 @@ static void complete (SB16State *s)
                     qemu_irq_raise (s->pic);
                 }
                 else {
-                    if (s->aux_ts) {
-                        timer_mod (
-                            s->aux_ts,
-                            qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + ticks
-                            );
-                    }
+                    timer_mod(s->aux_ts,
+                        qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + ticks);
                 }
                 ldebug ("mix silence %d %d %" PRId64 "\n", samples, bytes, ticks);
             }
@@ -1378,9 +1374,6 @@ static void sb16_realizefn (DeviceState *dev, Error **errp)
 
     reset_mixer (s);
     s->aux_ts = timer_new_ns(QEMU_CLOCK_VIRTUAL, aux_timer, s);
-    if (!s->aux_ts) {
-        dolog ("warning: Could not create auxiliary timer\n");
-    }
 
     isa_register_portio_list (isadev, s->port, sb16_ioport_list, s, "sb16");
 

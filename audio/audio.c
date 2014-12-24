@@ -1835,9 +1835,6 @@ static void audio_init (void)
     atexit (audio_atexit);
 
     s->ts = timer_new_ns(QEMU_CLOCK_VIRTUAL, audio_timer, s);
-    if (!s->ts) {
-        hw_error("Could not create audio timer\n");
-    }
 
     audio_process_options ("AUDIO", audio_options);
 

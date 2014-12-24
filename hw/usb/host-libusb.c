@@ -1629,9 +1629,6 @@ static void usb_host_auto_check(void *unused)
     }
     if (!usb_auto_timer) {
         usb_auto_timer = timer_new_ms(QEMU_CLOCK_REALTIME, usb_host_auto_check, NULL);
-        if (!usb_auto_timer) {
-            return;
-        }
         trace_usb_host_auto_scan_enabled();
     }
     timer_mod(usb_auto_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 2000);

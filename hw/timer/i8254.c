@@ -247,7 +247,7 @@ static void pit_irq_timer_update(PITChannelState *s, int64_t current_time)
     int64_t expire_time;
     int irq_level;
 
-    if (!s->irq_timer || s->irq_disabled) {
+    if (s->irq_disabled) {
         return;
     }
     expire_time = pit_get_next_transition_time(s, current_time);
