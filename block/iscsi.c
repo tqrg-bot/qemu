@@ -55,7 +55,7 @@ typedef struct IscsiLun {
     int block_size;
     uint64_t num_blocks;
     int events;
-    QEMUTimer *nop_timer;
+    QEMUTimer nop_timer;
     uint8_t lbpme;
     uint8_t lbprz;
     uint8_t has_write_same;
@@ -1082,7 +1082,7 @@ static void iscsi_nop_timed_event(void *opaque)
         return;
     }
 
-    timer_mod(iscsilun->nop_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + NOP_INTERVAL);
+    timer_mod(&iscsilun->nop_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + NOP_INTERVAL);
     iscsi_set_events(iscsilun);
 }
 
@@ -1208,11 +1208,8 @@ static void iscsi_detach_aio_context(BlockDriverState *bs)
                        NULL, NULL, NULL);
     iscsilun->events = 0;
 
-    if (iscsilun->nop_timer) {
-        timer_del(iscsilun->nop_timer);
-        timer_free(iscsilun->nop_timer);
-        iscsilun->nop_timer = NULL;
-    }
+    timer_del(&iscsilun->nop_timer);
+    timer_deinit(&iscsilun->nop_timer);
 }
 
 static void iscsi_attach_aio_context(BlockDriverState *bs,
@@ -1224,10 +1221,10 @@ static void iscsi_attach_aio_context(BlockDriverState *bs,
     iscsi_set_events(iscsilun);
 
     /* Set up a timer for sending out iSCSI NOPs */
-    iscsilun->nop_timer = aio_timer_new(iscsilun->aio_context,
-                                        QEMU_CLOCK_REALTIME, SCALE_MS,
-                                        iscsi_nop_timed_event, iscsilun);
-    timer_mod(iscsilun->nop_timer,
+    aio_timer_init(iscsilun->aio_context, &iscsilun->nop_timer,
+                   QEMU_CLOCK_REALTIME, SCALE_MS,
+                   iscsi_nop_timed_event, iscsilun);
+    timer_mod(&iscsilun->nop_timer,
               qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + NOP_INTERVAL);
 }
 
