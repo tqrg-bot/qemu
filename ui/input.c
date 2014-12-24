@@ -22,7 +22,7 @@ struct QemuInputEventQueue {
         QEMU_INPUT_QUEUE_EVENT,
         QEMU_INPUT_QUEUE_SYNC,
     } type;
-    QEMUTimer *timer;
+    QEMUTimer timer;
     uint32_t delay_ms;
     QemuConsole *src;
     InputEvent *evt;
@@ -36,7 +36,6 @@ static NotifierList mouse_mode_notifiers =
 
 static QTAILQ_HEAD(QemuInputEventQueueHead, QemuInputEventQueue) kbd_queue =
     QTAILQ_HEAD_INITIALIZER(kbd_queue);
-static QEMUTimer *kbd_timer;
 static uint32_t kbd_default_delay_ms = 10;
 
 QemuInputHandlerState *qemu_input_handler_register(DeviceState *dev,
@@ -246,7 +245,7 @@ static void qemu_input_queue_process(void *opaque)
         item = QTAILQ_FIRST(queue);
         switch (item->type) {
         case QEMU_INPUT_QUEUE_DELAY:
-            timer_mod(item->timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL)
+            timer_mod(&item->timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL)
                       + item->delay_ms);
             return;
         case QEMU_INPUT_QUEUE_EVENT:
@@ -263,18 +262,19 @@ static void qemu_input_queue_process(void *opaque)
 }
 
 static void qemu_input_queue_delay(struct QemuInputEventQueueHead *queue,
-                                   QEMUTimer *timer, uint32_t delay_ms)
+                                   uint32_t delay_ms)
 {
     QemuInputEventQueue *item = g_new0(QemuInputEventQueue, 1);
     bool start_timer = QTAILQ_EMPTY(queue);
 
     item->type = QEMU_INPUT_QUEUE_DELAY;
     item->delay_ms = delay_ms;
-    item->timer = timer;
+    timer_init_ms(&item->timer, QEMU_CLOCK_VIRTUAL, qemu_input_queue_process,
+                                 &kbd_queue);
     QTAILQ_INSERT_TAIL(queue, item, node);
 
     if (start_timer) {
-        timer_mod(item->timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL)
+        timer_mod(&item->timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL)
                   + item->delay_ms);
     }
 }
@@ -385,11 +385,7 @@ void qemu_input_event_send_key_qcode(QemuConsole *src, QKeyCode q, bool down)
 
 void qemu_input_event_send_key_delay(uint32_t delay_ms)
 {
-    if (!kbd_timer) {
-        kbd_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, qemu_input_queue_process,
-                                 &kbd_queue);
-    }
-    qemu_input_queue_delay(&kbd_queue, kbd_timer,
+    qemu_input_queue_delay(&kbd_queue,
                            delay_ms ? delay_ms : kbd_default_delay_ms);
 }
 
