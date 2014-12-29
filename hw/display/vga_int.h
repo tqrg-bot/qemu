@@ -90,6 +90,8 @@ typedef struct VGADisplayParams {
     uint32_t line_offset;
     uint32_t start_addr;
     uint32_t line_compare;
+    uint8_t  hpel;
+    bool     hpel_split;
 } VGADisplayParams;
 
 typedef struct VGACommonState {
@@ -141,6 +143,7 @@ typedef struct VGACommonState {
     /* display refresh support */
     QemuConsole *con;
     uint32_t font_offsets[2];
+    uint8_t *panning_buf;
     int graphic_mode;
     uint8_t shift_control;
     uint8_t double_scan;

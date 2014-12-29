@@ -44,6 +44,13 @@
 /* Address mask for non-VESA modes.  */
 #define VGA_VRAM_SIZE                   262144
 
+/* This value corresponds to a shift of zero pixels
+ * in 9-dot text mode.  In other modes, bit 3 is undefined;
+ * we just ignore it, so that 8 corresponds to zero pixels
+ * in all modes.
+ */
+#define VGA_HPEL_NEUTRAL		8
+
 /*
  * Video Graphics Array (VGA)
  *
@@ -967,8 +974,8 @@ void vga_mem_writeb(VGACommonState *s, hwaddr addr, uint32_t val)
     }
 }
 
-typedef void vga_draw_line_func(VGACommonState *s1, uint8_t *d,
-                                 unsigned int s, int width);
+typedef void *vga_draw_line_func(VGACommonState *s1, uint8_t *d,
+                                 unsigned int s, int width, int hpel);
 
 #include "vga-helpers.h"
 
@@ -1034,6 +1041,8 @@ static void vga_get_params(VGACommonState *s,
         params->line_offset = s->vbe_line_offset;
         params->start_addr = s->vbe_start_addr;
         params->line_compare = 65535;
+        params->hpel = VGA_HPEL_NEUTRAL;
+	params->hpel_split = false;
     } else {
         /* compute line_offset in bytes */
         params->line_offset = s->cr[VGA_CRTC_OFFSET] << 3;
@@ -1046,6 +1055,9 @@ static void vga_get_params(VGACommonState *s,
         params->line_compare = s->cr[VGA_CRTC_LINE_COMPARE] |
             ((s->cr[VGA_CRTC_OVERFLOW] & 0x10) << 4) |
             ((s->cr[VGA_CRTC_MAX_SCAN] & 0x40) << 3);
+
+        params->hpel = s->ar[VGA_ATC_PEL];
+        params->hpel_split = s->ar[VGA_ATC_MODE] & 0x20;
     }
 }
 
@@ -1410,6 +1422,7 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
     int width, height, shift_control, line_offset, bwidth, bits;
     ram_addr_t page0, page1, page_min, page_max;
     int disp_width, multi_scan, multi_run;
+    int hpel;
     uint8_t *d;
     uint32_t v, addr1, addr;
     vga_draw_line_func *vga_draw_line = NULL;
@@ -1485,6 +1498,9 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
                    depth, byteswap);
 #endif
         }
+        /* 16 extra bytes are needed for double-width planar modes.  */
+        s->panning_buf = g_realloc(s->panning_buf,
+                                   (disp_width + 16) * sizeof(uint32_t));
         s->last_scr_width = disp_width;
         s->last_scr_height = height;
         s->last_width = disp_width;
@@ -1504,6 +1520,7 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
         dpy_gfx_replace_surface(s->con, surface);
     }
 
+    hpel = s->params.hpel;
     if (shift_control == 0) {
         full_update |= update_palette16(s);
         if (s->sr[VGA_SEQ_CLOCK_MODE] & 8) {
@@ -1585,6 +1602,9 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
         update = full_update;
         page0 = addr;
         page1 = addr + bwidth - 1;
+        if (hpel && bits <= 8) {
+            bwidth += 4;
+        }
         update |= memory_region_get_dirty(&s->vram, page0, page1 - page0,
                                           DIRTY_MEMORY_VGA);
         /* explicit invalidation for the hardware cursor */
@@ -1597,7 +1617,11 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
             if (page1 > page_max)
                 page_max = page1;
             if (!(is_buffer_shared(surface))) {
-                vga_draw_line(s, d, addr, width);
+                uint8_t *p;
+                p = vga_draw_line(s, d, addr, width, hpel);
+                if (p) {
+                    memcpy(d, p, disp_width * sizeof(uint32_t));
+                }
                 if (s->cursor_draw_line)
                     s->cursor_draw_line(s, d, y);
             }
@@ -1619,8 +1643,12 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
             multi_run--;
         }
         /* line compare acts on the displayed lines */
-        if (y == s->params.line_compare)
+        if (y == s->params.line_compare) {
+            if (s->params.hpel_split) {
+                hpel = VGA_HPEL_NEUTRAL;
+            }
             addr1 = 0;
+        }
         d += linesize;
     }
     if (y_start >= 0) {

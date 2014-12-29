@@ -31,6 +31,7 @@
 #include "ui/console.h"
 #include "ui/pixel_ops.h"
 #include "vga_int.h"
+#include "vga.h"
 #include "hw/loader.h"
 
 /*
@@ -1099,6 +1100,9 @@ static void cirrus_get_params(VGACommonState *s1,
     params->line_compare = s->vga.cr[0x18] |
         ((s->vga.cr[0x07] & 0x10) << 4) |
         ((s->vga.cr[0x09] & 0x40) << 3);
+
+    params->hpel = s->vga.ar[VGA_ATC_PEL];
+    params->hpel_split = s->vga.ar[VGA_ATC_MODE] & 0x20;
 }
 
 static uint32_t cirrus_get_bpp16_depth(CirrusVGAState * s)
