@@ -100,7 +100,9 @@
 
 /* VGA CRT controller bit masks */
 #define VGA_CR11_LOCK_CR0_CR7   0x80 /* lock writes to CR0 - CR7 */
+#define VGA_CR14_DW             0x40
 #define VGA_CR17_H_V_SIGNALS_ENABLED 0x80
+#define VGA_CR17_WORD_BYTE      0x40
 
 /* VGA attribute controller register indices */
 #define VGA_ATC_PALETTE0        0x00
