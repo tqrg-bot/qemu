@@ -268,6 +268,18 @@ static void *vga_draw_line8d2(VGACommonState *s1, uint8_t *d,
     int x;
 
     hpel = (hpel >> 1) & 3;
+
+    /* For 256 color modes, we can adjust the source address and write directly
+     * to the destination, even if horizontal pel panning is active.  However,
+     * the loop below assumes that the address does not wrap in the middle of a
+     * plane.  If that happens...
+     */
+    if (addr + (width >> 3) * 4 < VGA_VRAM_SIZE) {
+        addr += hpel;
+        hpel = 0;
+    }
+
+    /* ... use the panning buffer as in planar modes.  */
     if (hpel) {
         width += 8;
         d = s1->panning_buf;
