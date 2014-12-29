@@ -41,6 +41,9 @@
 /* 16 state changes per vertical frame @60 Hz */
 #define VGA_TEXT_CURSOR_PERIOD_MS       (1000 * 2 * 16 / 60)
 
+/* Address mask for non-VESA modes.  */
+#define VGA_VRAM_SIZE                   262144
+
 /*
  * Video Graphics Array (VGA)
  *
@@ -965,7 +968,7 @@ void vga_mem_writeb(VGACommonState *s, hwaddr addr, uint32_t val)
 }
 
 typedef void vga_draw_line_func(VGACommonState *s1, uint8_t *d,
-                                const uint8_t *s, int width);
+                                 unsigned int s, int width);
 
 #include "vga-helpers.h"
 
@@ -1594,7 +1597,7 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
             if (page1 > page_max)
                 page_max = page1;
             if (!(is_buffer_shared(surface))) {
-                vga_draw_line(s, d, s->vram_ptr + addr, width);
+                vga_draw_line(s, d, addr, width);
                 if (s->cursor_draw_line)
                     s->cursor_draw_line(s, d, y);
             }
