@@ -2612,6 +2612,8 @@ static int cirrus_post_load(void *opaque, int version_id)
     cirrus_update_memory_access(s);
     vga_update_memory_access(&s->vga);
 
+    s->vga.update_retrace_info(&s->vga);
+
     /* force refresh */
     s->vga.graphic_mode = -1;
     return 0;
