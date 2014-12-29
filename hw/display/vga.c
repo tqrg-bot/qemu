@@ -98,12 +98,6 @@ const uint8_t gr_mask[16] = {
 #endif
 
 #ifdef HOST_WORDS_BIGENDIAN
-#define BIG 1
-#else
-#define BIG 0
-#endif
-
-#ifdef HOST_WORDS_BIGENDIAN
 #define GET_PLANE(data, p) (((data) >> (24 - (p) * 8)) & 0xff)
 #else
 #define GET_PLANE(data, p) (((data) >> ((p) * 8)) & 0xff)
@@ -127,14 +121,6 @@ static const uint32_t mask16[16] = {
     PAT(0xffffff00),
     PAT(0xffffffff),
 };
-
-#undef PAT
-
-#ifdef HOST_WORDS_BIGENDIAN
-#define PAT(x) (x)
-#else
-#define PAT(x) cbswap_32(x)
-#endif
 
 static uint32_t expand4[256];
 static uint16_t expand2[256];
