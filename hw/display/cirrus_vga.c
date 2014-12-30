@@ -1519,14 +1519,10 @@ cirrus_vga_write_gr(CirrusVGAState * s, unsigned reg_index, int reg_value)
     case 0x09:			// bank offset #0
     case 0x0A:			// bank offset #1
 	s->vga.gr[reg_index] = reg_value;
-	cirrus_update_bank_ptr(s, 0);
-	cirrus_update_bank_ptr(s, 1);
         cirrus_update_memory_access(s);
         break;
     case 0x0B:
 	s->vga.gr[reg_index] = reg_value;
-	cirrus_update_bank_ptr(s, 0);
-	cirrus_update_bank_ptr(s, 1);
         cirrus_update_memory_access(s);
 	break;
     case 0x10:			// BGCOLOR 0x0000ff00
@@ -2462,6 +2458,8 @@ static void cirrus_update_memory_access(CirrusVGAState *s)
 {
     unsigned mode;
 
+    cirrus_update_bank_ptr(s, 0);
+    cirrus_update_bank_ptr(s, 1);
     memory_region_transaction_begin();
     if ((s->vga.sr[0x17] & 0x44) == 0x44) {
         goto generic_io;
@@ -2664,8 +2662,6 @@ static int cirrus_post_load(void *opaque, int version_id)
 
     /* force refresh */
     s->vga.graphic_mode = -1;
-    cirrus_update_bank_ptr(s, 0);
-    cirrus_update_bank_ptr(s, 1);
     return 0;
 }
 
