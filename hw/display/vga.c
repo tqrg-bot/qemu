@@ -352,6 +352,17 @@ static uint8_t vga_precise_retrace(VGACommonState *s)
     }
 }
 
+static uint8_t vga_in_retrace(VGACommonState *s)
+{
+    struct vga_precise_retrace *r = &s->retrace_info.precise;
+
+    if (r->total_chars) {
+        return vga_precise_retrace(s) & ST01_V_RETRACE;
+    } else {
+        return false;
+    }
+}
+
 static uint8_t vga_dumb_retrace(VGACommonState *s)
 {
     return s->st01 ^ (ST01_V_RETRACE | ST01_DISP_ENABLE);
@@ -1582,11 +1593,6 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
     bool byteswap = s->big_endian_fb;
 #endif
 
-    full_update |= update_basic_params(s);
-
-    if (!full_update)
-        vga_sync_dirty_bitmap(s);
-
     s->get_resolution(s, &width, &height);
     disp_width = width;
 
@@ -1668,6 +1674,10 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
         dpy_gfx_replace_surface(s->con, surface);
     }
 
+    if (!full_update && vga_in_retrace(s)) {
+        return;
+    }
+
     hpel = s->params.hpel;
     if (shift_control == 0) {
         full_update |= update_palette16(s);
@@ -1716,6 +1726,12 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
             break;
         }
     }
+
+    full_update |= update_basic_params(s);
+    if (!full_update) {
+        vga_sync_dirty_bitmap(s);
+    }
+
     vga_draw_line = vga_draw_line_table[v];
 
     if (!is_buffer_shared(surface) && s->cursor_invalidate) {
