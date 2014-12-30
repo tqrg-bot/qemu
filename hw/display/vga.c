@@ -136,7 +136,7 @@ static uint32_t expand4[256];
 static uint16_t expand2[256];
 static uint8_t expand4to8[16];
 
-static void vga_update_memory_access(VGACommonState *s)
+void vga_update_memory_access(VGACommonState *s)
 {
     hwaddr base, offset, size;
 
@@ -324,6 +324,97 @@ int vga_ioport_invalid(VGACommonState *s, uint32_t addr)
     }
 }
 
+static void vga_write_ar(VGACommonState *s, int index, int val)
+{
+    switch(index) {
+    case VGA_ATC_PALETTE0 ... VGA_ATC_PALETTEF:
+        s->ar[index] = val & 0x3f;
+        break;
+    case VGA_ATC_MODE:
+        s->ar[index] = val & ~0x10;
+        break;
+    case VGA_ATC_OVERSCAN:
+        s->ar[index] = val;
+        break;
+    case VGA_ATC_PLANE_ENABLE:
+        s->ar[index] = val & ~0xc0;
+        break;
+    case VGA_ATC_PEL:
+        s->ar[index] = val & ~0xf0;
+        break;
+    case VGA_ATC_COLOR_PAGE:
+        s->ar[index] = val & ~0xf0;
+        break;
+    default:
+        break;
+    }
+}
+
+static uint8_t vga_read_palette(VGACommonState *s)
+{
+    uint8_t val;
+    val = s->palette[s->dac_read_index * 3 + s->dac_sub_index];
+    if (++s->dac_sub_index == 3) {
+        s->dac_sub_index = 0;
+        s->dac_read_index++;
+    }
+    return val;
+}
+
+void vga_write_sr(VGACommonState *s, int index, int val)
+{
+    assert(index < ARRAY_SIZE(sr_mask));
+    s->sr[index] = val & sr_mask[index];
+    if (index == VGA_SEQ_CLOCK_MODE) {
+        s->update_retrace_info(s);
+    }
+    vga_update_memory_access(s);
+}
+
+static void vga_write_palette(VGACommonState *s, int val)
+{
+    s->dac_cache[s->dac_sub_index] = val;
+    if (++s->dac_sub_index == 3) {
+        memcpy(&s->palette[s->dac_write_index * 3], s->dac_cache, 3);
+        s->dac_sub_index = 0;
+        s->dac_write_index++;
+    }
+}
+
+void vga_write_gr(VGACommonState *s, int index, int val)
+{
+    assert(index < ARRAY_SIZE(gr_mask));
+    s->gr[index] = val & gr_mask[index];
+    vga_update_memory_access(s);
+}
+
+void vga_write_cr(VGACommonState *s, int index, int val)
+{
+    /* handle CR0-7 protection */
+    if ((s->cr[VGA_CRTC_V_SYNC_END] & VGA_CR11_LOCK_CR0_CR7) &&
+        index <= VGA_CRTC_OVERFLOW) {
+        /* can always write bit 4 of CR7 */
+        if (index == VGA_CRTC_OVERFLOW) {
+            s->cr[VGA_CRTC_OVERFLOW] = (s->cr[VGA_CRTC_OVERFLOW] & ~0x10) |
+                (val & 0x10);
+        }
+        return;
+    }
+    s->cr[index] = val;
+
+    switch(index) {
+    case VGA_CRTC_H_TOTAL:
+    case VGA_CRTC_H_SYNC_START:
+    case VGA_CRTC_H_SYNC_END:
+    case VGA_CRTC_V_TOTAL:
+    case VGA_CRTC_OVERFLOW:
+    case VGA_CRTC_V_SYNC_END:
+    case VGA_CRTC_MODE:
+        s->update_retrace_info(s);
+        break;
+    }
+}
+
 uint32_t vga_ioport_read(void *opaque, uint32_t addr)
 {
     VGACommonState *s = opaque;
@@ -367,11 +458,7 @@ uint32_t vga_ioport_read(void *opaque, uint32_t addr)
             val = s->dac_write_index;
             break;
         case VGA_PEL_D:
-            val = s->palette[s->dac_read_index * 3 + s->dac_sub_index];
-            if (++s->dac_sub_index == 3) {
-                s->dac_sub_index = 0;
-                s->dac_read_index++;
-            }
+            val = vga_read_palette(s);
             break;
         case VGA_FTC_R:
             val = s->fcr;
@@ -419,7 +506,6 @@ uint32_t vga_ioport_read(void *opaque, uint32_t addr)
 void vga_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 {
     VGACommonState *s = opaque;
-    int index;
 
     /* check port range access depending on color/monochrome mode */
     if (vga_ioport_invalid(s, addr)) {
@@ -435,29 +521,7 @@ void vga_ioport_write(void *opaque, uint32_t addr, uint32_t val)
             val &= 0x3f;
             s->ar_index = val;
         } else {
-            index = s->ar_index & 0x1f;
-            switch(index) {
-            case VGA_ATC_PALETTE0 ... VGA_ATC_PALETTEF:
-                s->ar[index] = val & 0x3f;
-                break;
-            case VGA_ATC_MODE:
-                s->ar[index] = val & ~0x10;
-                break;
-            case VGA_ATC_OVERSCAN:
-                s->ar[index] = val;
-                break;
-            case VGA_ATC_PLANE_ENABLE:
-                s->ar[index] = val & ~0xc0;
-                break;
-            case VGA_ATC_PEL:
-                s->ar[index] = val & ~0xf0;
-                break;
-            case VGA_ATC_COLOR_PAGE:
-                s->ar[index] = val & ~0xf0;
-                break;
-            default:
-                break;
-            }
+            vga_write_ar(s, s->ar_index & 0x1f, val);
         }
         s->ar_flip_flop ^= 1;
         break;
@@ -472,11 +536,7 @@ void vga_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 #ifdef DEBUG_VGA_REG
         printf("vga: write SR%x = 0x%02x\n", s->sr_index, val);
 #endif
-        s->sr[s->sr_index] = val & sr_mask[s->sr_index];
-        if (s->sr_index == VGA_SEQ_CLOCK_MODE) {
-            s->update_retrace_info(s);
-        }
-        vga_update_memory_access(s);
+        vga_write_sr(s, s->sr_index, val);
         break;
     case VGA_PEL_IR:
         s->dac_read_index = val;
@@ -489,12 +549,7 @@ void vga_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         s->dac_state = 0;
         break;
     case VGA_PEL_D:
-        s->dac_cache[s->dac_sub_index] = val;
-        if (++s->dac_sub_index == 3) {
-            memcpy(&s->palette[s->dac_write_index * 3], s->dac_cache, 3);
-            s->dac_sub_index = 0;
-            s->dac_write_index++;
-        }
+        vga_write_palette(s, val);
         break;
     case VGA_GFX_I:
         s->gr_index = val & 0x0f;
@@ -503,8 +558,7 @@ void vga_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 #ifdef DEBUG_VGA_REG
         printf("vga: write GR%x = 0x%02x\n", s->gr_index, val);
 #endif
-        s->gr[s->gr_index] = val & gr_mask[s->gr_index];
-        vga_update_memory_access(s);
+        vga_write_gr(s, s->gr_index, val);
         break;
     case VGA_CRT_IM:
     case VGA_CRT_IC:
@@ -515,29 +569,7 @@ void vga_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 #ifdef DEBUG_VGA_REG
         printf("vga: write CR%x = 0x%02x\n", s->cr_index, val);
 #endif
-        /* handle CR0-7 protection */
-        if ((s->cr[VGA_CRTC_V_SYNC_END] & VGA_CR11_LOCK_CR0_CR7) &&
-            s->cr_index <= VGA_CRTC_OVERFLOW) {
-            /* can always write bit 4 of CR7 */
-            if (s->cr_index == VGA_CRTC_OVERFLOW) {
-                s->cr[VGA_CRTC_OVERFLOW] = (s->cr[VGA_CRTC_OVERFLOW] & ~0x10) |
-                    (val & 0x10);
-            }
-            return;
-        }
-        s->cr[s->cr_index] = val;
-
-        switch(s->cr_index) {
-        case VGA_CRTC_H_TOTAL:
-        case VGA_CRTC_H_SYNC_START:
-        case VGA_CRTC_H_SYNC_END:
-        case VGA_CRTC_V_TOTAL:
-        case VGA_CRTC_OVERFLOW:
-        case VGA_CRTC_V_SYNC_END:
-        case VGA_CRTC_MODE:
-            s->update_retrace_info(s);
-            break;
-        }
+        vga_write_cr(s, s->cr_index, val);
         break;
     case VGA_IS1_RM:
     case VGA_IS1_RC:

@@ -2739,6 +2739,7 @@ static int cirrus_post_load(void *opaque, int version_id)
     s->vga.gr[0x01] = s->cirrus_shadow_gr1 & 0x0f;
 
     cirrus_update_memory_access(s);
+
     /* force refresh */
     s->vga.graphic_mode = -1;
     cirrus_update_bank_ptr(s, 0);

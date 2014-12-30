@@ -200,6 +200,7 @@ void vga_common_reset(VGACommonState *s);
 void vga_sync_dirty_bitmap(VGACommonState *s);
 void vga_dirty_log_start(VGACommonState *s);
 void vga_dirty_log_stop(VGACommonState *s);
+void vga_update_memory_access(VGACommonState *s);
 
 extern const VMStateDescription vmstate_vga_common;
 uint32_t vga_ioport_read(void *opaque, uint32_t addr);
@@ -209,6 +210,10 @@ void vga_mem_writeb(VGACommonState *s, hwaddr addr, uint32_t val);
 void vga_invalidate_scanlines(VGACommonState *s, int y1, int y2);
 
 int vga_ioport_invalid(VGACommonState *s, uint32_t addr);
+
+void vga_write_sr(VGACommonState *s, int index, int val);
+void vga_write_gr(VGACommonState *s, int index, int val);
+void vga_write_cr(VGACommonState *s, int index, int val);
 
 void vga_init_vbe(VGACommonState *s, Object *obj, MemoryRegion *address_space);
 uint32_t vbe_ioport_read_data(void *opaque, uint32_t addr);
