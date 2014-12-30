@@ -1300,14 +1300,8 @@ static int cirrus_vga_read_sr(CirrusVGAState * s, int reg_index)
 static void cirrus_vga_write_sr(CirrusVGAState * s, int reg_index, uint32_t val)
 {
     switch (reg_index) {
-    case 0x00:			// Standard VGA
-    case 0x01:			// Standard VGA
-    case 0x02:			// Standard VGA
-    case 0x03:			// Standard VGA
-    case 0x04:			// Standard VGA
-	s->vga.sr[reg_index] = val & sr_mask[reg_index];
-	if (reg_index == 1)
-            s->vga.update_retrace_info(&s->vga);
+    case 0x00 ... 0x05:		// Standard VGA
+        vga_write_sr(&s->vga, reg_index, val);
         break;
     case 0x06:			// Unlock Cirrus extensions
 	val &= 0x17;
@@ -1497,20 +1491,19 @@ cirrus_vga_write_gr(CirrusVGAState * s, unsigned reg_index, int reg_value)
 #endif
     switch (reg_index) {
     case 0x00:			// Standard VGA, BGCOLOR 0x000000ff
-	s->vga.gr[reg_index] = reg_value & gr_mask[reg_index];
 	s->cirrus_shadow_gr0 = reg_value;
-	break;
+        goto vga;
     case 0x01:			// Standard VGA, FGCOLOR 0x000000ff
-	s->vga.gr[reg_index] = reg_value & gr_mask[reg_index];
 	s->cirrus_shadow_gr1 = reg_value;
-	break;
+        goto vga;
     case 0x02:			// Standard VGA
     case 0x03:			// Standard VGA
     case 0x04:			// Standard VGA
     case 0x06:			// Standard VGA
     case 0x07:			// Standard VGA
     case 0x08:			// Standard VGA
-	s->vga.gr[reg_index] = reg_value & gr_mask[reg_index];
+    vga:
+        vga_write_gr(&s->vga, reg_index, reg_value);
         break;
     case 0x05:			// Standard VGA, Cirrus extended mode
 	s->vga.gr[reg_index] = reg_value & 0x7f;
@@ -1637,50 +1630,8 @@ static int cirrus_vga_read_cr(CirrusVGAState * s, unsigned reg_index)
 static void cirrus_vga_write_cr(CirrusVGAState * s, int reg_index, int reg_value)
 {
     switch (reg_index) {
-    case 0x00:			// Standard VGA
-    case 0x01:			// Standard VGA
-    case 0x02:			// Standard VGA
-    case 0x03:			// Standard VGA
-    case 0x04:			// Standard VGA
-    case 0x05:			// Standard VGA
-    case 0x06:			// Standard VGA
-    case 0x07:			// Standard VGA
-    case 0x08:			// Standard VGA
-    case 0x09:			// Standard VGA
-    case 0x0a:			// Standard VGA
-    case 0x0b:			// Standard VGA
-    case 0x0c:			// Standard VGA
-    case 0x0d:			// Standard VGA
-    case 0x0e:			// Standard VGA
-    case 0x0f:			// Standard VGA
-    case 0x10:			// Standard VGA
-    case 0x11:			// Standard VGA
-    case 0x12:			// Standard VGA
-    case 0x13:			// Standard VGA
-    case 0x14:			// Standard VGA
-    case 0x15:			// Standard VGA
-    case 0x16:			// Standard VGA
-    case 0x17:			// Standard VGA
-    case 0x18:			// Standard VGA
-	/* handle CR0-7 protection */
-	if ((s->vga.cr[0x11] & 0x80) && reg_index <= 7) {
-	    /* can always write bit 4 of CR7 */
-	    if (reg_index == 7)
-		s->vga.cr[7] = (s->vga.cr[7] & ~0x10) | (reg_value & 0x10);
-	    return;
-	}
-	s->vga.cr[reg_index] = reg_value;
-	switch(reg_index) {
-	case 0x00:
-	case 0x04:
-	case 0x05:
-	case 0x06:
-	case 0x07:
-	case 0x11:
-	case 0x17:
-	    s->vga.update_retrace_info(&s->vga);
-	    break;
-	}
+    case 0x00 ... 0x18:		// Standard VGA
+        vga_write_cr(&s->vga, reg_index, reg_value);
         break;
     case 0x19:			// Interlace End
     case 0x1a:			// Miscellaneous Control
@@ -2659,6 +2610,7 @@ static int cirrus_post_load(void *opaque, int version_id)
     s->vga.gr[0x01] = s->cirrus_shadow_gr1 & 0x0f;
 
     cirrus_update_memory_access(s);
+    vga_update_memory_access(&s->vga);
 
     /* force refresh */
     s->vga.graphic_mode = -1;
