@@ -309,11 +309,13 @@ static int64_t vga_precise_retrace_next_line(struct vga_precise_retrace *r,
     return retrace_tick;
 }
 
+#if 0
 static int64_t vga_precise_retrace_next_start(VGACommonState *s)
 {
     struct vga_precise_retrace *r = &s->retrace_info.precise;
     return vga_precise_retrace_next_line(r, r->vstart);
 }
+#endif
 
 static int64_t vga_precise_retrace_next_end(VGACommonState *s)
 {
@@ -459,7 +461,7 @@ void vga_write_cr(VGACommonState *s, int index, int val)
     case VGA_CRTC_START_LO:
     case VGA_CRTC_START_HI:
         vga_latch_display_params(s);
-        s->start_addr_latch_time = vga_precise_retrace_next_start(s);
+        s->start_addr_latch_time = vga_precise_retrace_next_end(s);
         break;
     }
 
