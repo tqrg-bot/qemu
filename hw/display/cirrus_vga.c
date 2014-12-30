@@ -1231,17 +1231,17 @@ static void cirrus_update_bank_ptr(CirrusVGAState * s, unsigned bank_index)
  *
  ***************************************/
 
-static int cirrus_vga_read_sr(CirrusVGAState * s)
+static int cirrus_vga_read_sr(CirrusVGAState * s, int reg_index)
 {
-    switch (s->vga.sr_index) {
+    switch (reg_index) {
     case 0x00:			// Standard VGA
     case 0x01:			// Standard VGA
     case 0x02:			// Standard VGA
     case 0x03:			// Standard VGA
     case 0x04:			// Standard VGA
-	return s->vga.sr[s->vga.sr_index];
+	return s->vga.sr[reg_index];
     case 0x06:			// Unlock Cirrus extensions
-	return s->vga.sr[s->vga.sr_index];
+	return s->vga.sr[reg_index];
     case 0x10:
     case 0x30:
     case 0x50:
@@ -1285,36 +1285,36 @@ static int cirrus_vga_read_sr(CirrusVGAState * s)
     case 0x1e:			// VCLK 3 Denominator & Post
     case 0x1f:			// BIOS Write Enable and MCLK select
 #ifdef DEBUG_CIRRUS
-	printf("cirrus: handled inport sr_index %02x\n", s->vga.sr_index);
+	printf("cirrus: handled inport sr_index %02x\n", reg_index);
 #endif
-	return s->vga.sr[s->vga.sr_index];
+	return s->vga.sr[reg_index];
     default:
 #ifdef DEBUG_CIRRUS
-	printf("cirrus: inport sr_index %02x\n", s->vga.sr_index);
+	printf("cirrus: inport sr_index %02x\n", reg_index);
 #endif
 	return 0xff;
 	break;
     }
 }
 
-static void cirrus_vga_write_sr(CirrusVGAState * s, uint32_t val)
+static void cirrus_vga_write_sr(CirrusVGAState * s, int reg_index, uint32_t val)
 {
-    switch (s->vga.sr_index) {
+    switch (reg_index) {
     case 0x00:			// Standard VGA
     case 0x01:			// Standard VGA
     case 0x02:			// Standard VGA
     case 0x03:			// Standard VGA
     case 0x04:			// Standard VGA
-	s->vga.sr[s->vga.sr_index] = val & sr_mask[s->vga.sr_index];
-	if (s->vga.sr_index == 1)
+	s->vga.sr[reg_index] = val & sr_mask[reg_index];
+	if (reg_index == 1)
             s->vga.update_retrace_info(&s->vga);
         break;
     case 0x06:			// Unlock Cirrus extensions
 	val &= 0x17;
 	if (val == 0x12) {
-	    s->vga.sr[s->vga.sr_index] = 0x12;
+	    s->vga.sr[reg_index] = 0x12;
 	} else {
-	    s->vga.sr[s->vga.sr_index] = 0x0f;
+	    s->vga.sr[reg_index] = 0x0f;
 	}
 	break;
     case 0x10:
@@ -1326,7 +1326,7 @@ static void cirrus_vga_write_sr(CirrusVGAState * s, uint32_t val)
     case 0xd0:
     case 0xf0:			// Graphics Cursor X
 	s->vga.sr[0x10] = val;
-        s->vga.hw_cursor_x = (val << 3) | (s->vga.sr_index >> 5);
+        s->vga.hw_cursor_x = (val << 3) | (reg_index >> 5);
 	break;
     case 0x11:
     case 0x31:
@@ -1337,7 +1337,7 @@ static void cirrus_vga_write_sr(CirrusVGAState * s, uint32_t val)
     case 0xd1:
     case 0xf1:			// Graphics Cursor Y
 	s->vga.sr[0x11] = val;
-        s->vga.hw_cursor_y = (val << 3) | (s->vga.sr_index >> 5);
+        s->vga.hw_cursor_y = (val << 3) | (reg_index >> 5);
 	break;
     case 0x07:			// Extended Sequencer Mode
     cirrus_update_memory_access(s);
@@ -1361,10 +1361,10 @@ static void cirrus_vga_write_sr(CirrusVGAState * s, uint32_t val)
     case 0x1d:			// VCLK 2 Denominator & Post
     case 0x1e:			// VCLK 3 Denominator & Post
     case 0x1f:			// BIOS Write Enable and MCLK select
-	s->vga.sr[s->vga.sr_index] = val;
+	s->vga.sr[reg_index] = val;
 #ifdef DEBUG_CIRRUS
 	printf("cirrus: handled outport sr_index %02x, sr_value %02x\n",
-	       s->vga.sr_index, val);
+	       reg_index, val);
 #endif
 	break;
     case 0x12:			// Graphics Cursor Attribute
@@ -1376,14 +1376,14 @@ static void cirrus_vga_write_sr(CirrusVGAState * s, uint32_t val)
 #endif
         break;
     case 0x17:			// Configuration Readback and Extended Control
-	s->vga.sr[s->vga.sr_index] = (s->vga.sr[s->vga.sr_index] & 0x38)
+	s->vga.sr[reg_index] = (s->vga.sr[reg_index] & 0x38)
                                    | (val & 0xc7);
         cirrus_update_memory_access(s);
         break;
     default:
 #ifdef DEBUG_CIRRUS
 	printf("cirrus: outport sr_index %02x, sr_value %02x\n",
-               s->vga.sr_index, val);
+               reg_index, val);
 #endif
 	break;
     }
@@ -1638,9 +1638,9 @@ static int cirrus_vga_read_cr(CirrusVGAState * s, unsigned reg_index)
     }
 }
 
-static void cirrus_vga_write_cr(CirrusVGAState * s, int reg_value)
+static void cirrus_vga_write_cr(CirrusVGAState * s, int reg_index, int reg_value)
 {
-    switch (s->vga.cr_index) {
+    switch (reg_index) {
     case 0x00:			// Standard VGA
     case 0x01:			// Standard VGA
     case 0x02:			// Standard VGA
@@ -1667,14 +1667,14 @@ static void cirrus_vga_write_cr(CirrusVGAState * s, int reg_value)
     case 0x17:			// Standard VGA
     case 0x18:			// Standard VGA
 	/* handle CR0-7 protection */
-	if ((s->vga.cr[0x11] & 0x80) && s->vga.cr_index <= 7) {
+	if ((s->vga.cr[0x11] & 0x80) && reg_index <= 7) {
 	    /* can always write bit 4 of CR7 */
-	    if (s->vga.cr_index == 7)
+	    if (reg_index == 7)
 		s->vga.cr[7] = (s->vga.cr[7] & ~0x10) | (reg_value & 0x10);
 	    return;
 	}
-	s->vga.cr[s->vga.cr_index] = reg_value;
-	switch(s->vga.cr_index) {
+	s->vga.cr[reg_index] = reg_value;
+	switch(reg_index) {
 	case 0x00:
 	case 0x04:
 	case 0x05:
@@ -1691,10 +1691,10 @@ static void cirrus_vga_write_cr(CirrusVGAState * s, int reg_value)
     case 0x1b:			// Extended Display Control
     case 0x1c:			// Sync Adjust and Genlock
     case 0x1d:			// Overlay Extended Control
-	s->vga.cr[s->vga.cr_index] = reg_value;
+	s->vga.cr[reg_index] = reg_value;
 #ifdef DEBUG_CIRRUS
 	printf("cirrus: handled outport cr_index %02x, cr_value %02x\n",
-	       s->vga.cr_index, reg_value);
+	       reg_index, reg_value);
 #endif
 	break;
     case 0x22:			// Graphics Data Latches Readback (R)
@@ -1706,7 +1706,7 @@ static void cirrus_vga_write_cr(CirrusVGAState * s, int reg_value)
     default:
 #ifdef DEBUG_CIRRUS
 	printf("cirrus: outport cr_index %02x, cr_value %02x\n",
-               s->vga.cr_index, reg_value);
+               reg_index, reg_value);
 #endif
 	break;
     }
@@ -2502,7 +2502,7 @@ static uint64_t cirrus_vga_ioport_read(void *opaque, hwaddr addr,
     } else {
 	switch (addr) {
 	case VGA_SEQ_D:
-	    val = cirrus_vga_read_sr(c);
+	    val = cirrus_vga_read_sr(c, s->sr_index);
             break;
 #ifdef DEBUG_VGA_REG
 	    printf("vga: read SR%x = 0x%02x\n", s->sr_index, val);
@@ -2584,7 +2584,7 @@ static void cirrus_vga_ioport_write(void *opaque, hwaddr addr, uint64_t val,
 #ifdef DEBUG_VGA_REG
 	printf("vga: write SR%x = 0x%02" PRIu64 "\n", s->sr_index, val);
 #endif
-	cirrus_vga_write_sr(c, val);
+	cirrus_vga_write_sr(c, s->sr_index, val);
         break;
     case 0x3c6:
 	cirrus_write_hidden_dac(c, val);
@@ -2606,7 +2606,7 @@ static void cirrus_vga_ioport_write(void *opaque, hwaddr addr, uint64_t val,
 #ifdef DEBUG_VGA_REG
 	printf("vga: write CR%x = 0x%02"PRIu64"\n", s->cr_index, val);
 #endif
-	cirrus_vga_write_cr(c, val);
+	cirrus_vga_write_cr(c, s->cr_index, val);
 	break;
     }
 }
