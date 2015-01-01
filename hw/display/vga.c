@@ -1485,12 +1485,11 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
 
     shift_control = (s->gr[VGA_GFX_MODE] >> 5) & 3;
     double_scan = (s->cr[VGA_CRTC_MAX_SCAN] >> 7);
-    if (shift_control != 1) {
+    if (s->cr[VGA_CRTC_MODE] & 1) {
         multi_scan = (((s->cr[VGA_CRTC_MAX_SCAN] & 0x1f) + 1) << double_scan)
             - 1;
     } else {
         /* in CGA modes, multi_scan is ignored */
-        /* XXX: is it correct ? */
         multi_scan = double_scan;
     }
     multi_run = multi_scan;
