@@ -363,7 +363,7 @@ void cpu_put_timer(QEMUFile *f, CPUTimer *s)
     qemu_put_be64s(f, &s->disabled_mask);
     qemu_put_sbe64s(f, &s->clock_offset);
 
-    timer_put(f, s->qtimer);
+    timer_put(f, &s->qtimer);
 }
 
 void cpu_get_timer(QEMUFile *f, CPUTimer *s)
@@ -373,7 +373,7 @@ void cpu_get_timer(QEMUFile *f, CPUTimer *s)
     qemu_get_be64s(f, &s->disabled_mask);
     qemu_get_sbe64s(f, &s->clock_offset);
 
-    timer_get(f, s->qtimer);
+    timer_get(f, &s->qtimer);
 }
 
 static CPUTimer *cpu_timer_create(const char *name, SPARCCPU *cpu,
@@ -389,7 +389,7 @@ static CPUTimer *cpu_timer_create(const char *name, SPARCCPU *cpu,
     timer->disabled = 1;
     timer->clock_offset = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
 
-    timer->qtimer = timer_new_ns(QEMU_CLOCK_VIRTUAL, cb, cpu);
+    timer_init_ns(&timer->qtimer, QEMU_CLOCK_VIRTUAL, cb, cpu);
 
     return timer;
 }
@@ -399,7 +399,7 @@ static void cpu_timer_reset(CPUTimer *timer)
     timer->disabled = 1;
     timer->clock_offset = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
 
-    timer_del(timer->qtimer);
+    timer_del(&timer->qtimer);
 }
 
 static void main_cpu_reset(void *opaque)
@@ -548,11 +548,11 @@ void cpu_tick_set_limit(CPUTimer *timer, uint64_t limit)
     if (!real_limit) {
         TIMER_DPRINTF("%s set_limit limit=ZERO - not starting timer\n",
                 timer->name);
-        timer_del(timer->qtimer);
+        timer_del(&timer->qtimer);
     } else if (timer->disabled) {
-        timer_del(timer->qtimer);
+        timer_del(&timer->qtimer);
     } else {
-        timer_mod(timer->qtimer, expires);
+        timer_mod(&timer->qtimer, expires);
     }
 }
 
