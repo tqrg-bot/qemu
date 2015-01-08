@@ -260,9 +260,9 @@ static void pit_irq_timer_update(PITChannelState *s, int64_t current_time)
 #endif
     s->next_transition_time = expire_time;
     if (expire_time != -1)
-        timer_mod(s->irq_timer, expire_time);
+        timer_mod(&s->irq_timer, expire_time);
     else
-        timer_del(s->irq_timer);
+        timer_del(&s->irq_timer);
 }
 
 static void pit_irq_timer(void *opaque)
@@ -281,7 +281,7 @@ static void pit_reset(DeviceState *dev)
 
     s = &pit->channels[0];
     if (!s->irq_disabled) {
-        timer_mod(s->irq_timer, s->next_transition_time);
+        timer_mod(&s->irq_timer, s->next_transition_time);
     }
 }
 
@@ -297,7 +297,7 @@ static void pit_irq_control(void *opaque, int n, int enable)
         pit_irq_timer_update(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
     } else {
         s->irq_disabled = 1;
-        timer_del(s->irq_timer);
+        timer_del(&s->irq_timer);
     }
 }
 
@@ -316,9 +316,9 @@ static void pit_post_load(PITCommonState *s)
     PITChannelState *sc = &s->channels[0];
 
     if (sc->next_transition_time != -1) {
-        timer_mod(sc->irq_timer, sc->next_transition_time);
+        timer_mod(&sc->irq_timer, sc->next_transition_time);
     } else {
-        timer_del(sc->irq_timer);
+        timer_del(&sc->irq_timer);
     }
 }
 
@@ -330,7 +330,7 @@ static void pit_realizefn(DeviceState *dev, Error **errp)
 
     s = &pit->channels[0];
     /* the timer 0 is connected to an IRQ */
-    s->irq_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, pit_irq_timer, s);
+    timer_init_ns(&s->irq_timer, QEMU_CLOCK_VIRTUAL, pit_irq_timer, s);
     qdev_init_gpio_out(dev, &s->irq, 1);
 
     memory_region_init_io(&pit->ioports, OBJECT(pit), &pit_ioport_ops,

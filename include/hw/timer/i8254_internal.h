@@ -45,7 +45,7 @@ typedef struct PITChannelState {
     int64_t count_load_time;
     /* irq handling */
     int64_t next_transition_time;
-    QEMUTimer *irq_timer;
+    QEMUTimer irq_timer;
     qemu_irq irq;
     uint32_t irq_disabled;
 } PITChannelState;

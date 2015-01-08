@@ -47,7 +47,7 @@
 struct HPETState;
 typedef struct HPETTimer {  /* timers */
     uint8_t tn;             /*timer number*/
-    QEMUTimer *qemu_timer;
+    QEMUTimer qemu_timer;
     struct HPETState *state;
     /* Memory-mapped, software visible timer registers */
     uint64_t config;        /* configuration/cap */
@@ -299,7 +299,7 @@ static const VMStateDescription vmstate_hpet_timer = {
         VMSTATE_UINT64(fsb, HPETTimer),
         VMSTATE_UINT64(period, HPETTimer),
         VMSTATE_UINT8(wrap_flag, HPETTimer),
-        VMSTATE_TIMER_PTR(qemu_timer, HPETTimer),
+        VMSTATE_TIMER(qemu_timer, HPETTimer),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -353,12 +353,12 @@ static void hpet_timer(void *opaque)
             }
         }
         diff = hpet_calculate_diff(t, cur_tick);
-        timer_mod(t->qemu_timer,
+        timer_mod(&t->qemu_timer,
                        qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + (int64_t)ticks_to_ns(diff));
     } else if (t->config & HPET_TN_32BIT && !timer_is_periodic(t)) {
         if (t->wrap_flag) {
             diff = hpet_calculate_diff(t, cur_tick);
-            timer_mod(t->qemu_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+            timer_mod(&t->qemu_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                            (int64_t)ticks_to_ns(diff));
             t->wrap_flag = 0;
         }
@@ -386,13 +386,13 @@ static void hpet_set_timer(HPETTimer *t)
             t->wrap_flag = 1;
         }
     }
-    timer_mod(t->qemu_timer,
+    timer_mod(&t->qemu_timer,
                    qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + (int64_t)ticks_to_ns(diff));
 }
 
 static void hpet_del_timer(HPETTimer *t)
 {
-    timer_del(t->qemu_timer);
+    timer_del(&t->qemu_timer);
     update_irq(t, 0);
 }
 
@@ -751,7 +751,7 @@ static void hpet_realize(DeviceState *dev, Error **errp)
     }
     for (i = 0; i < HPET_MAX_TIMERS; i++) {
         timer = &s->timer[i];
-        timer->qemu_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, hpet_timer, timer);
+        timer_init_ns(&timer->qemu_timer, QEMU_CLOCK_VIRTUAL, hpet_timer, timer);
         timer->tn = i;
         timer->state = s;
     }

@@ -96,7 +96,7 @@ typedef struct VFIOINTx {
     EventNotifier unmask; /* eventfd for unmask on QEMU bypass */
     PCIINTxRoute route; /* routing info for QEMU bypass */
     uint32_t mmap_timeout; /* delay to re-enable mmaps after interrupt */
-    QEMUTimer *mmap_timer; /* enable mmaps after periods w/o interrupts */
+    QEMUTimer mmap_timer; /* enable mmaps after periods w/o interrupts */
 } VFIOINTx;
 
 typedef struct VFIOMSIVector {
@@ -3308,7 +3308,7 @@ static int vfio_initfn(PCIDevice *pdev)
     }
 
     if (vfio_pci_read_config(&vdev->pdev, PCI_INTERRUPT_PIN, 1)) {
-        vdev->intx.mmap_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL,
+        timer_init_ms(&vdev->intx.mmap_timer, QEMU_CLOCK_VIRTUAL,
                                                   vfio_intx_mmap_enable, vdev);
         pci_device_set_intx_routing_notifier(&vdev->pdev, vfio_update_irq);
         ret = vfio_enable_intx(vdev);
@@ -3341,7 +3341,6 @@ static void vfio_exitfn(PCIDevice *pdev)
     pci_device_set_intx_routing_notifier(&vdev->pdev, NULL);
     vfio_disable_interrupts(vdev);
     if (vdev->intx.mmap_timer) {
-        timer_free(vdev->intx.mmap_timer);
     }
     vfio_teardown_msi(vdev);
     vfio_unmap_bars(vdev);

@@ -85,7 +85,7 @@ struct I6300State {
     int locked;                 /* If true, enabled field cannot be changed. */
     int enabled;                /* If true, watchdog is enabled. */
 
-    QEMUTimer *timer;           /* The actual watchdog timer. */
+    QEMUTimer timer;           /* The actual watchdog timer. */
 
     uint32_t timer1_preload;    /* Values preloaded into timer1, timer2. */
     uint32_t timer2_preload;
@@ -130,7 +130,7 @@ static void i6300esb_restart_timer(I6300State *d, int stage)
 
     i6300esb_debug("stage %d, timeout %" PRIi64 "\n", d->stage, timeout);
 
-    timer_mod(d->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + timeout);
+    timer_mod(&d->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + timeout);
 }
 
 /* This is called when the guest disables the watchdog. */
@@ -138,7 +138,7 @@ static void i6300esb_disable_timer(I6300State *d)
 {
     i6300esb_debug("timer disabled\n");
 
-    timer_del(d->timer);
+    timer_del(&d->timer);
 }
 
 static void i6300esb_reset(DeviceState *dev)
@@ -398,7 +398,7 @@ static const VMStateDescription vmstate_i6300esb = {
         VMSTATE_INT32(free_run, I6300State),
         VMSTATE_INT32(locked, I6300State),
         VMSTATE_INT32(enabled, I6300State),
-        VMSTATE_TIMER_PTR(timer, I6300State),
+        VMSTATE_TIMER(timer, I6300State),
         VMSTATE_UINT32(timer1_preload, I6300State),
         VMSTATE_UINT32(timer2_preload, I6300State),
         VMSTATE_INT32(stage, I6300State),
@@ -414,7 +414,7 @@ static int i6300esb_init(PCIDevice *dev)
 
     i6300esb_debug("I6300State = %p\n", d);
 
-    d->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, i6300esb_timer_expired, d);
+    timer_init_ns(&d->timer, QEMU_CLOCK_VIRTUAL, i6300esb_timer_expired, d);
     d->previous_reboot_flag = 0;
 
     memory_region_init_io(&d->io_mem, OBJECT(d), &i6300esb_ops, d,

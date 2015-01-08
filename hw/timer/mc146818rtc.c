@@ -74,15 +74,15 @@ typedef struct RTCState {
     qemu_irq irq;
     int it_shift;
     /* periodic timer */
-    QEMUTimer *periodic_timer;
+    QEMUTimer periodic_timer;
     int64_t next_periodic_time;
     /* update-ended timer */
-    QEMUTimer *update_timer;
+    QEMUTimer update_timer;
     uint64_t next_alarm_time;
     uint16_t irq_reinject_on_ack_count;
     uint32_t irq_coalesced;
     uint32_t period;
-    QEMUTimer *coalesced_timer;
+    QEMUTimer coalesced_timer;
     Notifier clock_reset_notifier;
     LostTickPolicy lost_tick_policy;
     Notifier suspend_notifier;
@@ -115,13 +115,13 @@ static uint64_t get_guest_rtc_ns(RTCState *s)
 static void rtc_coalesced_timer_update(RTCState *s)
 {
     if (s->irq_coalesced == 0) {
-        timer_del(s->coalesced_timer);
+        timer_del(&s->coalesced_timer);
     } else {
         /* divide each RTC interval to 2 - 8 smaller intervals */
         int c = MIN(s->irq_coalesced, 7) + 1; 
         int64_t next_clock = qemu_clock_get_ns(rtc_clock) +
             muldiv64(s->period / c, get_ticks_per_sec(), RTC_CLOCK_RATE);
-        timer_mod(s->coalesced_timer, next_clock);
+        timer_mod(&s->coalesced_timer, next_clock);
     }
 }
 
@@ -170,12 +170,12 @@ static void periodic_timer_update(RTCState *s, int64_t current_time)
         next_irq_clock = (cur_clock & ~(period - 1)) + period;
         s->next_periodic_time =
             muldiv64(next_irq_clock, get_ticks_per_sec(), RTC_CLOCK_RATE) + 1;
-        timer_mod(s->periodic_timer, s->next_periodic_time);
+        timer_mod(&s->periodic_timer, s->next_periodic_time);
     } else {
 #ifdef TARGET_I386
         s->irq_coalesced = 0;
 #endif
-        timer_del(s->periodic_timer);
+        timer_del(&s->periodic_timer);
     }
 }
 
@@ -218,17 +218,17 @@ static void check_update_timer(RTCState *s)
      * from occurring, because the time of day is not updated.
      */
     if ((s->cmos_data[RTC_REG_A] & 0x60) == 0x60) {
-        timer_del(s->update_timer);
+        timer_del(&s->update_timer);
         return;
     }
     if ((s->cmos_data[RTC_REG_C] & REG_C_UF) &&
         (s->cmos_data[RTC_REG_B] & REG_B_SET)) {
-        timer_del(s->update_timer);
+        timer_del(&s->update_timer);
         return;
     }
     if ((s->cmos_data[RTC_REG_C] & REG_C_UF) &&
         (s->cmos_data[RTC_REG_C] & REG_C_AF)) {
-        timer_del(s->update_timer);
+        timer_del(&s->update_timer);
         return;
     }
 
@@ -249,7 +249,7 @@ static void check_update_timer(RTCState *s)
         next_update_time = s->next_alarm_time;
     }
     if (next_update_time != timer_expire_time_ns(s->update_timer)) {
-        timer_mod(s->update_timer, next_update_time);
+        timer_mod(&s->update_timer, next_update_time);
     }
 }
 
@@ -597,7 +597,7 @@ static int update_in_progress(RTCState *s)
     if (!rtc_running(s)) {
         return 0;
     }
-    if (timer_pending(s->update_timer)) {
+    if (timer_pending(&s->update_timer)) {
         int64_t next_update_time = timer_expire_time_ns(s->update_timer);
         /* Latch UIP until the timer expires.  */
         if (qemu_clock_get_ns(rtc_clock) >=
@@ -758,7 +758,7 @@ static const VMStateDescription vmstate_rtc = {
         VMSTATE_BUFFER(cmos_data, RTCState),
         VMSTATE_UINT8(cmos_index, RTCState),
         VMSTATE_UNUSED(7*4),
-        VMSTATE_TIMER_PTR(periodic_timer, RTCState),
+        VMSTATE_TIMER(periodic_timer, RTCState),
         VMSTATE_INT64(next_periodic_time, RTCState),
         VMSTATE_UNUSED(3*8),
         VMSTATE_UINT32_V(irq_coalesced, RTCState, 2),
@@ -766,7 +766,7 @@ static const VMStateDescription vmstate_rtc = {
         VMSTATE_UINT64_V(base_rtc, RTCState, 3),
         VMSTATE_UINT64_V(last_update, RTCState, 3),
         VMSTATE_INT64_V(offset, RTCState, 3),
-        VMSTATE_TIMER_PTR_V(update_timer, RTCState, 3),
+        VMSTATE_TIMER_V(update_timer, RTCState, 3),
         VMSTATE_UINT64_V(next_alarm_time, RTCState, 3),
         VMSTATE_END_OF_LIST()
     },
@@ -904,8 +904,7 @@ static void rtc_realizefn(DeviceState *dev, Error **errp)
 #ifdef TARGET_I386
     switch (s->lost_tick_policy) {
     case LOST_TICK_POLICY_SLEW:
-        s->coalesced_timer =
-            timer_new_ns(rtc_clock, rtc_coalesced_timer, s);
+        timer_init_ns(&s->coalesced_timer, rtc_clock, rtc_coalesced_timer, s);
         break;
     case LOST_TICK_POLICY_DISCARD:
         break;
@@ -915,8 +914,8 @@ static void rtc_realizefn(DeviceState *dev, Error **errp)
     }
 #endif
 
-    s->periodic_timer = timer_new_ns(rtc_clock, rtc_periodic_timer, s);
-    s->update_timer = timer_new_ns(rtc_clock, rtc_update_timer, s);
+    timer_init_ns(&s->periodic_timer, rtc_clock, rtc_periodic_timer, s);
+    timer_init_ns(&s->update_timer, rtc_clock, rtc_update_timer, s);
     check_update_timer(s);
 
     s->clock_reset_notifier.notify = rtc_notify_clock_reset;
