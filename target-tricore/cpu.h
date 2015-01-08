@@ -199,7 +199,6 @@ struct CPUTriCoreState {
 
     const tricore_def_t *cpu_model;
     void *irq[8];
-    struct QEMUTimer *timer; /* Internal timer */
 };
 
 #define MASK_PCXI_PCPN 0xff000000
