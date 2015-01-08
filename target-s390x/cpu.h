@@ -138,9 +138,9 @@ typedef struct CPUS390XState {
 
     uint64_t tod_offset;
     uint64_t tod_basetime;
-    QEMUTimer *tod_timer;
+    QEMUTimer tod_timer;
 
-    QEMUTimer *cpu_timer;
+    QEMUTimer cpu_timer;
 
     /*
      * The cpu state represents the logical state of a cpu. In contrast to other
