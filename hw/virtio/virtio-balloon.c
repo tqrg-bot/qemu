@@ -80,8 +80,7 @@ static bool balloon_stats_enabled(const VirtIOBalloon *s)
 static void balloon_stats_destroy_timer(VirtIOBalloon *s)
 {
     if (balloon_stats_enabled(s)) {
-        timer_del(s->stats_timer);
-        timer_free(s->stats_timer);
+        timer_del(&s->stats_timer);
         s->stats_timer = NULL;
         s->stats_poll_interval = 0;
     }
@@ -89,7 +88,7 @@ static void balloon_stats_destroy_timer(VirtIOBalloon *s)
 
 static void balloon_stats_change_timer(VirtIOBalloon *s, int64_t secs)
 {
-    timer_mod(s->stats_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + secs * 1000);
+    timer_mod(&s->stats_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + secs * 1000);
 }
 
 static void balloon_stats_poll_cb(void *opaque)
@@ -194,7 +193,7 @@ static void balloon_stats_set_poll_interval(Object *obj, struct Visitor *v,
 
     /* create a new timer */
     g_assert(s->stats_timer == NULL);
-    s->stats_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, balloon_stats_poll_cb, s);
+    timer_init_ms(&s->stats_timer, QEMU_CLOCK_VIRTUAL, balloon_stats_poll_cb, s);
     s->stats_poll_interval = value;
     balloon_stats_change_timer(s, 0);
 }

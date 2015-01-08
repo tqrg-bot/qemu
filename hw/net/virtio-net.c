@@ -179,14 +179,14 @@ static void virtio_net_set_status(struct VirtIODevice *vdev, uint8_t status)
 
         if (virtio_net_started(n, queue_status) && !n->vhost_started) {
             if (q->tx_timer) {
-                timer_mod(q->tx_timer,
+                timer_mod(&q->tx_timer,
                                qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + n->tx_timeout);
             } else {
                 qemu_bh_schedule(q->tx_bh);
             }
         } else {
             if (q->tx_timer) {
-                timer_del(q->tx_timer);
+                timer_del(&q->tx_timer);
             } else {
                 qemu_bh_cancel(q->tx_bh);
             }
@@ -332,7 +332,7 @@ static void virtio_net_reset(VirtIODevice *vdev)
     n->nobcast = 0;
     /* multiqueue is disabled by default */
     n->curr_queues = 1;
-    timer_del(n->announce_timer);
+    timer_del(&n->announce_timer);
     n->announce_counter = 0;
     n->status &= ~VIRTIO_NET_S_ANNOUNCE;
 
@@ -747,7 +747,7 @@ static int virtio_net_handle_announce(VirtIONet *n, uint8_t cmd,
         n->status & VIRTIO_NET_S_ANNOUNCE) {
         n->status &= ~VIRTIO_NET_S_ANNOUNCE;
         if (n->announce_counter) {
-            timer_mod(n->announce_timer,
+            timer_mod(&n->announce_timer,
                       qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) +
                       self_announce_delay(n->announce_counter));
         }
@@ -1203,11 +1203,11 @@ static void virtio_net_handle_tx_timer(VirtIODevice *vdev, VirtQueue *vq)
 
     if (q->tx_waiting) {
         virtio_queue_set_notification(vq, 1);
-        timer_del(q->tx_timer);
+        timer_del(&q->tx_timer);
         q->tx_waiting = 0;
         virtio_net_flush_tx(q);
     } else {
-        timer_mod(q->tx_timer,
+        timer_mod(&q->tx_timer,
                        qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + n->tx_timeout);
         q->tx_waiting = 1;
         virtio_queue_set_notification(vq, 0);
@@ -1315,7 +1315,7 @@ static void virtio_net_set_multiqueue(VirtIONet *n, int multiqueue)
         if (n->vqs[i].tx_timer) {
             n->vqs[i].tx_vq =
                 virtio_add_queue(vdev, 256, virtio_net_handle_tx_timer);
-            n->vqs[i].tx_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+            timer_init_ns(&n->vqs->tx_timer, QEMU_CLOCK_VIRTUAL,
                                                    virtio_net_tx_timer,
                                                    &n->vqs[i]);
         } else {
@@ -1516,7 +1516,7 @@ static int virtio_net_load_device(VirtIODevice *vdev, QEMUFile *f,
     if (vdev->guest_features & (0x1 << VIRTIO_NET_F_GUEST_ANNOUNCE) &&
         vdev->guest_features & (0x1 << VIRTIO_NET_F_CTRL_VQ)) {
         n->announce_counter = SELF_ANNOUNCE_ROUNDS;
-        timer_mod(n->announce_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL));
+        timer_mod(&n->announce_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL));
     }
 
     return 0;
@@ -1602,7 +1602,7 @@ static void virtio_net_device_realize(DeviceState *dev, Error **errp)
     if (n->net_conf.tx && !strcmp(n->net_conf.tx, "timer")) {
         n->vqs[0].tx_vq = virtio_add_queue(vdev, 256,
                                            virtio_net_handle_tx_timer);
-        n->vqs[0].tx_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, virtio_net_tx_timer,
+        timer_init_ns(&n->vqs->tx_timer, QEMU_CLOCK_VIRTUAL, virtio_net_tx_timer,
                                                &n->vqs[0]);
     } else {
         n->vqs[0].tx_vq = virtio_add_queue(vdev, 256,
@@ -1613,7 +1613,7 @@ static void virtio_net_device_realize(DeviceState *dev, Error **errp)
     qemu_macaddr_default_if_unset(&n->nic_conf.macaddr);
     memcpy(&n->mac[0], &n->nic_conf.macaddr, sizeof(n->mac));
     n->status = VIRTIO_NET_S_LINK_UP;
-    n->announce_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL,
+    timer_init_ms(&n->announce_timer, QEMU_CLOCK_VIRTUAL,
                                      virtio_net_announce_timer, n);
 
     if (n->netclient_type) {
@@ -1682,15 +1682,13 @@ static void virtio_net_device_unrealize(DeviceState *dev, Error **errp)
         qemu_purge_queued_packets(nc);
 
         if (q->tx_timer) {
-            timer_del(q->tx_timer);
-            timer_free(q->tx_timer);
+            timer_del(&q->tx_timer);
         } else if (q->tx_bh) {
             qemu_bh_delete(q->tx_bh);
         }
     }
 
-    timer_del(n->announce_timer);
-    timer_free(n->announce_timer);
+    timer_del(&n->announce_timer);
     g_free(n->vqs);
     qemu_del_nic(n->nic);
     virtio_cleanup(vdev);

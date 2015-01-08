@@ -627,7 +627,6 @@ static void virtio_serial_post_load_timer_cb(void *opaque)
         }
     }
     g_free(s->post_load->connected);
-    timer_free(s->post_load->timer);
     g_free(s->post_load);
     s->post_load = NULL;
 }
@@ -642,7 +641,7 @@ static int fetch_active_ports_list(QEMUFile *f, int version_id,
     s->post_load->connected =
         g_malloc0(sizeof(*s->post_load->connected) * nr_active_ports);
 
-    s->post_load->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+    timer_init_ns(&s->post_load->timer, QEMU_CLOCK_VIRTUAL,
                                             virtio_serial_post_load_timer_cb,
                                             s);
 
@@ -684,7 +683,7 @@ static int fetch_active_ports_list(QEMUFile *f, int version_id,
             }
         }
     }
-    timer_mod(s->post_load->timer, 1);
+    timer_mod(&s->post_load->timer, 1);
     return 0;
 }
 
@@ -1042,8 +1041,7 @@ static void virtio_serial_device_unrealize(DeviceState *dev, Error **errp)
     g_free(vser->ports_map);
     if (vser->post_load) {
         g_free(vser->post_load->connected);
-        timer_del(vser->post_load->timer);
-        timer_free(vser->post_load->timer);
+        timer_del(&vser->post_load->timer);
         g_free(vser->post_load);
     }
     virtio_cleanup(vdev);

@@ -183,7 +183,7 @@ struct VirtIOSerialBus {
 };
 
 typedef struct VirtIOSerialPostLoad {
-    QEMUTimer *timer;
+    QEMUTimer timer;
     uint32_t nr_active_ports;
     struct {
         VirtIOSerialPort *port;

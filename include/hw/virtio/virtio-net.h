@@ -146,7 +146,7 @@ struct virtio_net_ctrl_mac {
 typedef struct VirtIONetQueue {
     VirtQueue *rx_vq;
     VirtQueue *tx_vq;
-    QEMUTimer *tx_timer;
+    QEMUTimer tx_timer;
     QEMUBH *tx_bh;
     int tx_waiting;
     struct {

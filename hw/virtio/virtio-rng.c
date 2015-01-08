@@ -139,7 +139,7 @@ static void check_rate_limit(void *opaque)
 
     vrng->quota_remaining = vrng->conf.max_bytes;
     virtio_rng_process(vrng);
-    timer_mod(vrng->rate_limit_timer,
+    timer_mod(&vrng->rate_limit_timer,
                    qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + vrng->conf.period_ms);
 }
 
@@ -197,10 +197,10 @@ static void virtio_rng_device_realize(DeviceState *dev, Error **errp)
     vrng->vq = virtio_add_queue(vdev, 8, handle_input);
     vrng->quota_remaining = vrng->conf.max_bytes;
 
-    vrng->rate_limit_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL,
+    timer_init_ms(&vrng->rate_limit_timer, QEMU_CLOCK_VIRTUAL,
                                                check_rate_limit, vrng);
 
-    timer_mod(vrng->rate_limit_timer,
+    timer_mod(&vrng->rate_limit_timer,
                    qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + vrng->conf.period_ms);
 
     register_savevm(dev, "virtio-rng", -1, 1, virtio_rng_save,
@@ -212,8 +212,7 @@ static void virtio_rng_device_unrealize(DeviceState *dev, Error **errp)
     VirtIODevice *vdev = VIRTIO_DEVICE(dev);
     VirtIORNG *vrng = VIRTIO_RNG(dev);
 
-    timer_del(vrng->rate_limit_timer);
-    timer_free(vrng->rate_limit_timer);
+    timer_del(&vrng->rate_limit_timer);
     unregister_savevm(dev, "virtio-rng", vrng);
     virtio_cleanup(vdev);
 }
