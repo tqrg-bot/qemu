@@ -134,7 +134,7 @@ static void sdhci_raise_insertion_irq(void *opaque)
     SDHCIState *s = (SDHCIState *)opaque;
 
     if (s->norintsts & SDHC_NIS_REMOVE) {
-        timer_mod(s->insert_timer,
+        timer_mod(&s->insert_timer,
                        qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SDHC_INSERTION_DELAY);
     } else {
         s->prnsts = 0x1ff0000;
@@ -152,7 +152,7 @@ static void sdhci_insert_eject_cb(void *opaque, int irq, int level)
 
     if ((s->norintsts & SDHC_NIS_REMOVE) && level) {
         /* Give target some time to notice card ejection */
-        timer_mod(s->insert_timer,
+        timer_mod(&s->insert_timer,
                        qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SDHC_INSERTION_DELAY);
     } else {
         if (level) {
@@ -186,8 +186,8 @@ static void sdhci_card_readonly_cb(void *opaque, int irq, int level)
 
 static void sdhci_reset(SDHCIState *s)
 {
-    timer_del(s->insert_timer);
-    timer_del(s->transfer_timer);
+    timer_del(&s->insert_timer);
+    timer_del(&s->transfer_timer);
     /* Set all registers to 0. Capabilities registers are not cleared
      * and assumed to always preserve their value, given to them during
      * initialization */
@@ -760,7 +760,7 @@ static void sdhci_do_adma(SDHCIState *s)
     }
 
     /* we have unfinished business - reschedule to continue ADMA */
-    timer_mod(s->transfer_timer,
+    timer_mod(&s->transfer_timer,
                    qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SDHC_TRANSFER_DELAY);
 }
 
@@ -1155,16 +1155,14 @@ static void sdhci_initfn(SDHCIState *s)
     s->ro_cb = qemu_allocate_irq(sdhci_card_readonly_cb, s, 0);
     sd_set_cb(s->card, s->ro_cb, s->eject_cb);
 
-    s->insert_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, sdhci_raise_insertion_irq, s);
-    s->transfer_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, sdhci_data_transfer, s);
+    timer_init_ns(&s->insert_timer, QEMU_CLOCK_VIRTUAL, sdhci_raise_insertion_irq, s);
+    timer_init_ns(&s->transfer_timer, QEMU_CLOCK_VIRTUAL, sdhci_data_transfer, s);
 }
 
 static void sdhci_uninitfn(SDHCIState *s)
 {
-    timer_del(s->insert_timer);
-    timer_free(s->insert_timer);
-    timer_del(s->transfer_timer);
-    timer_free(s->transfer_timer);
+    timer_del(&s->insert_timer);
+    timer_del(&s->transfer_timer);
     qemu_free_irq(s->eject_cb);
     qemu_free_irq(s->ro_cb);
 
@@ -1205,8 +1203,8 @@ const VMStateDescription sdhci_vmstate = {
         VMSTATE_UINT64(admasysaddr, SDHCIState),
         VMSTATE_UINT8(stopped_state, SDHCIState),
         VMSTATE_VBUFFER_UINT32(fifo_buffer, SDHCIState, 1, NULL, 0, buf_maxsz),
-        VMSTATE_TIMER_PTR(insert_timer, SDHCIState),
-        VMSTATE_TIMER_PTR(transfer_timer, SDHCIState),
+        VMSTATE_TIMER(insert_timer, SDHCIState),
+        VMSTATE_TIMER(transfer_timer, SDHCIState),
         VMSTATE_END_OF_LIST()
     }
 };

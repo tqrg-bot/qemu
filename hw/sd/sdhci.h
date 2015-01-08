@@ -240,8 +240,8 @@ typedef struct SDHCIState {
     SDState *card;
     MemoryRegion iomem;
 
-    QEMUTimer *insert_timer;       /* timer for 'changing' sd card. */
-    QEMUTimer *transfer_timer;
+    QEMUTimer insert_timer;       /* timer for 'changing' sd card. */
+    QEMUTimer transfer_timer;
     qemu_irq eject_cb;
     qemu_irq ro_cb;
     qemu_irq irq;
