@@ -313,7 +313,7 @@ struct MUSBEndPoint {
     int interrupt[2];
     MUSBState *musb;
     USBCallback *delayed_cb[2];
-    QEMUTimer *intv_timer[2];
+    QEMUTimer intv_timer[2];
 };
 
 struct MUSBState {
@@ -385,9 +385,9 @@ struct MUSBState *musb_init(DeviceState *parent_device, int gpio_base)
     }
 
     for (i = 0; i < 16; i ++) {
-        s->ep[i].intv_timer[0] = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+        timer_init_ns(&s->ep[i].intv_timer[0], QEMU_CLOCK_VIRTUAL,
                       musb_cb_tick0, &s->ep[i]);
-        s->ep[i].intv_timer[1] = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+        timer_init_ns(&s->ep[i].intv_timer[1], QEMU_CLOCK_VIRTUAL,
                       musb_cb_tick1, &s->ep[i]);
     }
     musb_reset(s);
@@ -566,7 +566,7 @@ static void musb_schedule_cb(USBPort *port, USBPacket *packey)
     else
         return musb_cb_tick(ep);
 
-    timer_mod(ep->intv_timer[dir], qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+    timer_mod(&ep->intv_timer[dir], qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    muldiv64(timeout, get_ticks_per_sec(), 8000));
 }
 

@@ -888,7 +888,7 @@ static void ehci_reset(void *opaque)
     }
     ehci_queues_rip_all(s, 0);
     ehci_queues_rip_all(s, 1);
-    timer_del(s->frame_timer);
+    timer_del(&s->frame_timer);
     qemu_bh_cancel(s->async_bh);
 }
 
@@ -2310,7 +2310,7 @@ static void ehci_frame_timer(void *opaque)
             expire_time = t_now + (get_ticks_per_sec()
                                * (ehci->async_stepdown+1) / FRAME_TIMER_FREQ);
         }
-        timer_mod(ehci->frame_timer, expire_time);
+        timer_mod(&ehci->frame_timer, expire_time);
     }
 }
 
@@ -2437,7 +2437,7 @@ const VMStateDescription vmstate_ehci = {
         VMSTATE_UINT32(portsc[4], EHCIState),
         VMSTATE_UINT32(portsc[5], EHCIState),
         /* frame timer */
-        VMSTATE_TIMER_PTR(frame_timer, EHCIState),
+        VMSTATE_TIMER(frame_timer, EHCIState),
         VMSTATE_UINT64(last_run_ns, EHCIState),
         VMSTATE_UINT32(async_stepdown, EHCIState),
         /* schedule state */
@@ -2467,7 +2467,7 @@ void usb_ehci_realize(EHCIState *s, DeviceState *dev, Error **errp)
         s->ports[i].dev = 0;
     }
 
-    s->frame_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, ehci_frame_timer, s);
+    timer_init_ns(&s->frame_timer, QEMU_CLOCK_VIRTUAL, ehci_frame_timer, s);
     s->async_bh = qemu_bh_new(ehci_frame_timer, s);
     s->device = dev;
 
@@ -2479,11 +2479,7 @@ void usb_ehci_unrealize(EHCIState *s, DeviceState *dev, Error **errp)
 {
     trace_usb_ehci_unrealize();
 
-    if (s->frame_timer) {
-        timer_del(s->frame_timer);
-        timer_free(s->frame_timer);
-        s->frame_timer = NULL;
-    }
+    timer_del(&s->frame_timer);
     if (s->async_bh) {
         qemu_bh_delete(s->async_bh);
     }

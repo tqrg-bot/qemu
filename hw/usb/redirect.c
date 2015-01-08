@@ -115,7 +115,7 @@ struct USBRedirDevice {
     QEMUBH *chardev_close_bh;
     QEMUBH *device_reject_bh;
     /* To delay the usb attach in case of quick chardev close + open */
-    QEMUTimer *attach_timer;
+    QEMUTimer attach_timer;
     int64_t next_attach_time;
     struct usbredirparser *parser;
     struct endp_data endpoint[MAX_ENDPOINTS];
@@ -1384,7 +1384,7 @@ static void usbredir_realize(USBDevice *udev, Error **errp)
 
     dev->chardev_close_bh = qemu_bh_new(usbredir_chardev_close_bh, dev);
     dev->device_reject_bh = qemu_bh_new(usbredir_device_reject_bh, dev);
-    dev->attach_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, usbredir_do_attach, dev);
+    timer_init_ms(&dev->attach_timer, QEMU_CLOCK_VIRTUAL, usbredir_do_attach, dev);
 
     packet_id_queue_init(&dev->cancelled, dev, "cancelled");
     packet_id_queue_init(&dev->already_in_flight, dev, "already-in-flight");
@@ -1424,8 +1424,7 @@ static void usbredir_handle_destroy(USBDevice *udev)
     qemu_bh_delete(dev->chardev_close_bh);
     qemu_bh_delete(dev->device_reject_bh);
 
-    timer_del(dev->attach_timer);
-    timer_free(dev->attach_timer);
+    timer_del(&dev->attach_timer);
 
     usbredir_cleanup_device_queues(dev);
 
@@ -1579,7 +1578,7 @@ static void usbredir_device_connect(void *priv,
     USBRedirDevice *dev = priv;
     const char *speed;
 
-    if (timer_pending(dev->attach_timer) || dev->dev.attached) {
+    if (timer_pending(&dev->attach_timer) || dev->dev.attached) {
         ERROR("Received device connect while already connected\n");
         return;
     }
@@ -1634,7 +1633,7 @@ static void usbredir_device_connect(void *priv,
     }
 
     usbredir_check_bulk_receiving(dev);
-    timer_mod(dev->attach_timer, dev->next_attach_time);
+    timer_mod(&dev->attach_timer, dev->next_attach_time);
 }
 
 static void usbredir_device_disconnect(void *priv)
@@ -1642,7 +1641,7 @@ static void usbredir_device_disconnect(void *priv)
     USBRedirDevice *dev = priv;
 
     /* Stop any pending attaches */
-    timer_del(dev->attach_timer);
+    timer_del(&dev->attach_timer);
 
     if (dev->dev.attached) {
         DPRINTF("detaching device\n");
@@ -1674,7 +1673,7 @@ static void usbredir_interface_info(void *priv,
      * If we receive interface info after the device has already been
      * connected (ie on a set_config), re-check interface dependent things.
      */
-    if (timer_pending(dev->attach_timer) || dev->dev.attached) {
+    if (timer_pending(&dev->attach_timer) || dev->dev.attached) {
         usbredir_check_bulk_receiving(dev);
         if (usbredir_check_filter(dev)) {
             ERROR("Device no longer matches filter after interface info "
@@ -2438,7 +2437,7 @@ static const VMStateDescription usbredir_vmstate = {
     .post_load = usbredir_post_load,
     .fields = (VMStateField[]) {
         VMSTATE_USB_DEVICE(dev, USBRedirDevice),
-        VMSTATE_TIMER_PTR(attach_timer, USBRedirDevice),
+        VMSTATE_TIMER(attach_timer, USBRedirDevice),
         {
             .name         = "parser",
             .version_id   = 0,

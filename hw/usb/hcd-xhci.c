@@ -399,7 +399,7 @@ struct XHCIEPContext {
     /* iso xfer scheduling */
     unsigned int interval;
     int64_t mfindex_last;
-    QEMUTimer *kick_timer;
+    QEMUTimer kick_timer;
 };
 
 typedef struct XHCISlot {
@@ -478,7 +478,7 @@ struct XHCIState {
 
     /* Runtime Registers */
     int64_t mfindex_start;
-    QEMUTimer *mfwrap_timer;
+    QEMUTimer mfwrap_timer;
     XHCIInterrupter intr[MAXINTRS];
 
     XHCIRing cmd_ring;
@@ -646,9 +646,9 @@ static void xhci_mfwrap_update(XHCIState *xhci)
         now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
         mfindex = ((now - xhci->mfindex_start) / 125000) & 0x3fff;
         left = 0x4000 - mfindex;
-        timer_mod(xhci->mfwrap_timer, now + left * 125000);
+        timer_mod(&xhci->mfwrap_timer, now + left * 125000);
     } else {
-        timer_del(xhci->mfwrap_timer);
+        timer_del(&xhci->mfwrap_timer);
     }
 }
 
@@ -1370,7 +1370,7 @@ static XHCIEPContext *xhci_alloc_epctx(XHCIState *xhci,
         epctx->transfers[i].epid = epid;
         usb_packet_init(&epctx->transfers[i].packet);
     }
-    epctx->kick_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, xhci_ep_kick_timer, epctx);
+    timer_init_ns(&epctx->kick_timer, QEMU_CLOCK_VIRTUAL, xhci_ep_kick_timer, epctx);
 
     return epctx;
 }
@@ -1448,7 +1448,7 @@ static int xhci_ep_nuke_one_xfer(XHCITransfer *t, TRBCCode report)
         XHCIEPContext *epctx = t->xhci->slots[t->slotid-1].eps[t->epid-1];
         if (epctx) {
             epctx->retry = NULL;
-            timer_del(epctx->kick_timer);
+            timer_del(&epctx->kick_timer);
         }
         t->running_retry = 0;
         killed = 1;
@@ -1532,7 +1532,6 @@ static TRBCCode xhci_disable_ep(XHCIState *xhci, unsigned int slotid,
 
     xhci_set_ep_state(xhci, epctx, NULL, EP_DISABLED);
 
-    timer_free(epctx->kick_timer);
     g_free(epctx);
     slot->eps[epid-1] = NULL;
 
@@ -1998,12 +1997,12 @@ static void xhci_check_intr_iso_kick(XHCIState *xhci, XHCITransfer *xfer,
                                      XHCIEPContext *epctx, uint64_t mfindex)
 {
     if (xfer->mfindex_kick > mfindex) {
-        timer_mod(epctx->kick_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+        timer_mod(&epctx->kick_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                        (xfer->mfindex_kick - mfindex) * 125000);
         xfer->running_retry = 1;
     } else {
         epctx->mfindex_last = xfer->mfindex_kick;
-        timer_del(epctx->kick_timer);
+        timer_del(&epctx->kick_timer);
         xfer->running_retry = 0;
     }
 }
@@ -3601,7 +3600,7 @@ static int usb_xhci_initfn(struct PCIDevice *dev)
         xhci->max_pstreams_mask = 0;
     }
 
-    xhci->mfwrap_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, xhci_mfwrap_timer, xhci);
+    timer_init_ns(&xhci->mfwrap_timer, QEMU_CLOCK_VIRTUAL, xhci_mfwrap_timer, xhci);
 
     memory_region_init(&xhci->mem, OBJECT(xhci), "xhci", LEN_REGS);
     memory_region_init_io(&xhci->mem_cap, OBJECT(xhci), &xhci_cap_ops, xhci,
@@ -3661,11 +3660,7 @@ static void usb_xhci_exit(PCIDevice *dev)
         xhci_disable_slot(xhci, i + 1);
     }
 
-    if (xhci->mfwrap_timer) {
-        timer_del(xhci->mfwrap_timer);
-        timer_free(xhci->mfwrap_timer);
-        xhci->mfwrap_timer = NULL;
-    }
+    timer_del(&xhci->mfwrap_timer);
 
     memory_region_del_subregion(&xhci->mem, &xhci->mem_cap);
     memory_region_del_subregion(&xhci->mem, &xhci->mem_oper);
@@ -3730,7 +3725,7 @@ static int usb_xhci_post_load(void *opaque, int version_id)
             epctx->state = state;
             if (state == EP_RUNNING) {
                 /* kick endpoint after vmload is finished */
-                timer_mod(epctx->kick_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
+                timer_mod(&epctx->kick_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
             }
         }
     }
@@ -3855,7 +3850,7 @@ static const VMStateDescription vmstate_xhci = {
 
         /* Runtime Registers & state */
         VMSTATE_INT64(mfindex_start,  XHCIState),
-        VMSTATE_TIMER_PTR(mfwrap_timer,   XHCIState),
+        VMSTATE_TIMER(mfwrap_timer,   XHCIState),
         VMSTATE_STRUCT(cmd_ring, XHCIState, 1, vmstate_xhci_ring, XHCIRing),
 
         VMSTATE_END_OF_LIST()

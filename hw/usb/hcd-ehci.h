@@ -295,7 +295,7 @@ struct EHCIState {
     /*
      *  Internal states, shadow registers, etc
      */
-    QEMUTimer *frame_timer;
+    QEMUTimer frame_timer;
     QEMUBH *async_bh;
     uint32_t astate;         /* Current state in asynchronous schedule */
     uint32_t pstate;         /* Current state in periodic schedule     */

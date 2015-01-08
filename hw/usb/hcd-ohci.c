@@ -57,7 +57,7 @@ typedef struct {
     const char *name;
 
     bool started;
-    QEMUTimer *eof_timer;
+    QEMUTimer eof_timer;
     int64_t sof_time;
 
     /* OHCI state */
@@ -1236,7 +1236,7 @@ static int ohci_service_ed_list(OHCIState *ohci, uint32_t head, int completion)
 static void ohci_sof(OHCIState *ohci)
 {
     ohci->sof_time = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-    timer_mod(ohci->eof_timer, ohci->sof_time + usb_frame_time);
+    timer_mod(&ohci->eof_timer, ohci->sof_time + usb_frame_time);
     ohci_set_interrupt(ohci, OHCI_INTR_SF);
 }
 
@@ -1333,9 +1333,9 @@ static void ohci_frame_boundary(void *opaque)
 static int ohci_bus_start(OHCIState *ohci)
 {
     ohci->started = true;
-    ohci->eof_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
-                    ohci_frame_boundary,
-                    ohci);
+    timer_init_ns(&ohci->eof_timer, QEMU_CLOCK_VIRTUAL,
+                  ohci_frame_boundary,
+                  ohci);
 
     trace_usb_ohci_start(ohci->name);
 
@@ -1349,8 +1349,7 @@ static void ohci_bus_stop(OHCIState *ohci)
 {
     trace_usb_ohci_stop(ohci->name);
     if (ohci->eof_timer) {
-        timer_del(ohci->eof_timer);
-        timer_free(ohci->eof_timer);
+        timer_del(&ohci->eof_timer);
     }
     ohci->eof_timer = NULL;
     ohci->started = false;
@@ -2012,7 +2011,7 @@ static const VMStateDescription vmstate_ohci_eof_timer = {
     .minimum_version_id = 1,
     .pre_load = ohci_eof_timer_pre_load,
     .fields = (VMStateField[]) {
-        VMSTATE_TIMER_PTR(eof_timer, OHCIState),
+        VMSTATE_TIMER(eof_timer, OHCIState),
         VMSTATE_END_OF_LIST()
     },
 };

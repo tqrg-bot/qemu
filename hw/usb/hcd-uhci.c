@@ -118,7 +118,7 @@ struct UHCIState {
     uint8_t sof_timing;
     uint8_t status2; /* bit 0 and 1 are used to generate UHCI_STS_USBINT */
     int64_t expire_time;
-    QEMUTimer *frame_timer;
+    QEMUTimer frame_timer;
     QEMUBH *bh;
     uint32_t frame_bytes;
     uint32_t frame_bandwidth;
@@ -419,7 +419,7 @@ static const VMStateDescription vmstate_uhci = {
         VMSTATE_UINT32(fl_base_addr, UHCIState),
         VMSTATE_UINT8(sof_timing, UHCIState),
         VMSTATE_UINT8(status2, UHCIState),
-        VMSTATE_TIMER_PTR(frame_timer, UHCIState),
+        VMSTATE_TIMER(frame_timer, UHCIState),
         VMSTATE_INT64_V(expire_time, UHCIState, 2),
         VMSTATE_UINT32_V(pending_int_mask, UHCIState, 3),
         VMSTATE_END_OF_LIST()
@@ -440,7 +440,7 @@ static void uhci_port_write(void *opaque, hwaddr addr,
             trace_usb_uhci_schedule_start();
             s->expire_time = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                 (get_ticks_per_sec() / FRAME_TIMER_FREQ);
-            timer_mod(s->frame_timer, s->expire_time);
+            timer_mod(&s->frame_timer, s->expire_time);
             s->status &= ~UHCI_STS_HCHALTED;
         } else if (!(val & UHCI_CMD_RS)) {
             s->status |= UHCI_STS_HCHALTED;
@@ -1123,7 +1123,7 @@ static void uhci_frame_timer(void *opaque)
     if (!(s->cmd & UHCI_CMD_RS)) {
         /* Full stop */
         trace_usb_uhci_schedule_stop();
-        timer_del(s->frame_timer);
+        timer_del(&s->frame_timer);
         uhci_async_cancel_all(s);
         /* set hchalted bit in status - UHCI11D 2.1.2 */
         s->status |= UHCI_STS_HCHALTED;
@@ -1166,7 +1166,7 @@ static void uhci_frame_timer(void *opaque)
     }
     s->pending_int_mask = 0;
 
-    timer_mod(s->frame_timer, t_now + frame_t);
+    timer_mod(&s->frame_timer, t_now + frame_t);
 }
 
 static const MemoryRegionOps uhci_ioport_ops = {
@@ -1222,7 +1222,7 @@ static int usb_uhci_common_initfn(PCIDevice *dev)
         }
     }
     s->bh = qemu_bh_new(uhci_bh, s);
-    s->frame_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, uhci_frame_timer, s);
+    timer_init_ns(&s->frame_timer, QEMU_CLOCK_VIRTUAL, uhci_frame_timer, s);
     s->num_ports_vmstate = NB_PORTS;
     QTAILQ_INIT(&s->queues);
 
@@ -1259,11 +1259,7 @@ static void usb_uhci_exit(PCIDevice *dev)
 
     trace_usb_uhci_exit();
 
-    if (s->frame_timer) {
-        timer_del(s->frame_timer);
-        timer_free(s->frame_timer);
-        s->frame_timer = NULL;
-    }
+    timer_del(&s->frame_timer);
 
     if (s->bh) {
         qemu_bh_delete(s->bh);
