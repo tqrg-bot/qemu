@@ -502,7 +502,7 @@ struct FDCtrl {
     MemoryRegion iomem;
     qemu_irq irq;
     /* Controller state */
-    QEMUTimer *result_timer;
+    QEMUTimer result_timer;
     int dma_chann;
     /* Controller's identification */
     uint8_t version;
@@ -783,7 +783,7 @@ static bool fdc_result_timer_needed(void *opaque)
 {
     FDCtrl *s = opaque;
 
-    return timer_pending(s->result_timer);
+    return timer_pending(&s->result_timer);
 }
 
 static const VMStateDescription vmstate_fdc_result_timer = {
@@ -791,7 +791,7 @@ static const VMStateDescription vmstate_fdc_result_timer = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields = (VMStateField[]) {
-        VMSTATE_TIMER_PTR(result_timer, FDCtrl),
+        VMSTATE_TIMER(result_timer, FDCtrl),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -919,7 +919,7 @@ static void fdctrl_reset(FDCtrl *fdctrl, int do_irq)
     fdctrl->dor |= (fdctrl->dma_chann != -1) ? FD_DOR_DMAEN : 0;
     fdctrl->msr = FD_MSR_RQM;
     fdctrl->reset_sensei = 0;
-    timer_del(fdctrl->result_timer);
+    timer_del(&fdctrl->result_timer);
     /* FIFO state */
     fdctrl->data_pos = 0;
     fdctrl->data_len = 0;
@@ -1720,7 +1720,7 @@ static void fdctrl_handle_readid(FDCtrl *fdctrl, int direction)
     FDrive *cur_drv = get_cur_drv(fdctrl);
 
     cur_drv->head = (fdctrl->fifo[1] >> 2) & 1;
-    timer_mod(fdctrl->result_timer,
+    timer_mod(&fdctrl->result_timer,
                    qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + (get_ticks_per_sec() / 50));
 }
 
@@ -2182,7 +2182,7 @@ static void fdctrl_realize_common(FDCtrl *fdctrl, Error **errp)
     FLOPPY_DPRINTF("init controller\n");
     fdctrl->fifo = qemu_memalign(512, FD_SECTOR_LEN);
     fdctrl->fifo_size = 512;
-    fdctrl->result_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+    timer_init_ns(&fdctrl->result_timer, QEMU_CLOCK_VIRTUAL,
                                              fdctrl_result_timer, fdctrl);
 
     fdctrl->version = 0x90; /* Intel 82078 controller */
