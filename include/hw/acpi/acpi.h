@@ -23,6 +23,7 @@
 #include "qemu/typedefs.h"
 #include "qemu/notify.h"
 #include "qemu/option.h"
+#include "qemu/timer.h"
 #include "exec/memory.h"
 #include "hw/irq.h"
 
@@ -101,7 +102,7 @@ typedef struct ACPIREGS ACPIREGS;
 typedef void (*acpi_update_sci_fn)(ACPIREGS *ar);
 
 struct ACPIPMTimer {
-    QEMUTimer *timer;
+    QEMUTimer timer;
     MemoryRegion io;
     int64_t overflow_time;
 

@@ -476,9 +476,9 @@ void acpi_pm_tmr_update(ACPIREGS *ar, bool enable)
     if (enable) {
         expire_time = muldiv64(ar->tmr.overflow_time, get_ticks_per_sec(),
                                PM_TIMER_FREQUENCY);
-        timer_mod(ar->tmr.timer, expire_time);
+        timer_mod(&ar->tmr.timer, expire_time);
     } else {
-        timer_del(ar->tmr.timer);
+        timer_del(&ar->tmr.timer);
     }
 }
 
@@ -524,7 +524,7 @@ void acpi_pm_tmr_init(ACPIREGS *ar, acpi_update_sci_fn update_sci,
                       MemoryRegion *parent)
 {
     ar->tmr.update_sci = update_sci;
-    ar->tmr.timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, acpi_pm_tmr_timer, ar);
+    timer_init_ns(&ar->tmr.timer, QEMU_CLOCK_VIRTUAL, acpi_pm_tmr_timer, ar);
     memory_region_init_io(&ar->tmr.io, memory_region_owner(parent),
                           &acpi_pm_tmr_ops, ar, "acpi-tmr", 4);
     memory_region_add_subregion(parent, 8, &ar->tmr.io);
@@ -533,7 +533,7 @@ void acpi_pm_tmr_init(ACPIREGS *ar, acpi_update_sci_fn update_sci,
 void acpi_pm_tmr_reset(ACPIREGS *ar)
 {
     ar->tmr.overflow_time = 0;
-    timer_del(ar->tmr.timer);
+    timer_del(&ar->tmr.timer);
 }
 
 /* ACPI PM1aCNT */

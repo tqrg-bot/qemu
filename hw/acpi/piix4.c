@@ -219,7 +219,7 @@ static int acpi_load_old(QEMUFile *f, void *opaque, int version_id)
         return ret;
     }
 
-    timer_get(f, s->ar.tmr.timer);
+    timer_get(f, &s->ar.tmr.timer);
     qemu_get_sbe64s(f, &s->ar.tmr.overflow_time);
 
     qemu_get_be16s(f, (uint16_t *)s->ar.gpe.sts);
@@ -285,7 +285,7 @@ static const VMStateDescription vmstate_acpi = {
         VMSTATE_UINT16(ar.pm1.evt.en, PIIX4PMState),
         VMSTATE_UINT16(ar.pm1.cnt.cnt, PIIX4PMState),
         VMSTATE_STRUCT(apm, PIIX4PMState, 0, vmstate_apm, APMState),
-        VMSTATE_TIMER_PTR(ar.tmr.timer, PIIX4PMState),
+        VMSTATE_TIMER(ar.tmr.timer, PIIX4PMState),
         VMSTATE_INT64(ar.tmr.overflow_time, PIIX4PMState),
         VMSTATE_STRUCT(ar.gpe, PIIX4PMState, 2, vmstate_gpe, ACPIGPE),
         VMSTATE_STRUCT_TEST(
