@@ -100,11 +100,11 @@ static void a9_gtimer_update(A9GTimerState *s, bool sync)
                      gtb->status && (gtb->control & R_CONTROL_IRQ_ENABLE));
     }
 
-    timer_del(s->timer);
+    timer_del(&s->timer);
     if (next_cdiff) {
         DB_PRINT("scheduling qemu_timer to fire again in %"
                  PRIx64 " cycles\n", next_cdiff);
-        timer_mod(s->timer, update.now + next_cdiff * a9_gtimer_get_conv(s));
+        timer_mod(&s->timer, update.now + next_cdiff * a9_gtimer_get_conv(s));
     }
 
     if (s->control & R_CONTROL_TIMER_ENABLE) {
@@ -297,7 +297,7 @@ static void a9_gtimer_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(dev), &a9_gtimer_this_ops, s,
                           "a9gtimer shared", 0x20);
     sysbus_init_mmio(sbd, &s->iomem);
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, a9_gtimer_update_no_sync, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, a9_gtimer_update_no_sync, s);
 
     for (i = 0; i < s->num_cpu; i++) {
         A9GTimerPerCPU *gtb = &s->per_cpu[i];
@@ -328,7 +328,7 @@ static const VMStateDescription vmstate_a9_gtimer = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields = (VMStateField[]) {
-        VMSTATE_TIMER_PTR(timer, A9GTimerState),
+        VMSTATE_TIMER(timer, A9GTimerState),
         VMSTATE_UINT64(counter, A9GTimerState),
         VMSTATE_UINT64(ref_counter, A9GTimerState),
         VMSTATE_UINT64(cpu_ref_time, A9GTimerState),

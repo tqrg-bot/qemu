@@ -40,7 +40,7 @@ typedef struct PL031State {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
-    QEMUTimer *timer;
+    QEMUTimer timer;
     qemu_irq irq;
 
     /* Needed to preserve the tick_count across migration, even if the
@@ -91,11 +91,11 @@ static void pl031_set_alarm(PL031State *s)
     ticks = s->mr - pl031_get_count(s);
     DPRINTF("Alarm set in %ud ticks\n", ticks);
     if (ticks == 0) {
-        timer_del(s->timer);
+        timer_del(&s->timer);
         pl031_interrupt(s);
     } else {
         int64_t now = qemu_clock_get_ns(rtc_clock);
-        timer_mod(s->timer, now + (int64_t)ticks * get_ticks_per_sec());
+        timer_mod(&s->timer, now + (int64_t)ticks * get_ticks_per_sec());
     }
 }
 
@@ -204,7 +204,7 @@ static int pl031_init(SysBusDevice *dev)
     s->tick_offset = mktimegm(&tm) -
         qemu_clock_get_ns(rtc_clock) / get_ticks_per_sec();
 
-    s->timer = timer_new_ns(rtc_clock, pl031_interrupt, s);
+    timer_init_ns(&s->timer, rtc_clock, pl031_interrupt, s);
     return 0;
 }
 

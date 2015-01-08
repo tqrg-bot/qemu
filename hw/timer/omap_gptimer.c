@@ -29,8 +29,8 @@ struct omap_gp_timer_s {
     qemu_irq in;
     qemu_irq out;
     omap_clk clk;
-    QEMUTimer *timer;
-    QEMUTimer *match;
+    QEMUTimer timer;
+    QEMUTimer match;
     struct omap_target_agent_s *ta;
 
     int in_val;
@@ -129,17 +129,17 @@ static inline void omap_gp_timer_update(struct omap_gp_timer_s *timer)
     if (timer->st && timer->rate) {
         expires = muldiv64(0x100000000ll - timer->val,
                         timer->ticks_per_sec, timer->rate);
-        timer_mod(timer->timer, timer->time + expires);
+        timer_mod(&timer->timer, timer->time + expires);
 
         if (timer->ce && timer->match_val >= timer->val) {
             matches = muldiv64(timer->match_val - timer->val,
                             timer->ticks_per_sec, timer->rate);
-            timer_mod(timer->match, timer->time + matches);
+            timer_mod(&timer->match, timer->time + matches);
         } else
-            timer_del(timer->match);
+            timer_del(&timer->match);
     } else {
-        timer_del(timer->timer);
-        timer_del(timer->match);
+        timer_del(&timer->timer);
+        timer_del(&timer->match);
         omap_gp_timer_out(timer, timer->scpwm);
     }
 }
@@ -474,8 +474,8 @@ struct omap_gp_timer_s *omap_gp_timer_init(struct omap_target_agent_s *ta,
     s->ta = ta;
     s->irq = irq;
     s->clk = fclk;
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, omap_gp_timer_tick, s);
-    s->match = timer_new_ns(QEMU_CLOCK_VIRTUAL, omap_gp_timer_match, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, omap_gp_timer_tick, s);
+    timer_init_ns(&s->match, QEMU_CLOCK_VIRTUAL, omap_gp_timer_match, s);
     s->in = qemu_allocate_irq(omap_gp_timer_input, s, 0);
     omap_gp_timer_reset(s);
     omap_gp_timer_clk_setup(s);

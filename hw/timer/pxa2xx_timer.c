@@ -69,7 +69,7 @@ typedef struct PXA2xxTimerInfo PXA2xxTimerInfo;
 typedef struct {
     uint32_t value;
     qemu_irq irq;
-    QEMUTimer *qtimer;
+    QEMUTimer qtimer;
     int num;
     PXA2xxTimerInfo *info;
 } PXA2xxTimer0;
@@ -123,7 +123,7 @@ static void pxa2xx_timer_update(void *opaque, uint64_t now_qemu)
     for (i = 0; i < 4; i ++) {
         new_qemu = now_qemu + muldiv64((uint32_t) (s->timer[i].value - now_vm),
                         get_ticks_per_sec(), s->freq);
-        timer_mod(s->timer[i].qtimer, new_qemu);
+        timer_mod(&s->timer->qtimer, new_qemu);
     }
 }
 
@@ -448,7 +448,7 @@ static int pxa2xx_timer_init(SysBusDevice *dev)
         sysbus_init_irq(dev, &s->timer[i].irq);
         s->timer[i].info = s;
         s->timer[i].num = i;
-        s->timer[i].qtimer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+        timer_init_ns(&s->timer->qtimer, QEMU_CLOCK_VIRTUAL,
                         pxa2xx_timer_tick, &s->timer[i]);
     }
     if (s->flags & (1 << PXA2XX_TIMER_HAVE_TM4)) {
@@ -460,7 +460,7 @@ static int pxa2xx_timer_init(SysBusDevice *dev)
             s->tm4[i].tm.num = i + 4;
             s->tm4[i].freq = 0;
             s->tm4[i].control = 0x0;
-            s->tm4[i].tm.qtimer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+            timer_init_ns(&s->tm4[i].tm.qtimer, QEMU_CLOCK_VIRTUAL,
                         pxa2xx_timer_tick4, &s->tm4[i]);
         }
     }

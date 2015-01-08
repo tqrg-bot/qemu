@@ -21,6 +21,7 @@
 #define QEMU_ARM_CPU_QOM_H
 
 #include "qom/cpu.h"
+#include "qemu/timer.h"
 
 #define TYPE_ARM_CPU "arm-cpu"
 
@@ -83,7 +84,7 @@ typedef struct ARMCPU {
     int32_t cpreg_vmstate_array_len;
 
     /* Timers used by the generic (architected) timer */
-    QEMUTimer *gt_timer[NUM_GTIMERS];
+    QEMUTimer gt_timer[NUM_GTIMERS];
     /* GPIO outputs for generic timer */
     qemu_irq gt_timer_outputs[NUM_GTIMERS];
 

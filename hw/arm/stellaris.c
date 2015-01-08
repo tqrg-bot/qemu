@@ -63,7 +63,7 @@ typedef struct gptm_state {
     uint32_t rtc;
     int64_t tick[2];
     struct gptm_state *opaque[2];
-    QEMUTimer *timer[2];
+    QEMUTimer timer[2];
     /* The timers have an alternate output used to trigger the ADC.  */
     qemu_irq trigger;
     qemu_irq irq;
@@ -306,7 +306,7 @@ static const VMStateDescription vmstate_stellaris_gptm = {
         VMSTATE_UINT32_ARRAY(match_prescale, gptm_state, 2),
         VMSTATE_UINT32(rtc, gptm_state),
         VMSTATE_INT64_ARRAY(tick, gptm_state, 2),
-        VMSTATE_TIMER_PTR_ARRAY(timer, gptm_state, 2),
+        VMSTATE_TIMER_ARRAY(timer, gptm_state, 2),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -324,8 +324,8 @@ static int stellaris_gptm_init(SysBusDevice *sbd)
     sysbus_init_mmio(sbd, &s->iomem);
 
     s->opaque[0] = s->opaque[1] = s;
-    s->timer[0] = timer_new_ns(QEMU_CLOCK_VIRTUAL, gptm_tick, &s->opaque[0]);
-    s->timer[1] = timer_new_ns(QEMU_CLOCK_VIRTUAL, gptm_tick, &s->opaque[1]);
+    timer_init_ns(&s->timer[0], QEMU_CLOCK_VIRTUAL, gptm_tick, &s->opaque[0]);
+    timer_init_ns(&s->timer[1], QEMU_CLOCK_VIRTUAL, gptm_tick, &s->opaque[1]);
     vmstate_register(dev, -1, &vmstate_stellaris_gptm, s);
     return 0;
 }

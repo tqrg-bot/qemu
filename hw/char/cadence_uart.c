@@ -128,7 +128,7 @@ typedef struct {
     uint64_t char_tx_time;
     CharDriverState *chr;
     qemu_irq irq;
-    QEMUTimer *fifo_trigger_handle;
+    QEMUTimer fifo_trigger_handle;
 } UartState;
 
 static void uart_update_status(UartState *s)
@@ -284,7 +284,7 @@ static void uart_write_rx_fifo(void *opaque, const uint8_t *buf, int size)
             s->rx_wpos = (s->rx_wpos + 1) % RX_FIFO_SIZE;
             s->rx_count++;
         }
-        timer_mod(s->fifo_trigger_handle, new_rx_time +
+        timer_mod(&s->fifo_trigger_handle, new_rx_time +
                                                 (s->char_tx_time * 4));
     }
     uart_update_status(s);
@@ -484,7 +484,7 @@ static int cadence_uart_init(SysBusDevice *dev)
     sysbus_init_mmio(dev, &s->iomem);
     sysbus_init_irq(dev, &s->irq);
 
-    s->fifo_trigger_handle = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+    timer_init_ns(&s->fifo_trigger_handle, QEMU_CLOCK_VIRTUAL,
             (QEMUTimerCB *)fifo_trigger_update, s);
 
     s->char_tx_time = (get_ticks_per_sec() / 9600) * 10;
@@ -520,7 +520,7 @@ static const VMStateDescription vmstate_cadence_uart = {
         VMSTATE_UINT32(rx_count, UartState),
         VMSTATE_UINT32(tx_count, UartState),
         VMSTATE_UINT32(rx_wpos, UartState),
-        VMSTATE_TIMER_PTR(fifo_trigger_handle, UartState),
+        VMSTATE_TIMER(fifo_trigger_handle, UartState),
         VMSTATE_END_OF_LIST()
     }
 };

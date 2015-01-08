@@ -86,7 +86,7 @@ struct omap_mpu_timer_s {
     omap_clk clk;
     uint32_t val;
     int64_t time;
-    QEMUTimer *timer;
+    QEMUTimer timer;
     QEMUBH *tick;
     int64_t rate;
     int it_ena;
@@ -131,11 +131,11 @@ static inline void omap_timer_update(struct omap_mpu_timer_s *timer)
          * in a busy loop when it wants to sleep just a couple of CPU
          * ticks.  */
         if (expires > (get_ticks_per_sec() >> 10) || timer->ar)
-            timer_mod(timer->timer, timer->time + expires);
+            timer_mod(&timer->timer, timer->time + expires);
         else
             qemu_bh_schedule(timer->tick);
     } else
-        timer_del(timer->timer);
+        timer_del(&timer->timer);
 }
 
 static void omap_timer_fire(void *opaque)
@@ -241,7 +241,7 @@ static const MemoryRegionOps omap_mpu_timer_ops = {
 
 static void omap_mpu_timer_reset(struct omap_mpu_timer_s *s)
 {
-    timer_del(s->timer);
+    timer_del(&s->timer);
     s->enable = 0;
     s->reset_val = 31337;
     s->val = 0;
@@ -260,7 +260,7 @@ static struct omap_mpu_timer_s *omap_mpu_timer_init(MemoryRegion *system_memory,
 
     s->irq = irq;
     s->clk = clk;
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, omap_timer_tick, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, omap_timer_tick, s);
     s->tick = qemu_bh_new(omap_timer_fire, s);
     omap_mpu_timer_reset(s);
     omap_timer_clk_setup(s);
@@ -389,7 +389,7 @@ static struct omap_watchdog_timer_s *omap_wd_timer_init(MemoryRegion *memory,
 
     s->timer.irq = irq;
     s->timer.clk = clk;
-    s->timer.timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, omap_timer_tick, &s->timer);
+    timer_init_ns(&s->timer.timer, QEMU_CLOCK_VIRTUAL, omap_timer_tick, &s->timer);
     omap_wd_timer_reset(s);
     omap_timer_clk_setup(&s->timer);
 
@@ -495,7 +495,7 @@ static struct omap_32khz_timer_s *omap_os_timer_init(MemoryRegion *memory,
 
     s->timer.irq = irq;
     s->timer.clk = clk;
-    s->timer.timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, omap_timer_tick, &s->timer);
+    timer_init_ns(&s->timer.timer, QEMU_CLOCK_VIRTUAL, omap_timer_tick, &s->timer);
     omap_os_timer_reset(s);
     omap_timer_clk_setup(&s->timer);
 
@@ -2516,7 +2516,7 @@ struct omap_rtc_s {
     MemoryRegion iomem;
     qemu_irq irq;
     qemu_irq alarm;
-    QEMUTimer *clk;
+    QEMUTimer clk;
 
     uint8_t interrupts;
     uint8_t status;
@@ -2886,7 +2886,7 @@ static void omap_rtc_tick(void *opaque)
     if (s->auto_comp && !s->current_tm.tm_sec && !s->current_tm.tm_min)
         s->tick += s->comp_reg * 1000 / 32768;
 
-    timer_mod(s->clk, s->tick);
+    timer_mod(&s->clk, s->tick);
 }
 
 static void omap_rtc_reset(struct omap_rtc_s *s)
@@ -2920,7 +2920,7 @@ static struct omap_rtc_s *omap_rtc_init(MemoryRegion *system_memory,
 
     s->irq = timerirq;
     s->alarm = alarmirq;
-    s->clk = timer_new_ms(rtc_clock, omap_rtc_tick, s);
+    timer_init_ms(&s->clk, rtc_clock, omap_rtc_tick, s);
 
     omap_rtc_reset(s);
 
@@ -2953,8 +2953,8 @@ struct omap_mcbsp_s {
     int rx_req;
 
     I2SCodec *codec;
-    QEMUTimer *source_timer;
-    QEMUTimer *sink_timer;
+    QEMUTimer source_timer;
+    QEMUTimer sink_timer;
 };
 
 static void omap_mcbsp_intr_update(struct omap_mcbsp_s *s)
@@ -3014,7 +3014,7 @@ static void omap_mcbsp_source_tick(void *opaque)
     s->rx_req = s->rx_rate << bps[(s->rcr[0] >> 5) & 7];
 
     omap_mcbsp_rx_newdata(s);
-    timer_mod(s->source_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+    timer_mod(&s->source_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    get_ticks_per_sec());
 }
 
@@ -3030,7 +3030,7 @@ static void omap_mcbsp_rx_start(struct omap_mcbsp_s *s)
 
 static void omap_mcbsp_rx_stop(struct omap_mcbsp_s *s)
 {
-    timer_del(s->source_timer);
+    timer_del(&s->source_timer);
 }
 
 static void omap_mcbsp_rx_done(struct omap_mcbsp_s *s)
@@ -3060,7 +3060,7 @@ static void omap_mcbsp_sink_tick(void *opaque)
     s->tx_req = s->tx_rate << bps[(s->xcr[0] >> 5) & 7];
 
     omap_mcbsp_tx_newdata(s);
-    timer_mod(s->sink_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+    timer_mod(&s->sink_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    get_ticks_per_sec());
 }
 
@@ -3087,7 +3087,7 @@ static void omap_mcbsp_tx_stop(struct omap_mcbsp_s *s)
 {
     s->tx_req = 0;
     omap_mcbsp_tx_done(s);
-    timer_del(s->sink_timer);
+    timer_del(&s->sink_timer);
 }
 
 static void omap_mcbsp_req_update(struct omap_mcbsp_s *s)
@@ -3437,8 +3437,8 @@ static void omap_mcbsp_reset(struct omap_mcbsp_s *s)
     s->rx_req = 0;
     s->tx_rate = 0;
     s->rx_rate = 0;
-    timer_del(s->source_timer);
-    timer_del(s->sink_timer);
+    timer_del(&s->source_timer);
+    timer_del(&s->sink_timer);
 }
 
 static struct omap_mcbsp_s *omap_mcbsp_init(MemoryRegion *system_memory,
@@ -3453,8 +3453,8 @@ static struct omap_mcbsp_s *omap_mcbsp_init(MemoryRegion *system_memory,
     s->rxirq = rxirq;
     s->txdrq = dma[0];
     s->rxdrq = dma[1];
-    s->sink_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, omap_mcbsp_sink_tick, s);
-    s->source_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, omap_mcbsp_source_tick, s);
+    timer_init_ns(&s->sink_timer, QEMU_CLOCK_VIRTUAL, omap_mcbsp_sink_tick, s);
+    timer_init_ns(&s->source_timer, QEMU_CLOCK_VIRTUAL, omap_mcbsp_source_tick, s);
     omap_mcbsp_reset(s);
 
     memory_region_init_io(&s->iomem, NULL, &omap_mcbsp_ops, s, "omap-mcbsp", 0x800);
@@ -3493,7 +3493,7 @@ void omap_mcbsp_i2s_attach(struct omap_mcbsp_s *s, I2SCodec *slave)
 /* LED Pulse Generators */
 struct omap_lpg_s {
     MemoryRegion iomem;
-    QEMUTimer *tm;
+    QEMUTimer tm;
 
     uint8_t control;
     uint8_t power;
@@ -3508,9 +3508,9 @@ static void omap_lpg_tick(void *opaque)
     struct omap_lpg_s *s = opaque;
 
     if (s->cycle)
-        timer_mod(s->tm, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + s->period - s->on);
+        timer_mod(&s->tm, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + s->period - s->on);
     else
-        timer_mod(s->tm, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + s->on);
+        timer_mod(&s->tm, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + s->on);
 
     s->cycle = !s->cycle;
     printf("%s: LED is %s\n", __FUNCTION__, s->cycle ? "on" : "off");
@@ -3532,7 +3532,7 @@ static void omap_lpg_update(struct omap_lpg_s *s)
                         per[(s->control >> 3) & 7], 256) : 0;	/* ONCTRL */
     }
 
-    timer_del(s->tm);
+    timer_del(&s->tm);
     if (on == period && s->on < s->period)
         printf("%s: LED is on\n", __FUNCTION__);
     else if (on == 0 && s->on)
@@ -3628,7 +3628,7 @@ static struct omap_lpg_s *omap_lpg_init(MemoryRegion *system_memory,
     struct omap_lpg_s *s = (struct omap_lpg_s *)
             g_malloc0(sizeof(struct omap_lpg_s));
 
-    s->tm = timer_new_ms(QEMU_CLOCK_VIRTUAL, omap_lpg_tick, s);
+    timer_init_ms(&s->tm, QEMU_CLOCK_VIRTUAL, omap_lpg_tick, s);
 
     omap_lpg_reset(s);
 

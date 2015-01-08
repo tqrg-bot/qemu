@@ -38,7 +38,7 @@ typedef struct {
     qemu_irq pint;
     qemu_irq kbint;
     qemu_irq davint;
-    QEMUTimer *timer;
+    QEMUTimer timer;
     QEMUSoundCard card;
     uWireSlave chip;
     I2SCodec codec;
@@ -564,7 +564,7 @@ static void tsc2102_control_register_write(
         s->host_mode = value >> 15;
         s->enabled = !(value & 0x4000);
         if (s->busy && !s->enabled)
-            timer_del(s->timer);
+            timer_del(&s->timer);
         s->busy &= s->enabled;
         s->nextfunction = (value >> 10) & 0xf;
         s->nextprecision = (value >> 8) & 3;
@@ -599,7 +599,7 @@ static void tsc2102_control_register_write(
     case 0x04:	/* Reset */
         if (value == 0xbb00) {
             if (s->busy)
-                timer_del(s->timer);
+                timer_del(&s->timer);
             tsc210x_reset(s);
 #ifdef TSC_VERBOSE
         } else {
@@ -835,7 +835,7 @@ static void tsc210x_pin_update(TSC210xState *s)
     s->precision = s->nextprecision;
     s->function = s->nextfunction;
     expires = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + (get_ticks_per_sec() >> 10);
-    timer_mod(s->timer, expires);
+    timer_mod(&s->timer, expires);
 }
 
 static uint16_t tsc210x_read(TSC210xState *s)
@@ -990,7 +990,7 @@ static void tsc210x_save(QEMUFile *f, void *opaque)
     qemu_put_byte(f, s->irq);
     qemu_put_be16s(f, &s->dav);
 
-    timer_put(f, s->timer);
+    timer_put(f, &s->timer);
     qemu_put_byte(f, s->enabled);
     qemu_put_byte(f, s->host_mode);
     qemu_put_byte(f, s->function);
@@ -1036,7 +1036,7 @@ static int tsc210x_load(QEMUFile *f, void *opaque, int version_id)
     s->irq = qemu_get_byte(f);
     qemu_get_be16s(f, &s->dav);
 
-    timer_get(f, s->timer);
+    timer_get(f, &s->timer);
     s->enabled = qemu_get_byte(f);
     s->host_mode = qemu_get_byte(f);
     s->function = qemu_get_byte(f);
@@ -1075,7 +1075,7 @@ static int tsc210x_load(QEMUFile *f, void *opaque, int version_id)
     for (i = 0; i < 0x14; i ++)
         qemu_get_be16s(f, &s->filter_data[i]);
 
-    s->busy = timer_pending(s->timer);
+    s->busy = timer_pending(&s->timer);
     qemu_set_irq(s->pint, !s->irq);
     qemu_set_irq(s->davint, !s->dav);
 
@@ -1093,7 +1093,7 @@ uWireSlave *tsc2102_init(qemu_irq pint)
     s->y = 160;
     s->pressure = 0;
     s->precision = s->nextprecision = 0;
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, tsc210x_timer_tick, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, tsc210x_timer_tick, s);
     s->pint = pint;
     s->model = 0x2102;
     s->name = "tsc2102";
@@ -1142,7 +1142,7 @@ uWireSlave *tsc2301_init(qemu_irq penirq, qemu_irq kbirq, qemu_irq dav)
     s->y = 240;
     s->pressure = 0;
     s->precision = s->nextprecision = 0;
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, tsc210x_timer_tick, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, tsc210x_timer_tick, s);
     s->pint = penirq;
     s->kbint = kbirq;
     s->davint = dav;

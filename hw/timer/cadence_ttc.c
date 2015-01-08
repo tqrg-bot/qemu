@@ -45,7 +45,7 @@
 #define CLOCK_CTRL_PS_V     0x0000001e
 
 typedef struct {
-    QEMUTimer *timer;
+    QEMUTimer timer;
     int freq;
 
     uint32_t reg_clock;
@@ -172,7 +172,7 @@ static void cadence_timer_run(CadenceTimerState *s)
     event_interval = next_value - (int64_t)s->reg_value;
     event_interval = (event_interval < 0) ? -event_interval : event_interval;
 
-    timer_mod(s->timer, s->cpu_time +
+    timer_mod(&s->timer, s->cpu_time +
                 cadence_timer_get_ns(s, event_interval));
 }
 
@@ -403,7 +403,7 @@ static void cadence_timer_init(uint32_t freq, CadenceTimerState *s)
 
     cadence_timer_reset(s);
 
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, cadence_timer_tick, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, cadence_timer_tick, s);
 }
 
 static void cadence_ttc_init(Object *obj)

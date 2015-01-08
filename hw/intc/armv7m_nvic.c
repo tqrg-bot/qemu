@@ -22,7 +22,7 @@ typedef struct {
         uint32_t control;
         uint32_t reload;
         int64_t tick;
-        QEMUTimer *timer;
+        QEMUTimer timer;
     } systick;
     MemoryRegion sysregmem;
     MemoryRegion gic_iomem_alias;
@@ -450,7 +450,7 @@ static const VMStateDescription vmstate_nvic = {
         VMSTATE_UINT32(systick.control, nvic_state),
         VMSTATE_UINT32(systick.reload, nvic_state),
         VMSTATE_INT64(systick.tick, nvic_state),
-        VMSTATE_TIMER_PTR(systick.timer, nvic_state),
+        VMSTATE_TIMER(systick.timer, nvic_state),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -515,7 +515,7 @@ static void armv7m_nvic_realize(DeviceState *dev, Error **errp)
      * by the v7M architecture.
      */
     memory_region_add_subregion(get_system_memory(), 0xe000e000, &s->container);
-    s->systick.timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, systick_timer_tick, s);
+    timer_init_ns(&s->systick.timer, QEMU_CLOCK_VIRTUAL, systick_timer_tick, s);
 }
 
 static void armv7m_nvic_instance_init(Object *obj)

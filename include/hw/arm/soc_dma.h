@@ -46,7 +46,7 @@ struct soc_dma_ch_s {
     /* Private */
     struct soc_dma_s *dma;
     int num;
-    QEMUTimer *timer;
+    QEMUTimer timer;
 
     /* Set by soc_dma.c */
     int enable;

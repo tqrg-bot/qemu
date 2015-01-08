@@ -54,7 +54,7 @@ typedef struct MenelausState {
     struct {
         uint8_t ctrl;
         uint16_t comp;
-        QEMUTimer *hz_tm;
+        QEMUTimer hz_tm;
         int64_t next;
         struct tm tm;
         struct tm new;
@@ -76,12 +76,12 @@ static inline void menelaus_update(MenelausState *s)
 static inline void menelaus_rtc_start(MenelausState *s)
 {
     s->rtc.next += qemu_clock_get_ms(rtc_clock);
-    timer_mod(s->rtc.hz_tm, s->rtc.next);
+    timer_mod(&s->rtc.hz_tm, s->rtc.next);
 }
 
 static inline void menelaus_rtc_stop(MenelausState *s)
 {
-    timer_del(s->rtc.hz_tm);
+    timer_del(&s->rtc.hz_tm);
     s->rtc.next -= qemu_clock_get_ms(rtc_clock);
     if (s->rtc.next < 1)
         s->rtc.next = 1;
@@ -105,7 +105,7 @@ static void menelaus_rtc_hz(void *opaque)
     s->rtc.next_comp --;
     s->rtc.alm_sec --;
     s->rtc.next += 1000;
-    timer_mod(s->rtc.hz_tm, s->rtc.next);
+    timer_mod(&s->rtc.hz_tm, s->rtc.next);
     if ((s->rtc.ctrl >> 3) & 3) {				/* EVERY */
         menelaus_rtc_update(s);
         if (((s->rtc.ctrl >> 3) & 3) == 1 && !s->rtc.tm.tm_sec)
@@ -848,7 +848,7 @@ static int twl92230_init(I2CSlave *i2c)
     DeviceState *dev = DEVICE(i2c);
     MenelausState *s = TWL92230(i2c);
 
-    s->rtc.hz_tm = timer_new_ms(rtc_clock, menelaus_rtc_hz, s);
+    timer_init_ms(&s->rtc.hz_tm, rtc_clock, menelaus_rtc_hz, s);
     /* Three output pins plus one interrupt pin.  */
     qdev_init_gpio_out(dev, s->out, 4);
 

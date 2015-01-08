@@ -67,7 +67,7 @@ typedef struct {
         uint16_t file[256];
 	uint8_t faddr;
         uint8_t addr[3];
-        QEMUTimer *tm[3];
+        QEMUTimer tm[3];
     } pwm;
 } LM823KbdState;
 
@@ -369,7 +369,7 @@ static void lm_kbd_write(LM823KbdState *s, int reg, int byte, uint8_t value)
             break;
         }
 
-        timer_del(s->pwm.tm[(value & 3) - 1]);
+        timer_del(&s->pwm.tm[(value & 3) - 1]);
         break;
 
     case LM832x_GENERAL_ERROR:
@@ -455,7 +455,7 @@ static const VMStateDescription vmstate_lm_kbd = {
         VMSTATE_UINT16_ARRAY(pwm.file, LM823KbdState, 256),
         VMSTATE_UINT8(pwm.faddr, LM823KbdState),
         VMSTATE_BUFFER(pwm.addr, LM823KbdState),
-        VMSTATE_TIMER_PTR_ARRAY(pwm.tm, LM823KbdState, 3),
+        VMSTATE_TIMER_ARRAY(pwm.tm, LM823KbdState, 3),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -466,9 +466,9 @@ static int lm8323_init(I2CSlave *i2c)
     LM823KbdState *s = LM8323(i2c);
 
     s->model = 0x8323;
-    s->pwm.tm[0] = timer_new_ns(QEMU_CLOCK_VIRTUAL, lm_kbd_pwm0_tick, s);
-    s->pwm.tm[1] = timer_new_ns(QEMU_CLOCK_VIRTUAL, lm_kbd_pwm1_tick, s);
-    s->pwm.tm[2] = timer_new_ns(QEMU_CLOCK_VIRTUAL, lm_kbd_pwm2_tick, s);
+    timer_init_ns(&s->pwm.tm[0], QEMU_CLOCK_VIRTUAL, lm_kbd_pwm0_tick, s);
+    timer_init_ns(&s->pwm.tm[1], QEMU_CLOCK_VIRTUAL, lm_kbd_pwm1_tick, s);
+    timer_init_ns(&s->pwm.tm[2], QEMU_CLOCK_VIRTUAL, lm_kbd_pwm2_tick, s);
     qdev_init_gpio_out(DEVICE(i2c), &s->nirq, 1);
 
     lm_kbd_reset(s);

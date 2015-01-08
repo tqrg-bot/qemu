@@ -256,7 +256,7 @@ struct PL330State {
     PL330Queue write_queue;
     uint8_t *lo_seqn;
     uint8_t *hi_seqn;
-    QEMUTimer *timer; /* is used for restore dma. */
+    QEMUTimer timer; /* is used for restore dma. */
 
     uint32_t inten;
     uint32_t int_status;
@@ -286,7 +286,7 @@ static const VMStateDescription vmstate_pl330 = {
                        PL330Queue),
         VMSTATE_STRUCT(write_queue, PL330State, 0, vmstate_pl330_queue,
                        PL330Queue),
-        VMSTATE_TIMER_PTR(timer, PL330State),
+        VMSTATE_TIMER(timer, PL330State),
         VMSTATE_UINT32(inten, PL330State),
         VMSTATE_UINT32(int_status, PL330State),
         VMSTATE_UINT32(ev_status, PL330State),
@@ -1268,7 +1268,7 @@ static void pl330_dma_stop_irq(void *opaque, int irq, int level)
 
     if (s->periph_busy[irq] != level) {
         s->periph_busy[irq] = level;
-        timer_mod(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
+        timer_mod(&s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
     }
 }
 
@@ -1531,7 +1531,7 @@ static void pl330_reset(DeviceState *d)
         s->periph_busy[i] = 0;
     }
 
-    timer_del(s->timer);
+    timer_del(&s->timer);
 }
 
 static void pl330_realize(DeviceState *dev, Error **errp)
@@ -1544,7 +1544,7 @@ static void pl330_realize(DeviceState *dev, Error **errp)
                           "dma", PL330_IOMEM_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
 
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, pl330_exec_cycle_timer, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, pl330_exec_cycle_timer, s);
 
     s->cfg[0] = (s->mgr_ns_at_rst ? 0x4 : 0) |
                 (s->num_periph_req > 0 ? 1 : 0) |

@@ -78,7 +78,7 @@ struct A9GTimerState {
     /* static props */
     uint32_t num_cpu;
 
-    QEMUTimer *timer;
+    QEMUTimer timer;
 
     uint64_t counter; /* current timer value */
 

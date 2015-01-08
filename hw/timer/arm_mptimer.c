@@ -56,7 +56,7 @@ static void timerblock_reload(TimerBlock *tb, int restart)
         tb->tick = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
     }
     tb->tick += (int64_t)tb->count * timerblock_scale(tb);
-    timer_mod(tb->timer, tb->tick);
+    timer_mod(&tb->timer, tb->tick);
 }
 
 static void timerblock_tick(void *opaque)
@@ -112,7 +112,7 @@ static void timerblock_write(void *opaque, hwaddr addr,
     case 4: /* Counter.  */
         if ((tb->control & 1) && tb->count) {
             /* Cancel the previous timer.  */
-            timer_del(tb->timer);
+            timer_del(&tb->timer);
         }
         tb->count = value;
         if (tb->control & 1) {
@@ -182,9 +182,7 @@ static void timerblock_reset(TimerBlock *tb)
     tb->control = 0;
     tb->status = 0;
     tb->tick = 0;
-    if (tb->timer) {
-        timer_del(tb->timer);
-    }
+    timer_del(&tb->timer);
 }
 
 static void arm_mptimer_reset(DeviceState *dev)
@@ -228,7 +226,7 @@ static void arm_mptimer_realize(DeviceState *dev, Error **errp)
      */
     for (i = 0; i < s->num_cpu; i++) {
         TimerBlock *tb = &s->timerblock[i];
-        tb->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, timerblock_tick, tb);
+        timer_init_ns(&tb->timer, QEMU_CLOCK_VIRTUAL, timerblock_tick, tb);
         sysbus_init_irq(sbd, &tb->irq);
         memory_region_init_io(&tb->iomem, OBJECT(s), &timerblock_ops, tb,
                               "arm_mptimer_timerblock", 0x20);
@@ -246,7 +244,7 @@ static const VMStateDescription vmstate_timerblock = {
         VMSTATE_UINT32(control, TimerBlock),
         VMSTATE_UINT32(status, TimerBlock),
         VMSTATE_INT64(tick, TimerBlock),
-        VMSTATE_TIMER_PTR(timer, TimerBlock),
+        VMSTATE_TIMER(timer, TimerBlock),
         VMSTATE_END_OF_LIST()
     }
 };
