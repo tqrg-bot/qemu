@@ -856,7 +856,7 @@ static void ide_sector_write_cb(void *opaque, int ret)
            that at the expense of slower write performances. Use this
            option _only_ to install Windows 2000. You must disable it
            for normal use. */
-        timer_mod(s->sector_write_timer,
+        timer_mod(&s->sector_write_timer,
                        qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + (get_ticks_per_sec() / 1000));
     } else {
         ide_set_irq(s->bus);
@@ -2305,7 +2305,7 @@ static void ide_init1(IDEBus *bus, int unit)
     s->smart_selftest_data = blk_blockalign(s->blk, 512);
     memset(s->smart_selftest_data, 0, 512);
 
-    s->sector_write_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+    timer_init_ns(&s->sector_write_timer, QEMU_CLOCK_VIRTUAL,
                                            ide_sector_write_timer_cb, s);
 }
 
