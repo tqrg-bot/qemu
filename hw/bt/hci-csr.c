@@ -40,7 +40,7 @@ struct csrhci_s {
     int in_len;
     int in_hdr;
     int in_data;
-    QEMUTimer *out_tm;
+    QEMUTimer out_tm;
     int64_t baud_delay;
 
     bdaddr_t bd_addr;
@@ -87,7 +87,7 @@ static inline void csrhci_fifo_wake(struct csrhci_s *s)
     }
 
     if (s->out_len)
-        timer_mod(s->out_tm, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + s->baud_delay);
+        timer_mod(&s->out_tm, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + s->baud_delay);
 }
 
 #define csrhci_out_packetz(s, len) memset(csrhci_out_packet(s, len), 0, len)
@@ -446,7 +446,7 @@ CharDriverState *uart_hci_init(qemu_irq wakeup)
     s->hci->evt_recv = csrhci_out_hci_packet_event;
     s->hci->acl_recv = csrhci_out_hci_packet_acl;
 
-    s->out_tm = timer_new_ns(QEMU_CLOCK_VIRTUAL, csrhci_out_tick, s);
+    timer_init_ns(&s->out_tm, QEMU_CLOCK_VIRTUAL, csrhci_out_tick, s);
     s->pins = qemu_allocate_irqs(csrhci_pins, s, __csrhci_pins);
     csrhci_reset(s);
 

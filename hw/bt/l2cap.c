@@ -36,8 +36,8 @@ struct l2cap_instance_s {
 
     /* Signalling channel timers.  They exist per-request but we can make
      * sure we have no more than one outstanding request at any time.  */
-    QEMUTimer *rtx;
-    QEMUTimer *ertx;
+    QEMUTimer rtx;
+    QEMUTimer ertx;
 
     int last_id;
     int next_id;
@@ -68,8 +68,8 @@ struct l2cap_instance_s {
         int len_cur, len_total;
         int rexmit;
         int monitor_timeout;
-        QEMUTimer *monitor_timer;
-        QEMUTimer *retransmission_timer;
+        QEMUTimer monitor_timer;
+        QEMUTimer retransmission_timer;
     } *cid[L2CAP_CID_MAX];
     /* The channel state machine states map as following:
      * CLOSED           -> !cid[N]
@@ -166,9 +166,9 @@ static void l2cap_retransmission_timer_update(struct l2cap_chan_s *ch)
 {
 #if 0
     if (ch->mode != L2CAP_MODE_BASIC && ch->rexmit)
-        timer_mod(ch->retransmission_timer);
+        timer_mod(&ch->retransmission_timer);
     else
-        timer_del(ch->retransmission_timer);
+        timer_del(&ch->retransmission_timer);
 #endif
 }
 
@@ -176,9 +176,9 @@ static void l2cap_monitor_timer_update(struct l2cap_chan_s *ch)
 {
 #if 0
     if (ch->mode != L2CAP_MODE_BASIC && !ch->rexmit)
-        timer_mod(ch->monitor_timer);
+        timer_mod(&ch->monitor_timer);
     else
-        timer_del(ch->monitor_timer);
+        timer_del(&ch->monitor_timer);
 #endif
 }
 

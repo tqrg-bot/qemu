@@ -45,8 +45,8 @@ struct bt_hci_s {
         int periodic;
         int responses_left;
         int responses;
-        QEMUTimer *inquiry_done;
-        QEMUTimer *inquiry_next;
+        QEMUTimer inquiry_done;
+        QEMUTimer inquiry_next;
         int inquiry_length;
         int inquiry_period;
         int inquiry_mode;
@@ -57,7 +57,7 @@ struct bt_hci_s {
             struct bt_link_s *link;
             void (*lmp_acl_data)(struct bt_link_s *link,
                             const uint8_t *data, int start, int len);
-            QEMUTimer *acl_mode_timer;
+            QEMUTimer acl_mode_timer;
         } handle[HCI_HANDLES_MAX];
         uint32_t role_bmp;
         int last_handle;
@@ -68,7 +68,7 @@ struct bt_hci_s {
     uint8_t event_mask[8];
     uint16_t voice_setting;	/* Notw: Always little-endian */
     uint16_t conn_accept_tout;
-    QEMUTimer *conn_accept_timer;
+    QEMUTimer conn_accept_timer;
 
     struct HCIInfo info;
     struct bt_device_s device;
@@ -614,12 +614,12 @@ static void bt_hci_inquiry_start(struct bt_hci_s *hci, int length)
      * through the devices on the inquiry_length expiration and report
      * devices not seen before.  */
     if (hci->lm.responses_left)
-        bt_hci_mod_timer_1280ms(hci->lm.inquiry_done, hci->lm.inquiry_length);
+        bt_hci_mod_timer_1280ms(&hci->lm.inquiry_done, hci->lm.inquiry_length);
     else
         bt_hci_inquiry_done(hci);
 
     if (hci->lm.periodic)
-        bt_hci_mod_timer_1280ms(hci->lm.inquiry_next, hci->lm.inquiry_period);
+        bt_hci_mod_timer_1280ms(&hci->lm.inquiry_next, hci->lm.inquiry_period);
 }
 
 static void bt_hci_inquiry_next(void *opaque)
@@ -674,8 +674,7 @@ static void bt_hci_lmp_link_establish(struct bt_hci_s *hci,
     /* Mode */
     if (master) {
         link->acl_mode = acl_active;
-        hci->lm.handle[hci->lm.last_handle].acl_mode_timer =
-                timer_new_ns(QEMU_CLOCK_VIRTUAL, bt_hci_mode_tick, link);
+        timer_init_ns(&hci->lm.handle->acl_mode_timer, QEMU_CLOCK_VIRTUAL, bt_hci_mode_tick, link);
     }
 }
 
@@ -685,8 +684,7 @@ static void bt_hci_lmp_link_teardown(struct bt_hci_s *hci, uint16_t handle)
     hci->lm.handle[handle].link = NULL;
 
     if (bt_hci_role_master(hci, handle)) {
-        timer_del(hci->lm.handle[handle].acl_mode_timer);
-        timer_free(hci->lm.handle[handle].acl_mode_timer);
+        timer_del(&hci->lm.handle->acl_mode_timer);
     }
 }
 
@@ -1098,7 +1096,7 @@ static int bt_hci_mode_change(struct bt_hci_s *hci, uint16_t handle,
 
     bt_hci_event_status(hci, HCI_SUCCESS);
 
-    timer_mod(link->acl_mode_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+    timer_mod(&link->acl_mode_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    muldiv64(interval * 625, get_ticks_per_sec(), 1000000));
     bt_hci_lmp_mode_change_master(hci, link->link, mode, interval);
 
@@ -1121,7 +1119,7 @@ static int bt_hci_mode_cancel(struct bt_hci_s *hci, uint16_t handle, int mode)
 
     bt_hci_event_status(hci, HCI_SUCCESS);
 
-    timer_del(link->acl_mode_timer);
+    timer_del(&link->acl_mode_timer);
     bt_hci_lmp_mode_change_master(hci, link->link, acl_active, 0);
 
     return 0;
@@ -1165,9 +1163,9 @@ static void bt_hci_reset(struct bt_hci_s *hci)
     hci->asb_handle = 0x000;
 
     /* XXX: timer_del(sl->acl_mode_timer); for all links */
-    timer_del(hci->lm.inquiry_done);
-    timer_del(hci->lm.inquiry_next);
-    timer_del(hci->conn_accept_timer);
+    timer_del(&hci->lm.inquiry_done);
+    timer_del(&hci->lm.inquiry_next);
+    timer_del(&hci->conn_accept_timer);
 }
 
 static void bt_hci_read_local_version_rp(struct bt_hci_s *hci)
@@ -1532,7 +1530,7 @@ static void bt_submit_hci(struct HCIInfo *info,
         }
 
         hci->lm.inquire = 0;
-        timer_del(hci->lm.inquiry_done);
+        timer_del(&hci->lm.inquiry_done);
         bt_hci_event_complete_status(hci, HCI_SUCCESS);
         break;
 
@@ -1570,8 +1568,8 @@ static void bt_submit_hci(struct HCIInfo *info,
             break;
         }
         hci->lm.inquire = 0;
-        timer_del(hci->lm.inquiry_done);
-        timer_del(hci->lm.inquiry_next);
+        timer_del(&hci->lm.inquiry_done);
+        timer_del(&hci->lm.inquiry_next);
         bt_hci_event_complete_status(hci, HCI_SUCCESS);
         break;
 
@@ -2159,10 +2157,9 @@ struct HCIInfo *bt_new_hci(struct bt_scatternet_s *net)
 {
     struct bt_hci_s *s = g_malloc0(sizeof(struct bt_hci_s));
 
-    s->lm.inquiry_done = timer_new_ns(QEMU_CLOCK_VIRTUAL, bt_hci_inquiry_done, s);
-    s->lm.inquiry_next = timer_new_ns(QEMU_CLOCK_VIRTUAL, bt_hci_inquiry_next, s);
-    s->conn_accept_timer =
-            timer_new_ns(QEMU_CLOCK_VIRTUAL, bt_hci_conn_accept_timeout, s);
+    timer_init_ns(&s->lm.inquiry_done, QEMU_CLOCK_VIRTUAL, bt_hci_inquiry_done, s);
+    timer_init_ns(&s->lm.inquiry_next, QEMU_CLOCK_VIRTUAL, bt_hci_inquiry_next, s);
+    timer_init_ns(&s->conn_accept_timer, QEMU_CLOCK_VIRTUAL, bt_hci_conn_accept_timeout, s);
 
     s->evt_packet = bt_hci_evt_packet;
     s->evt_submit = bt_hci_evt_submit;
@@ -2247,19 +2244,6 @@ static void bt_hci_done(struct HCIInfo *info)
                     handle < (HCI_HANDLE_OFFSET | HCI_HANDLES_MAX); handle ++)
         if (!bt_hci_handle_bad(hci, handle))
             bt_hci_disconnect(hci, handle, HCI_OE_POWER_OFF);
-
-    /* TODO: this is not enough actually, there may be slaves from whom
-     * we have requested a connection who will soon (or not) respond with
-     * an accept or a reject, so we should also check if hci->lm.connecting
-     * is non-zero and if so, avoid freeing the hci but otherwise disappear
-     * from all qemu social life (e.g. stop scanning and request to be
-     * removed from s->device.net) and arrange for
-     * s->device.lmp_connection_complete to free the remaining bits once
-     * hci->lm.awaiting_bdaddr[] is empty.  */
-
-    timer_free(hci->lm.inquiry_done);
-    timer_free(hci->lm.inquiry_next);
-    timer_free(hci->conn_accept_timer);
 
     g_free(hci);
 }
