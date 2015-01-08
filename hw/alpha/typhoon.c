@@ -834,7 +834,7 @@ PCIBus *typhoon_init(ram_addr_t ram_size, ISABus **isa_bus,
         AlphaCPU *cpu = cpus[i];
         s->cchip.cpu[i] = cpu;
         if (cpu != NULL) {
-            cpu->alarm_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL,
+            timer_init_ns(&cpu->alarm_timer, QEMU_CLOCK_VIRTUAL,
                                                  typhoon_alarm_timer,
                                                  (void *)((uintptr_t)s + i));
         }

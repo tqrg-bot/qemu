@@ -102,9 +102,9 @@ void helper_set_alarm(CPUAlphaState *env, uint64_t expire)
 
     if (expire) {
         env->alarm_expire = expire;
-        timer_mod(cpu->alarm_timer, expire);
+        timer_mod(&cpu->alarm_timer, expire);
     } else {
-        timer_del(cpu->alarm_timer);
+        timer_del(&cpu->alarm_timer);
     }
 }
 
