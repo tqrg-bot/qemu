@@ -152,7 +152,7 @@ typedef struct dp8393xState {
 #ifdef DEBUG_SONIC
     int irq_level;
 #endif
-    QEMUTimer *watchdog;
+    QEMUTimer watchdog;
     int64_t wt_last_update;
     NICConf conf;
     NICState *nic;
@@ -274,7 +274,7 @@ static void do_read_rra(dp8393xState *s)
 
 static void do_software_reset(dp8393xState *s)
 {
-    timer_del(s->watchdog);
+    timer_del(&s->watchdog);
 
     s->regs[SONIC_CR] &= ~(SONIC_CR_LCAM | SONIC_CR_RRRA | SONIC_CR_TXP | SONIC_CR_HTX);
     s->regs[SONIC_CR] |= SONIC_CR_RST | SONIC_CR_RXDIS;
@@ -286,14 +286,14 @@ static void set_next_tick(dp8393xState *s)
     int64_t delay;
 
     if (s->regs[SONIC_CR] & SONIC_CR_STP) {
-        timer_del(s->watchdog);
+        timer_del(&s->watchdog);
         return;
     }
 
     ticks = s->regs[SONIC_WT1] << 16 | s->regs[SONIC_WT0];
     s->wt_last_update = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
     delay = get_ticks_per_sec() * ticks / 5000000;
-    timer_mod(s->watchdog, s->wt_last_update + delay);
+    timer_mod(&s->watchdog, s->wt_last_update + delay);
 }
 
 static void update_wt_regs(dp8393xState *s)
@@ -302,7 +302,7 @@ static void update_wt_regs(dp8393xState *s)
     uint32_t val;
 
     if (s->regs[SONIC_CR] & SONIC_CR_STP) {
-        timer_del(s->watchdog);
+        timer_del(&s->watchdog);
         return;
     }
 
@@ -838,7 +838,7 @@ static ssize_t nic_receive(NetClientState *nc, const uint8_t * buf, size_t size)
 static void nic_reset(void *opaque)
 {
     dp8393xState *s = opaque;
-    timer_del(s->watchdog);
+    timer_del(&s->watchdog);
 
     s->regs[SONIC_CR] = SONIC_CR_RST | SONIC_CR_STP | SONIC_CR_RXDIS;
     s->regs[SONIC_DCR] &= ~(SONIC_DCR_EXBUS | SONIC_DCR_LBR);
@@ -882,7 +882,7 @@ void dp83932_init(NICInfo *nd, hwaddr base, int it_shift,
     s->memory_rw = memory_rw;
     s->it_shift = it_shift;
     s->irq = irq;
-    s->watchdog = timer_new_ns(QEMU_CLOCK_VIRTUAL, dp8393x_watchdog, s);
+    timer_init_ns(&s->watchdog, QEMU_CLOCK_VIRTUAL, dp8393x_watchdog, s);
     s->regs[SONIC_SR] = 0x0004; /* only revision recognized by Linux */
 
     s->conf.macaddr = nd->macaddr;

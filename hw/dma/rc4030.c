@@ -90,7 +90,7 @@ typedef struct rc4030State
     uint32_t isr_jazz; /* Local bus int source */
 
     /* timer */
-    QEMUTimer *periodic_timer;
+    QEMUTimer periodic_timer;
     uint32_t itr; /* Interval timer reload */
 
     qemu_irq timer_irq;
@@ -107,7 +107,7 @@ static void set_next_tick(rc4030State *s)
 
     tm_hz = 1000 / (s->itr + 1);
 
-    timer_mod(s->periodic_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+    timer_mod(&s->periodic_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    get_ticks_per_sec() / tm_hz);
 }
 
@@ -806,7 +806,7 @@ void *rc4030_init(qemu_irq timer, qemu_irq jazz_bus,
     *irqs = qemu_allocate_irqs(rc4030_irq_jazz_request, s, 16);
     *dmas = rc4030_allocate_dmas(s, 4);
 
-    s->periodic_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, rc4030_periodic_timer, s);
+    timer_init_ns(&s->periodic_timer, QEMU_CLOCK_VIRTUAL, rc4030_periodic_timer, s);
     s->timer_irq = timer;
     s->jazz_bus_irq = jazz_bus;
 
