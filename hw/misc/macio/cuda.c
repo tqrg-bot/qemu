@@ -197,13 +197,13 @@ static int64_t get_next_irq_time(CUDATimer *s, int64_t current_time)
 static void cuda_timer_update(CUDAState *s, CUDATimer *ti,
                               int64_t current_time)
 {
-    if (!ti->timer)
+    if (!ti->timer.timer_list)
         return;
     if ((s->acr & T1MODE) != T1MODE_CONT) {
-        timer_del(ti->timer);
+        timer_del(&ti->timer);
     } else {
         ti->next_irq_time = get_next_irq_time(ti, current_time);
-        timer_mod(ti->timer, ti->next_irq_time);
+        timer_mod(&ti->timer, ti->next_irq_time);
     }
 }
 
@@ -472,7 +472,7 @@ static void cuda_adb_poll(void *opaque)
         obuf[1] = 0x40; /* polled data */
         cuda_send_packet_to_host(s, obuf, olen + 2);
     }
-    timer_mod(s->adb_poll_timer,
+    timer_mod(&s->adb_poll_timer,
                    qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                    (get_ticks_per_sec() / CUDA_ADB_POLL_FREQ));
 }
@@ -490,11 +490,11 @@ static void cuda_receive_packet(CUDAState *s,
         if (autopoll != s->autopoll) {
             s->autopoll = autopoll;
             if (autopoll) {
-                timer_mod(s->adb_poll_timer,
+                timer_mod(&s->adb_poll_timer,
                                qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                                (get_ticks_per_sec() / CUDA_ADB_POLL_FREQ));
             } else {
-                timer_del(s->adb_poll_timer);
+                timer_del(&s->adb_poll_timer);
             }
         }
         obuf[0] = CUDA_PACKET;
@@ -619,7 +619,7 @@ static bool cuda_timer_exist(void *opaque, int version_id)
 {
     CUDATimer *s = opaque;
 
-    return s->timer != NULL;
+    return s->timer.timer_list != NULL;
 }
 
 static const VMStateDescription vmstate_cuda_timer = {
@@ -631,7 +631,7 @@ static const VMStateDescription vmstate_cuda_timer = {
         VMSTATE_UINT16(counter_value, CUDATimer),
         VMSTATE_INT64(load_time, CUDATimer),
         VMSTATE_INT64(next_irq_time, CUDATimer),
-        VMSTATE_TIMER_PTR_TEST(timer, CUDATimer, cuda_timer_exist),
+        VMSTATE_TIMER_TEST(timer, CUDATimer, cuda_timer_exist),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -696,14 +696,14 @@ static void cuda_realizefn(DeviceState *dev, Error **errp)
     CUDAState *s = CUDA(dev);
     struct tm tm;
 
-    s->timers[0].timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, cuda_timer1, s);
+    timer_init_ns(&s->timers->timer, QEMU_CLOCK_VIRTUAL, cuda_timer1, s);
     s->timers[0].frequency = s->frequency;
     s->timers[1].frequency = s->frequency;
 
     qemu_get_timedate(&tm, 0);
     s->tick_offset = (uint32_t)mktimegm(&tm) + RTC_OFFSET;
 
-    s->adb_poll_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, cuda_adb_poll, s);
+    timer_init_ns(&s->adb_poll_timer, QEMU_CLOCK_VIRTUAL, cuda_adb_poll, s);
 }
 
 static void cuda_initfn(Object *obj)

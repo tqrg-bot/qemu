@@ -763,7 +763,7 @@ static inline void _cpu_ppc_store_decr(PowerPCCPU *cpu, uint32_t decr,
 {
     ppc_tb_t *tb_env = cpu->env.tb_env;
 
-    __cpu_ppc_store_decr(cpu, &tb_env->decr_next, tb_env->decr_timer,
+    __cpu_ppc_store_decr(cpu, &tb_env->decr_next, &tb_env->decr_timer,
                          tb_env->decr_timer->cb, &cpu_ppc_decr_lower, decr,
                          value);
 }
@@ -923,10 +923,10 @@ clk_setup_cb cpu_ppc_tb_init (CPUPPCState *env, uint32_t freq)
         tb_env->flags |= PPC_DECR_UNDERFLOW_LEVEL;
     }
     /* Create new timer */
-    tb_env->decr_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &cpu_ppc_decr_cb, cpu);
+    timer_init_ns(&tb_env->decr_timer, QEMU_CLOCK_VIRTUAL, &cpu_ppc_decr_cb, cpu);
 #if 0
     /* XXX: find a suitable condition to enable the hypervisor decrementer */
-    tb_env->hdecr_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &cpu_ppc_hdecr_cb, cpu);
+    timer_init_ns(&tb_env->hdecr_timer, QEMU_CLOCK_VIRTUAL, &cpu_ppc_hdecr_cb, cpu);
 #endif
     cpu_ppc_set_tb_clk(env, freq);
 
@@ -969,9 +969,9 @@ typedef struct ppc40x_timer_t ppc40x_timer_t;
 struct ppc40x_timer_t {
     uint64_t pit_reload;  /* PIT auto-reload value        */
     uint64_t fit_next;    /* Tick for next FIT interrupt  */
-    QEMUTimer *fit_timer;
+    QEMUTimer fit_timer;
     uint64_t wdt_next;    /* Tick for next WDT interrupt  */
-    QEMUTimer *wdt_timer;
+    QEMUTimer wdt_timer;
 
     /* 405 have the PIT, 440 have a DECR.  */
     unsigned int decr_excp;
@@ -1011,7 +1011,7 @@ static void cpu_4xx_fit_cb (void *opaque)
     next = now + muldiv64(next, get_ticks_per_sec(), tb_env->tb_freq);
     if (next == now)
         next++;
-    timer_mod(ppc40x_timer->fit_timer, next);
+    timer_mod(&ppc40x_timer->fit_timer, next);
     env->spr[SPR_40x_TSR] |= 1 << 26;
     if ((env->spr[SPR_40x_TCR] >> 23) & 0x1) {
         ppc_set_irq(cpu, PPC_INTERRUPT_FIT, 1);
@@ -1033,7 +1033,7 @@ static void start_stop_pit (CPUPPCState *env, ppc_tb_t *tb_env, int is_excp)
         (is_excp && !((env->spr[SPR_40x_TCR] >> 22) & 0x1))) {
         /* Stop PIT */
         LOG_TB("%s: stop PIT\n", __func__);
-        timer_del(tb_env->decr_timer);
+        timer_del(&tb_env->decr_timer);
     } else {
         LOG_TB("%s: start PIT %016" PRIx64 "\n",
                     __func__, ppc40x_timer->pit_reload);
@@ -1044,7 +1044,7 @@ static void start_stop_pit (CPUPPCState *env, ppc_tb_t *tb_env, int is_excp)
             next += tb_env->decr_next - now;
         if (next == now)
             next++;
-        timer_mod(tb_env->decr_timer, next);
+        timer_mod(&tb_env->decr_timer, next);
         tb_env->decr_next = next;
     }
 }
@@ -1112,12 +1112,12 @@ static void cpu_4xx_wdt_cb (void *opaque)
     switch ((env->spr[SPR_40x_TSR] >> 30) & 0x3) {
     case 0x0:
     case 0x1:
-        timer_mod(ppc40x_timer->wdt_timer, next);
+        timer_mod(&ppc40x_timer->wdt_timer, next);
         ppc40x_timer->wdt_next = next;
         env->spr[SPR_40x_TSR] |= 1U << 31;
         break;
     case 0x2:
-        timer_mod(ppc40x_timer->wdt_timer, next);
+        timer_mod(&ppc40x_timer->wdt_timer, next);
         ppc40x_timer->wdt_next = next;
         env->spr[SPR_40x_TSR] |= 1 << 30;
         if ((env->spr[SPR_40x_TCR] >> 27) & 0x1) {
@@ -1189,11 +1189,9 @@ clk_setup_cb ppc_40x_timers_init (CPUPPCState *env, uint32_t freq,
     LOG_TB("%s freq %" PRIu32 "\n", __func__, freq);
     if (ppc40x_timer != NULL) {
         /* We use decr timer for PIT */
-        tb_env->decr_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &cpu_4xx_pit_cb, env);
-        ppc40x_timer->fit_timer =
-            timer_new_ns(QEMU_CLOCK_VIRTUAL, &cpu_4xx_fit_cb, env);
-        ppc40x_timer->wdt_timer =
-            timer_new_ns(QEMU_CLOCK_VIRTUAL, &cpu_4xx_wdt_cb, env);
+        timer_init_ns(&tb_env->decr_timer, QEMU_CLOCK_VIRTUAL, &cpu_4xx_pit_cb, env);
+        timer_init_ns(&ppc40x_timer->fit_timer, QEMU_CLOCK_VIRTUAL, &cpu_4xx_fit_cb, env);
+        timer_init_ns(&ppc40x_timer->wdt_timer, QEMU_CLOCK_VIRTUAL, &cpu_4xx_wdt_cb, env);
         ppc40x_timer->decr_excp = decr_excp;
     }
 

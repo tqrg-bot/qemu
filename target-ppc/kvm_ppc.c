@@ -19,13 +19,13 @@
 
 #define PROC_DEVTREE_PATH "/proc/device-tree"
 
-static QEMUTimer *kvmppc_timer;
+static QEMUTimer kvmppc_timer;
 static unsigned int kvmppc_timer_rate;
 
 static void kvmppc_timer_hack(void *opaque)
 {
     qemu_notify_event();
-    timer_mod(kvmppc_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + kvmppc_timer_rate);
+    timer_mod(&kvmppc_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + kvmppc_timer_rate);
 }
 
 void kvmppc_init(void)
@@ -35,7 +35,7 @@ void kvmppc_init(void)
      * run. So, until QEMU gains IO threads, we create this timer to ensure
      * that the device model gets a chance to run. */
     kvmppc_timer_rate = get_ticks_per_sec() / 10;
-    kvmppc_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &kvmppc_timer_hack, NULL);
-    timer_mod(kvmppc_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + kvmppc_timer_rate);
+    timer_init_ns(&kvmppc_timer, QEMU_CLOCK_VIRTUAL, &kvmppc_timer_hack, NULL);
+    timer_mod(&kvmppc_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + kvmppc_timer_rate);
 }
 

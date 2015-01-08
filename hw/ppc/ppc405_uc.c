@@ -1237,7 +1237,7 @@ struct ppc4xx_gpt_t {
     MemoryRegion iomem;
     int64_t tb_offset;
     uint32_t tb_freq;
-    QEMUTimer *timer;
+    QEMUTimer timer;
     qemu_irq irqs[5];
     uint32_t oe;
     uint32_t ol;
@@ -1479,7 +1479,7 @@ static void ppc4xx_gpt_reset (void *opaque)
     int i;
 
     gpt = opaque;
-    timer_del(gpt->timer);
+    timer_del(&gpt->timer);
     gpt->oe = 0x00000000;
     gpt->ol = 0x00000000;
     gpt->im = 0x00000000;
@@ -1500,7 +1500,7 @@ static void ppc4xx_gpt_init(hwaddr base, qemu_irq irqs[5])
     for (i = 0; i < 5; i++) {
         gpt->irqs[i] = irqs[i];
     }
-    gpt->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &ppc4xx_gpt_cb, gpt);
+    timer_init_ns(&gpt->timer, QEMU_CLOCK_VIRTUAL, &ppc4xx_gpt_cb, gpt);
 #ifdef DEBUG_GPT
     printf("%s: offset " TARGET_FMT_plx "\n", __func__, base);
 #endif

@@ -64,10 +64,10 @@ typedef struct booke_timer_t booke_timer_t;
 struct booke_timer_t {
 
     uint64_t fit_next;
-    QEMUTimer *fit_timer;
+    QEMUTimer fit_timer;
 
     uint64_t wdt_next;
-    QEMUTimer *wdt_timer;
+    QEMUTimer wdt_timer;
 
     uint32_t flags;
 };
@@ -216,7 +216,7 @@ static void booke_fit_cb(void *opaque)
     booke_update_fixed_timer(env,
                              booke_get_fit_target(env, tb_env),
                              &booke_timer->fit_next,
-                             booke_timer->fit_timer,
+                             &booke_timer->fit_timer,
                              TSR_FIS);
 }
 
@@ -237,7 +237,7 @@ static void booke_wdt_cb(void *opaque)
     booke_update_fixed_timer(env,
                              booke_get_wdt_target(env, tb_env),
                              &booke_timer->wdt_next,
-                             booke_timer->wdt_timer,
+                             &booke_timer->wdt_timer,
                              TSR_WIS);
 }
 
@@ -254,7 +254,7 @@ void store_booke_tsr(CPUPPCState *env, target_ulong val)
         booke_update_fixed_timer(env,
                                  booke_get_fit_target(env, tb_env),
                                  &booke_timer->fit_next,
-                                 booke_timer->fit_timer,
+                                 &booke_timer->fit_timer,
                                  TSR_FIS);
     }
 
@@ -262,7 +262,7 @@ void store_booke_tsr(CPUPPCState *env, target_ulong val)
         booke_update_fixed_timer(env,
                                  booke_get_wdt_target(env, tb_env),
                                  &booke_timer->wdt_next,
-                                 booke_timer->wdt_timer,
+                                 &booke_timer->wdt_timer,
                                  TSR_WIS);
     }
 
@@ -284,13 +284,13 @@ void store_booke_tcr(CPUPPCState *env, target_ulong val)
     booke_update_fixed_timer(env,
                              booke_get_fit_target(env, tb_env),
                              &booke_timer->fit_next,
-                             booke_timer->fit_timer,
+                             &booke_timer->fit_timer,
                              TSR_FIS);
 
     booke_update_fixed_timer(env,
                              booke_get_wdt_target(env, tb_env),
                              &booke_timer->wdt_next,
-                             booke_timer->wdt_timer,
+                             &booke_timer->wdt_timer,
                              TSR_WIS);
 }
 
@@ -342,12 +342,10 @@ void ppc_booke_timers_init(PowerPCCPU *cpu, uint32_t freq, uint32_t flags)
     tb_env->tb_freq    = freq;
     tb_env->decr_freq  = freq;
     tb_env->opaque     = booke_timer;
-    tb_env->decr_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &booke_decr_cb, cpu);
+    timer_init_ns(&tb_env->decr_timer, QEMU_CLOCK_VIRTUAL, &booke_decr_cb, cpu);
 
-    booke_timer->fit_timer =
-        timer_new_ns(QEMU_CLOCK_VIRTUAL, &booke_fit_cb, cpu);
-    booke_timer->wdt_timer =
-        timer_new_ns(QEMU_CLOCK_VIRTUAL, &booke_wdt_cb, cpu);
+    timer_init_ns(&booke_timer->fit_timer, QEMU_CLOCK_VIRTUAL, &booke_fit_cb, cpu);
+    timer_init_ns(&booke_timer->wdt_timer, QEMU_CLOCK_VIRTUAL, &booke_wdt_cb, cpu);
 
     ret = kvmppc_booke_watchdog_enable(cpu);
 

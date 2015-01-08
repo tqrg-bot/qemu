@@ -58,7 +58,7 @@ typedef struct CUDATimer {
     int64_t load_time;
     int64_t next_irq_time;
     uint64_t frequency;
-    QEMUTimer *timer;
+    QEMUTimer timer;
 } CUDATimer;
 
 /**
@@ -111,7 +111,7 @@ typedef struct CUDAState {
     uint8_t autopoll;
     uint8_t data_in[128];
     uint8_t data_out[16];
-    QEMUTimer *adb_poll_timer;
+    QEMUTimer adb_poll_timer;
 } CUDAState;
 
 /* MacIO */

@@ -84,7 +84,7 @@ static uint32_t debug_inst_opcode;
  *     an interrupt. That way we can assure that we're always reinjecting
  *     interrupts in case the guest swallowed them.
  */
-static QEMUTimer *idle_timer;
+static QEMUTimer idle_timer;
 
 static void kvm_kick_cpu(void *opaque)
 {
@@ -460,7 +460,7 @@ int kvm_arch_init_vcpu(CPUState *cs)
         return ret;
     }
 
-    idle_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, kvm_kick_cpu, cpu);
+    timer_init_ns(&idle_timer, QEMU_CLOCK_VIRTUAL, kvm_kick_cpu, cpu);
 
     /* Some targets support access to KVM's guest TLB. */
     switch (cenv->mmu_model) {
@@ -1261,7 +1261,7 @@ void kvm_arch_pre_run(CPUState *cs, struct kvm_run *run)
         }
 
         /* Always wake up soon in case the interrupt was level based */
-        timer_mod(idle_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+        timer_mod(&idle_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                        (get_ticks_per_sec() / 50));
     }
 
