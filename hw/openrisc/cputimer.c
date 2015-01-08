@@ -60,7 +60,7 @@ void cpu_openrisc_timer_update(OpenRISCCPU *cpu)
         wait = (cpu->env.ttmr & TTMR_TP) - (cpu->env.ttcr & TTMR_TP);
     }
     next = now + muldiv64(wait, get_ticks_per_sec(), TIMER_FREQ);
-    timer_mod(cpu->env.timer, next);
+    timer_mod(&cpu->env.timer, next);
 }
 
 void cpu_openrisc_count_start(OpenRISCCPU *cpu)
@@ -71,7 +71,7 @@ void cpu_openrisc_count_start(OpenRISCCPU *cpu)
 
 void cpu_openrisc_count_stop(OpenRISCCPU *cpu)
 {
-    timer_del(cpu->env.timer);
+    timer_del(&cpu->env.timer);
     cpu_openrisc_count_update(cpu);
     is_counting = 0;
 }
@@ -81,7 +81,7 @@ static void openrisc_timer_cb(void *opaque)
     OpenRISCCPU *cpu = opaque;
 
     if ((cpu->env.ttmr & TTMR_IE) &&
-         timer_expired(cpu->env.timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL))) {
+         timer_expired(&cpu->env.timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL))) {
         CPUState *cs = CPU(cpu);
 
         cpu->env.ttmr |= TTMR_IP;
@@ -106,7 +106,7 @@ static void openrisc_timer_cb(void *opaque)
 
 void cpu_openrisc_clock_init(OpenRISCCPU *cpu)
 {
-    cpu->env.timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, &openrisc_timer_cb, cpu);
+    timer_init_ns(&cpu->env.timer, QEMU_CLOCK_VIRTUAL, &openrisc_timer_cb, cpu);
     cpu->env.ttmr = 0x00000000;
     cpu->env.ttcr = 0x00000000;
 }
