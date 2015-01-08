@@ -507,7 +507,7 @@ typedef struct RTL8139State {
     int        cplus_txbuffer_offset;
 
     /* PCI interrupt timer */
-    QEMUTimer *timer;
+    QEMUTimer timer;
     int64_t TimerExpire;
 
     MemoryRegion bar_io;
@@ -2921,7 +2921,7 @@ static void rtl8139_set_next_tctr_time(RTL8139State *s, int64_t current_time)
     s->TimerExpire = next_time;
 
     if ((s->IntrMask & PCSTimeout) != 0 && (s->IntrStatus & PCSTimeout) == 0) {
-        timer_mod(s->timer, next_time);
+        timer_mod(&s->timer, next_time);
     }
 }
 
@@ -3463,8 +3463,7 @@ static void pci_rtl8139_uninit(PCIDevice *dev)
         g_free(s->cplus_txbuffer);
         s->cplus_txbuffer = NULL;
     }
-    timer_del(s->timer);
-    timer_free(s->timer);
+    timer_del(&s->timer);
     qemu_del_nic(s->nic);
 }
 
@@ -3531,7 +3530,7 @@ static int pci_rtl8139_init(PCIDevice *dev)
     s->cplus_txbuffer_offset = 0;
 
     s->TimerExpire = 0;
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, rtl8139_timer, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, rtl8139_timer, s);
     rtl8139_set_next_tctr_time(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
 
     return 0;

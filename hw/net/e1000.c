@@ -125,9 +125,9 @@ typedef struct E1000State_st {
         uint32_t old_eecd;
     } eecd_state;
 
-    QEMUTimer *autoneg_timer;
+    QEMUTimer autoneg_timer;
 
-    QEMUTimer *mit_timer;      /* Mitigation timer. */
+    QEMUTimer mit_timer;      /* Mitigation timer. */
     bool mit_timer_on;         /* Mitigation timer is running. */
     bool mit_irq_level;        /* Tracks interrupt pin level. */
     uint32_t mit_ide;          /* Tracks E1000_TXD_CMD_IDE bit. */
@@ -210,7 +210,7 @@ set_phy_ctrl(E1000State *s, int index, uint16_t val)
     if (have_autoneg(s) && (val & MII_CR_RESTART_AUTO_NEG)) {
         e1000_link_down(s);
         DBGOUT(PHY, "Start link auto negotiation\n");
-        timer_mod(s->autoneg_timer,
+        timer_mod(&s->autoneg_timer,
                   qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 500);
     }
 }
@@ -334,7 +334,7 @@ set_interrupt_cause(E1000State *s, int index, uint32_t val)
 
             if (mit_delay) {
                 s->mit_timer_on = 1;
-                timer_mod(s->mit_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                timer_mod(&s->mit_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                           mit_delay * 256);
             }
             s->mit_ide = 0;
@@ -406,8 +406,8 @@ static void e1000_reset(void *opaque)
     uint8_t *macaddr = d->conf.macaddr.a;
     int i;
 
-    timer_del(d->autoneg_timer);
-    timer_del(d->mit_timer);
+    timer_del(&d->autoneg_timer);
+    timer_del(&d->mit_timer);
     d->mit_timer_on = 0;
     d->mit_irq_level = 0;
     d->mit_ide = 0;
@@ -889,7 +889,7 @@ e1000_set_link_status(NetClientState *nc)
         if (have_autoneg(s) &&
             !(s->phy_reg[PHY_STATUS] & MII_SR_AUTONEG_COMPLETE)) {
             /* emulate auto-negotiation if supported */
-            timer_mod(s->autoneg_timer,
+            timer_mod(&s->autoneg_timer,
                       qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 500);
         } else {
             e1000_link_up(s);
@@ -1352,7 +1352,7 @@ static int e1000_post_load(void *opaque, int version_id)
     if (have_autoneg(s) &&
         !(s->phy_reg[PHY_STATUS] & MII_SR_AUTONEG_COMPLETE)) {
         nc->link_down = false;
-        timer_mod(s->autoneg_timer,
+        timer_mod(&s->autoneg_timer,
                   qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 500);
     }
 
@@ -1507,10 +1507,8 @@ pci_e1000_uninit(PCIDevice *dev)
 {
     E1000State *d = E1000(dev);
 
-    timer_del(d->autoneg_timer);
-    timer_free(d->autoneg_timer);
-    timer_del(d->mit_timer);
-    timer_free(d->mit_timer);
+    timer_del(&d->autoneg_timer);
+    timer_del(&d->mit_timer);
     qemu_del_nic(d->nic);
 }
 
@@ -1579,8 +1577,8 @@ static int pci_e1000_init(PCIDevice *pci_dev)
 
     qemu_format_nic_info_str(qemu_get_queue(d->nic), macaddr);
 
-    d->autoneg_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, e1000_autoneg_timer, d);
-    d->mit_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, e1000_mit_timer, d);
+    timer_init_ms(&d->autoneg_timer, QEMU_CLOCK_VIRTUAL, e1000_autoneg_timer, d);
+    timer_init_ns(&d->mit_timer, QEMU_CLOCK_VIRTUAL, e1000_mit_timer, d);
 
     return 0;
 }

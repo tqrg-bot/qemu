@@ -34,7 +34,7 @@ typedef struct PCNetState_st PCNetState;
 struct PCNetState_st {
     NICState *nic;
     NICConf conf;
-    QEMUTimer *poll_timer;
+    QEMUTimer poll_timer;
     int rap, isr, lnkst;
     uint32_t rdra, tdra;
     uint8_t prom[16];
