@@ -354,7 +354,7 @@ typedef struct CPUXtensaState {
 
     int pending_irq_level; /* level of last raised IRQ */
     void **irq_inputs;
-    QEMUTimer *ccompare_timer;
+    QEMUTimer ccompare_timer;
     uint32_t wake_ccount;
     int64_t halt_clock;
 

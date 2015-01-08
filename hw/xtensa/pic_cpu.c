@@ -119,7 +119,7 @@ void xtensa_rearm_ccompare_timer(CPUXtensaState *env)
         }
     }
     env->wake_ccount = wake_ccount;
-    timer_mod(env->ccompare_timer, env->halt_clock +
+    timer_mod(&env->ccompare_timer, env->halt_clock +
             muldiv64(wake_ccount - env->sregs[CCOUNT],
                 1000000, env->config->clock_freq_khz));
 }
@@ -148,8 +148,7 @@ void xtensa_irq_init(CPUXtensaState *env)
             xtensa_set_irq, env, env->config->ninterrupt);
     if (xtensa_option_enabled(env->config, XTENSA_OPTION_TIMER_INTERRUPT) &&
             env->config->nccompare > 0) {
-        env->ccompare_timer =
-            timer_new_ns(QEMU_CLOCK_VIRTUAL, &xtensa_ccompare_cb, cpu);
+        timer_init_ns(&env->ccompare_timer, QEMU_CLOCK_VIRTUAL, &xtensa_ccompare_cb, cpu);
     }
 }
 
