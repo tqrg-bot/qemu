@@ -628,9 +628,9 @@ static uint32_t apic_get_current_count(APICCommonState *s)
 static void apic_timer_update(APICCommonState *s, int64_t current_time)
 {
     if (apic_next_timer(s, current_time)) {
-        timer_mod(s->timer, s->next_time);
+        timer_mod(&s->timer, s->next_time);
     } else {
-        timer_del(s->timer);
+        timer_del(&s->timer);
     }
 }
 
@@ -862,9 +862,9 @@ static void apic_pre_save(APICCommonState *s)
 static void apic_post_load(APICCommonState *s)
 {
     if (s->timer_expiry != -1) {
-        timer_mod(s->timer, s->timer_expiry);
+        timer_mod(&s->timer, s->timer_expiry);
     } else {
-        timer_del(s->timer);
+        timer_del(&s->timer);
     }
 }
 
@@ -883,7 +883,7 @@ static void apic_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->io_memory, OBJECT(s), &apic_io_ops, s, "apic-msi",
                           APIC_SPACE_SIZE);
 
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, apic_timer, s);
+    timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, apic_timer, s);
     local_apics[s->idx] = s;
 
     msi_supported = true;

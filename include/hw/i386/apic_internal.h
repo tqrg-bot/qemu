@@ -118,7 +118,7 @@ struct APICCommonState {
     int64_t initial_count_load_time;
     int64_t next_time;
     int idx;
-    QEMUTimer *timer;
+    QEMUTimer timer;
     int64_t timer_expiry;
     int sipi_vector;
     int wait_for_sipi;
