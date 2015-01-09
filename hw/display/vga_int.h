@@ -147,6 +147,9 @@ typedef struct VGACommonState {
     int graphic_mode;
     uint8_t shift_control;
     uint8_t double_scan;
+    VGADisplayParams latched_params;
+    uint64_t start_addr_latch_time;
+    uint64_t hpel_latch_time;
     VGADisplayParams params;
     uint32_t plane_updated;
     uint32_t last_line_offset;
@@ -201,6 +204,7 @@ void vga_sync_dirty_bitmap(VGACommonState *s);
 void vga_dirty_log_start(VGACommonState *s);
 void vga_dirty_log_stop(VGACommonState *s);
 void vga_update_memory_access(VGACommonState *s);
+void vga_latch_display_params(VGACommonState *s);
 
 extern const VMStateDescription vmstate_vga_common;
 uint32_t vga_ioport_read(void *opaque, uint32_t addr);

@@ -2609,6 +2609,7 @@ static int cirrus_post_load(void *opaque, int version_id)
     s->vga.gr[0x00] = s->cirrus_shadow_gr0 & 0x0f;
     s->vga.gr[0x01] = s->cirrus_shadow_gr1 & 0x0f;
 
+    vga_latch_display_params(&s->vga);
     cirrus_update_memory_access(s);
     vga_update_memory_access(&s->vga);
 

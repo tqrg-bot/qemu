@@ -279,6 +279,48 @@ static void vga_precise_update_retrace_info(VGACommonState *s)
 #endif
 }
 
+static int64_t vga_precise_retrace_next_line(struct vga_precise_retrace *r,
+                                             int line)
+{
+    int64_t cur_tick = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+    int64_t retrace_tick;
+
+    if (r->total_chars) {
+        int cur_line, cur_char;
+
+        cur_char = (cur_tick / r->ticks_per_char) % r->total_chars;
+
+        /* beginning of frame */
+        retrace_tick = cur_tick
+            - (cur_tick % r->ticks_per_char)
+            - (cur_char * r->ticks_per_char);
+
+        /* beginning of retrace */
+        retrace_tick += line * r->htotal * r->ticks_per_char;
+
+        cur_line = cur_char / r->htotal;
+        if (cur_line >= line) {
+            retrace_tick += r->total_chars * r->ticks_per_char;
+        }
+    } else {
+        retrace_tick = cur_tick;
+    }
+
+    return retrace_tick;
+}
+
+static int64_t vga_precise_retrace_next_start(VGACommonState *s)
+{
+    struct vga_precise_retrace *r = &s->retrace_info.precise;
+    return vga_precise_retrace_next_line(r, r->vstart);
+}
+
+static int64_t vga_precise_retrace_next_end(VGACommonState *s)
+{
+    struct vga_precise_retrace *r = &s->retrace_info.precise;
+    return vga_precise_retrace_next_line(r, r->vend);
+}
+
 static uint8_t vga_precise_retrace(VGACommonState *s)
 {
     struct vga_precise_retrace *r = &s->retrace_info.precise;
@@ -324,6 +366,24 @@ int vga_ioport_invalid(VGACommonState *s, uint32_t addr)
     }
 }
 
+void vga_latch_display_params(VGACommonState *s)
+{
+    VGADisplayParams current;
+
+    s->get_params(s, &current);
+
+    if (qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) >= s->hpel_latch_time) {
+        s->latched_params.hpel = current.hpel;
+        s->latched_params.hpel_split = current.hpel_split;
+    }
+
+    if (qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) >= s->start_addr_latch_time) {
+        s->latched_params.start_addr = current.start_addr;
+        s->latched_params.line_offset = current.line_offset;
+        s->latched_params.line_compare = current.line_compare;
+    }
+}
+
 static void vga_write_ar(VGACommonState *s, int index, int val)
 {
     switch(index) {
@@ -340,6 +400,8 @@ static void vga_write_ar(VGACommonState *s, int index, int val)
         s->ar[index] = val & ~0xc0;
         break;
     case VGA_ATC_PEL:
+        vga_latch_display_params(s);
+        s->hpel_latch_time = vga_precise_retrace_next_end(s);
         s->ar[index] = val & ~0xf0;
         break;
     case VGA_ATC_COLOR_PAGE:
@@ -390,6 +452,17 @@ void vga_write_gr(VGACommonState *s, int index, int val)
 
 void vga_write_cr(VGACommonState *s, int index, int val)
 {
+    /* In case an update has not happened yet, latch the previous value
+     * for the next frame.
+     */
+    switch(index) {
+    case VGA_CRTC_START_LO:
+    case VGA_CRTC_START_HI:
+        vga_latch_display_params(s);
+        s->start_addr_latch_time = vga_precise_retrace_next_start(s);
+        break;
+    }
+
     /* handle CR0-7 protection */
     if ((s->cr[VGA_CRTC_V_SYNC_END] & VGA_CR11_LOCK_CR0_CR7) &&
         index <= VGA_CRTC_OVERFLOW) {
@@ -1143,10 +1216,10 @@ static int update_basic_params(VGACommonState *s)
 
     full_update = 0;
 
-    s->get_params(s, &current);
+    vga_latch_display_params(s);
 
-    if (memcmp(&current, &s->params, sizeof(current))) {
-        s->params = current;
+    if (memcmp(&s->latched_params, &s->params, sizeof(current))) {
+        s->params = s->latched_params;
         full_update = 1;
     }
     return full_update;
@@ -1843,6 +1916,7 @@ void vga_common_reset(VGACommonState *s)
     s->graphic_mode = -1; /* force full update */
     s->shift_control = 0;
     s->double_scan = 0;
+    memset(&s->latched_params, '\0', sizeof(s->latched_params));
     memset(&s->params, '\0', sizeof(s->params));
     s->plane_updated = 0;
     s->last_cw = 0;
@@ -2081,6 +2155,7 @@ static int vga_common_post_load(void *opaque, int version_id)
 {
     VGACommonState *s = opaque;
 
+    vga_latch_display_params(s);
     s->update_retrace_info(s);
 
     /* force refresh */
@@ -2106,6 +2181,59 @@ const VMStateDescription vmstate_vga_endian = {
     .minimum_version_id = 1,
     .fields = (VMStateField[]) {
         VMSTATE_BOOL(big_endian_fb, VGACommonState),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static bool vga_latch_state_needed(void *opaque)
+{
+    VGACommonState *s = opaque;
+    int64_t time = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+
+    /*
+     * Only send the latch time if it's in the future.
+     * Any value in the past will do, we'll use 0.
+     */
+    if (s->hpel_latch_time > time ||
+        s->latched_params.hpel_split != s->params.hpel_split ||
+        s->latched_params.hpel != s->params.hpel) {
+        return true;
+    }
+
+    if (s->start_addr_latch_time > time ||
+        s->latched_params.line_offset != s->params.line_offset ||
+        s->latched_params.start_addr != s->params.start_addr ||
+        s->latched_params.line_compare != s->params.line_compare) {
+        return true;
+    }
+
+    return false;
+}
+
+static int vga_latch_pre_load(void *opaque)
+{
+    VGACommonState *s = opaque;
+
+    s->hpel_latch_time = 0;
+    s->start_addr_latch_time = 0;
+    s->latched_params = s->params;
+    return 0;
+}
+
+const VMStateDescription vmstate_vga_latch = {
+    .name = "vga.latch",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .pre_load = vga_latch_pre_load,
+    .fields = (VMStateField[]) {
+        VMSTATE_UINT64(hpel_latch_time, VGACommonState),
+        VMSTATE_UINT8(latched_params.hpel, VGACommonState),
+        VMSTATE_BOOL(latched_params.hpel_split, VGACommonState),
+        VMSTATE_UINT64(start_addr_latch_time, VGACommonState),
+        VMSTATE_UINT32(latched_params.start_addr, VGACommonState),
+        VMSTATE_UINT32(latched_params.line_offset, VGACommonState),
+        VMSTATE_UINT32(latched_params.start_addr, VGACommonState),
+        VMSTATE_UINT32(latched_params.line_compare, VGACommonState),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -2151,6 +2279,9 @@ const VMStateDescription vmstate_vga_common = {
         {
             .vmsd = &vmstate_vga_endian,
             .needed = vga_endian_state_needed,
+        }, {
+            .vmsd = &vmstate_vga_latch,
+            .needed = vga_latch_state_needed,
         }, {
             /* empty */
         }
