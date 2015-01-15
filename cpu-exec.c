@@ -317,6 +317,12 @@ static void cpu_handle_debug_exception(CPUArchState *env)
     cc->debug_excp_handler(cpu);
 }
 
+void cpu_reload_memory_map(CPUState *cpu)
+{
+    /* The TLB is protected by the iothread lock.  */
+    tlb_flush(cpu, 1);
+}
+
 /* main execution loop */
 
 volatile sig_atomic_t exit_request;

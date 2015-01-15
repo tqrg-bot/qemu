@@ -2025,7 +2025,7 @@ static void tcg_commit(MemoryListener *listener)
         if (cpu->tcg_as_listener != listener) {
             continue;
         }
-        tlb_flush(cpu, 1);
+        cpu_reload_memory_map(cpu);
     }
 }
 
