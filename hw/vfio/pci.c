@@ -163,6 +163,7 @@ typedef struct VFIOPCIDevice {
     bool has_flr;
     bool has_pm_reset;
     bool rom_read_failed;
+    struct rcu_head rcu_head;
 } VFIOPCIDevice;
 
 typedef struct VFIORomBlacklistEntry {
@@ -2282,7 +2283,7 @@ static void vfio_mmap_set_enabled(VFIOPCIDevice *vdev, bool enabled)
     }
 }
 
-static void vfio_unmap_bar(VFIOPCIDevice *vdev, int nr)
+static void vfio_unregister_bar(VFIOPCIDevice *vdev, int nr)
 {
     VFIOBAR *bar = &vdev->bars[nr];
 
@@ -2293,10 +2294,23 @@ static void vfio_unmap_bar(VFIOPCIDevice *vdev, int nr)
     vfio_bar_quirk_teardown(vdev, nr);
 
     memory_region_del_subregion(&bar->region.mem, &bar->region.mmap_mem);
-    munmap(bar->region.mmap, memory_region_size(&bar->region.mmap_mem));
 
     if (vdev->msix && vdev->msix->table_bar == nr) {
         memory_region_del_subregion(&bar->region.mem, &vdev->msix->mmap_mem);
+    }
+}
+
+static void vfio_unmap_bar(VFIOPCIDevice *vdev, int nr)
+{
+    VFIOBAR *bar = &vdev->bars[nr];
+
+    if (!bar->region.size) {
+        return;
+    }
+
+    munmap(bar->region.mmap, memory_region_size(&bar->region.mmap_mem));
+
+    if (vdev->msix && vdev->msix->table_bar == nr) {
         munmap(vdev->msix->mmap, memory_region_size(&vdev->msix->mmap_mem));
     }
 }
@@ -2410,6 +2424,15 @@ static void vfio_unmap_bars(VFIOPCIDevice *vdev)
 
     for (i = 0; i < PCI_ROM_SLOT; i++) {
         vfio_unmap_bar(vdev, i);
+    }
+}
+
+static void vfio_unregister_bars(VFIOPCIDevice *vdev)
+{
+    int i;
+
+    for (i = 0; i < PCI_ROM_SLOT; i++) {
+        vfio_unregister_bar(vdev, i);
     }
 
     if (vdev->has_vga) {
@@ -3324,6 +3347,7 @@ static int vfio_initfn(PCIDevice *pdev)
 out_teardown:
     pci_device_set_intx_routing_notifier(&vdev->pdev, NULL);
     vfio_teardown_msi(vdev);
+    vfio_unregister_bars(vdev);
     vfio_unmap_bars(vdev);
 out_put:
     g_free(vdev->emulated_config_bits);
@@ -3332,10 +3356,22 @@ out_put:
     return ret;
 }
 
+static void vfio_instance_finalize(Object *obj)
+{
+    PCIDevice *pci_dev = PCI_DEVICE(obj);
+    VFIOPCIDevice *vdev = DO_UPCAST(VFIOPCIDevice, pdev, PCI_DEVICE(obj));
+    VFIOGroup *group = vdev->vbasedev.group;
+
+    vfio_unmap_bars(vdev);
+    g_free(vdev->emulated_config_bits);
+    g_free(vdev->rom);
+    vfio_put_device(vdev);
+    vfio_put_group(group);
+}
+
 static void vfio_exitfn(PCIDevice *pdev)
 {
     VFIOPCIDevice *vdev = DO_UPCAST(VFIOPCIDevice, pdev, pdev);
-    VFIOGroup *group = vdev->vbasedev.group;
 
     vfio_unregister_err_notifier(vdev);
     pci_device_set_intx_routing_notifier(&vdev->pdev, NULL);
@@ -3344,11 +3380,7 @@ static void vfio_exitfn(PCIDevice *pdev)
         timer_free(vdev->intx.mmap_timer);
     }
     vfio_teardown_msi(vdev);
-    vfio_unmap_bars(vdev);
-    g_free(vdev->emulated_config_bits);
-    g_free(vdev->rom);
-    vfio_put_device(vdev);
-    vfio_put_group(group);
+    vfio_unregister_bars(vdev);
 }
 
 static void vfio_pci_reset(DeviceState *dev)
@@ -3436,6 +3468,7 @@ static const TypeInfo vfio_pci_dev_info = {
     .instance_size = sizeof(VFIOPCIDevice),
     .class_init = vfio_pci_dev_class_init,
     .instance_init = vfio_instance_init,
+    .instance_finalize = vfio_instance_finalize,
 };
 
 static void register_vfio_pci_dev_type(void)
