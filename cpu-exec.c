@@ -26,6 +26,7 @@
 #include "qemu/timer.h"
 #include "exec/address-spaces.h"
 #include "exec/memory-internal.h"
+#include "qemu/rcu.h"
 
 /* -icount align implementation. */
 
@@ -321,7 +322,15 @@ static void cpu_handle_debug_exception(CPUArchState *env)
 
 void cpu_reload_memory_map(CPUState *cpu)
 {
-    AddressSpaceDispatch *d = cpu->as->dispatch;
+    AddressSpaceDispatch *d;
+
+    if (qemu_in_vcpu_thread()) {
+        rcu_read_unlock();
+        rcu_read_lock();
+    }
+
+    /* Access to cpu and to the TLB protected by the big QEMU lock.  */
+    d = atomic_rcu_read(&cpu->as->dispatch);
     cpu->memory_dispatch = d;
     tlb_flush(cpu, 1);
 }
@@ -363,6 +372,8 @@ int cpu_exec(CPUArchState *env)
      * value transition point, which requires a memory barrier as well as
      * an instruction scheduling constraint on modern architectures.  */
     smp_mb();
+
+    rcu_read_lock();
 
     if (unlikely(exit_request)) {
         cpu->exit_request = 1;
@@ -566,6 +577,7 @@ int cpu_exec(CPUArchState *env)
     } /* for(;;) */
 
     cc->cpu_exec_exit(cpu);
+    rcu_read_unlock();
 
     /* fail safe : never use current_cpu outside cpu_exec() */
     current_cpu = NULL;
