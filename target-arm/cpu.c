@@ -331,23 +331,10 @@ static void arm_cpu_kvm_set_irq(void *opaque, int irq, int level)
 static bool arm_cpu_is_big_endian(CPUState *cs)
 {
     ARMCPU *cpu = ARM_CPU(cs);
-    CPUARMState *env = &cpu->env;
     int cur_el;
 
     cpu_synchronize_state(cs);
-
-    /* In 32bit guest endianness is determined by looking at CPSR's E bit */
-    if (!is_a64(env)) {
-        return (env->uncached_cpsr & CPSR_E) ? 1 : 0;
-    }
-
-    cur_el = arm_current_el(env);
-
-    if (cur_el == 0) {
-        return (env->cp15.sctlr_el[1] & SCTLR_E0E) != 0;
-    }
-
-    return (env->cp15.sctlr_el[cur_el] & SCTLR_EE) != 0;
+    return arm_env_is_big_endian(&cpu->env);
 }
 
 #endif

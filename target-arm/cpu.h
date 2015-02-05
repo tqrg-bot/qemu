@@ -1846,6 +1846,24 @@ static inline bool bswap_code(bool sctlr_b)
 #endif
 }
 
+static inline bool arm_env_is_big_endian(CPUARMState *env)
+{
+    int cur_el;
+
+    /* In 32bit guest endianness is determined by looking at CPSR's E bit */
+    if (!is_a64(env)) {
+        return (env->uncached_cpsr & CPSR_E) ? 1 : 0;
+    }
+
+    cur_el = arm_current_el(env);
+
+    if (cur_el == 0) {
+        return (env->cp15.sctlr_el[1] & SCTLR_E0E) != 0;
+    }
+
+    return (env->cp15.sctlr_el[cur_el] & SCTLR_EE) != 0;
+}
+
 static inline void cpu_get_tb_cpu_state(CPUARMState *env, target_ulong *pc,
                                         target_ulong *cs_base, int *flags)
 {
