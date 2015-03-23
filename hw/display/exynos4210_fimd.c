@@ -1136,7 +1136,11 @@ static void fimd_update_memory_section(Exynos4210fimdState *s, unsigned win)
     /* TODO: add .exit and unref the region there.  Not needed yet since sysbus
      * does not support hot-unplug.
      */
-    memory_region_unref(w->mem_section.mr);
+    if (w->mem_section.mr) {
+        memory_region_set_log(w->mem_section.mr, false, DIRTY_MEMORY_VGA);
+        memory_region_unref(w->mem_section.mr);
+    }
+
     w->mem_section = memory_region_find(sysbus_address_space(sbd),
                                         fb_start_addr, w->fb_len);
     assert(w->mem_section.mr);
@@ -1162,6 +1166,7 @@ static void fimd_update_memory_section(Exynos4210fimdState *s, unsigned win)
         cpu_physical_memory_unmap(w->host_fb_addr, fb_mapped_len, 0, 0);
         goto error_return;
     }
+    memory_region_set_log(w->mem_section.mr, true, DIRTY_MEMORY_VGA);
     return;
 
 error_return:
