@@ -1811,6 +1811,7 @@ found:
 static void notdirty_mem_write(void *opaque, hwaddr ram_addr,
                                uint64_t val, unsigned size)
 {
+    CPUArchState *env = current_cpu->env_ptr;
     if (!cpu_physical_memory_get_dirty_flag(ram_addr, DIRTY_MEMORY_CODE)) {
         tb_invalidate_phys_page_fast(ram_addr, size);
     }
@@ -1828,12 +1829,7 @@ static void notdirty_mem_write(void *opaque, hwaddr ram_addr,
         abort();
     }
     cpu_physical_memory_set_dirty_range_nocode(ram_addr, size);
-    /* we remove the notdirty callback only if the code has been
-       flushed */
-    if (!cpu_physical_memory_is_clean(ram_addr)) {
-        CPUArchState *env = current_cpu->env_ptr;
-        tlb_set_dirty(env, current_cpu->mem_io_vaddr);
-    }
+    tlb_set_dirty(env, current_cpu->mem_io_vaddr);
 }
 
 static bool notdirty_mem_accepts(void *opaque, hwaddr addr,
