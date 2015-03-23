@@ -1358,7 +1358,8 @@ int qemu_ram_resize(ram_addr_t base, ram_addr_t newsize, Error **errp)
 
     cpu_physical_memory_clear_dirty_range(block->offset, block->used_length);
     block->used_length = newsize;
-    cpu_physical_memory_set_dirty_range(block->offset, block->used_length);
+    cpu_physical_memory_set_dirty_range(block->offset, block->used_length,
+                                        DIRTY_CLIENT_ALL);
     memory_region_set_size(block->mr, newsize);
     if (block->resized) {
         block->resized(block->idstr, newsize, block->host);
@@ -1432,7 +1433,8 @@ static ram_addr_t ram_block_add(RAMBlock *new_block, Error **errp)
        }
     }
     cpu_physical_memory_set_dirty_range(new_block->offset,
-                                        new_block->used_length);
+                                        new_block->used_length,
+                                        DIRTY_CLIENT_ALL);
 
     if (new_block->host) {
         qemu_ram_setup_dump(new_block->host, new_block->max_length);
@@ -1821,7 +1823,12 @@ static void notdirty_mem_write(void *opaque, hwaddr ram_addr,
     default:
         abort();
     }
-    cpu_physical_memory_set_dirty_range_nocode(ram_addr, size);
+
+    /* Set both VGA and migration bits for simplicity and to remove
+     * the notdirty callback faster.
+     */
+    cpu_physical_memory_set_dirty_range(ram_addr, size,
+                                        DIRTY_CLIENT_NOCODE);
     tlb_set_dirty(env, current_cpu->mem_io_vaddr);
 }
 
@@ -2236,9 +2243,7 @@ static void invalidate_and_set_dirty(MemoryRegion *mr, hwaddr addr,
             tb_invalidate_phys_range(addr, addr + length, 0);
             dirty_log_mask &= ~(1 << DIRTY_MEMORY_CODE);
         }
-        if (dirty_log_mask) {
-            cpu_physical_memory_set_dirty_range_nocode(addr, length);
-        }
+        cpu_physical_memory_set_dirty_range(addr, length, dirty_log_mask);
     } else {
         xen_modified_memory(addr, length);
     }
@@ -2866,9 +2871,7 @@ void stl_phys_notdirty(AddressSpace *as, hwaddr addr, uint32_t val)
             tb_invalidate_phys_page_range(addr1, addr1 + 4, 0);
             dirty_log_mask &= ~(1 << DIRTY_MEMORY_CODE);
         }
-        if (dirty_log_mask) {
-            cpu_physical_memory_set_dirty_range_nocode(addr1, 4);
-        }
+        cpu_physical_memory_set_dirty_range(addr1, 4, dirty_log_mask);
     }
 }
 
