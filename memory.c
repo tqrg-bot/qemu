@@ -1324,7 +1324,11 @@ bool memory_region_is_skip_dump(MemoryRegion *mr)
 
 uint8_t memory_region_get_dirty_log_mask(MemoryRegion *mr)
 {
-    return mr->dirty_log_mask;
+    uint8_t mask = mr->dirty_log_mask;
+    if (global_dirty_log) {
+        mask |= (1 << DIRTY_MEMORY_MIGRATION);
+    }
+    return mask;
 }
 
 bool memory_region_is_logging(MemoryRegion *mr, uint8_t client)
