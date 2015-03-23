@@ -582,7 +582,6 @@ bool memory_region_is_logging(MemoryRegion *mr, uint8_t client);
  * memory region is logging writes.
  *
  * Returns a bitmap of clients for which the memory region is logging writes.
- * Right now this will be either 0 or (1 << DIRTY_MEMORY_VGA).
  *
  * @mr: the memory region being queried
  */
