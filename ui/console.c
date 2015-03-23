@@ -1627,14 +1627,22 @@ void dpy_gfx_update_dirty(QemuConsole *con,
     }
     assert(mem);
 
-    memory_region_sync_dirty_bitmap(mem);
+    if (memory_region_is_logging(mem, DIRTY_MEMORY_VGA)) {
+        memory_region_sync_dirty_bitmap(mem);
+        if (invalidate) {
+            memory_region_reset_dirty(mem, mem_section.offset_within_region, size,
+                                      DIRTY_MEMORY_VGA);
+        }
+    } else {
+        invalidate = true;
+    }
     addr = mem_section.offset_within_region;
 
     first = -1;
     last = -1;
     for (i = 0; i < height; i++, addr += width) {
         dirty = invalidate ||
-            memory_region_get_dirty(mem, addr, width, DIRTY_MEMORY_VGA);
+            memory_region_test_and_clear_dirty(mem, addr, width, DIRTY_MEMORY_VGA);
         if (dirty) {
             if (first == -1) {
                 first = i;
@@ -1654,8 +1662,6 @@ void dpy_gfx_update_dirty(QemuConsole *con,
                        last - first + 1);
     }
 
-    memory_region_reset_dirty(mem, mem_section.offset_within_region, size,
-                              DIRTY_MEMORY_VGA);
 out:
     memory_region_unref(mem);
 }
