@@ -158,11 +158,14 @@ static inline void cpu_physical_memory_set_dirty_lebitmap(unsigned long *bitmap,
 
                 ram_list.dirty_memory[DIRTY_MEMORY_MIGRATION][page + k] |= temp;
                 ram_list.dirty_memory[DIRTY_MEMORY_VGA][page + k] |= temp;
-                ram_list.dirty_memory[DIRTY_MEMORY_CODE][page + k] |= temp;
+                if (tcg_enabled()) {
+                    ram_list.dirty_memory[DIRTY_MEMORY_CODE][page + k] |= temp;
+                }
             }
         }
         xen_modified_memory(start, pages << TARGET_PAGE_BITS);
     } else {
+        uint8_t clients = tcg_enabled() ? DIRTY_CLIENT_ALL : DIRTY_CLIENT_NOCODE;
         /*
          * bitmap-traveling is faster than memory-traveling (for addr...)
          * especially when most of the memory is not dirty.
@@ -177,8 +180,7 @@ static inline void cpu_physical_memory_set_dirty_lebitmap(unsigned long *bitmap,
                     addr = page_number * TARGET_PAGE_SIZE;
                     ram_addr = start + addr;
                     cpu_physical_memory_set_dirty_range(ram_addr,
-                                       TARGET_PAGE_SIZE * hpratio,
-                                       DIRTY_CLIENT_ALL);
+                                       TARGET_PAGE_SIZE * hpratio, clients);
                 } while (c != 0);
             }
         }
