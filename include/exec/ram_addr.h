@@ -90,13 +90,20 @@ static inline bool cpu_physical_memory_is_clean(ram_addr_t addr)
 }
 
 static inline bool cpu_physical_memory_range_includes_clean(ram_addr_t start,
-                                                            ram_addr_t length)
+                                                            ram_addr_t length,
+                                                            uint8_t mask)
 {
-    bool vga = cpu_physical_memory_get_clean(start, length, DIRTY_MEMORY_VGA);
-    bool code = cpu_physical_memory_get_clean(start, length, DIRTY_MEMORY_CODE);
-    bool migration =
-        cpu_physical_memory_get_clean(start, length, DIRTY_MEMORY_MIGRATION);
-    return vga || code || migration;
+    bool clean = false;
+    if (mask & (1 << DIRTY_MEMORY_VGA)) {
+        clean = cpu_physical_memory_get_clean(start, length, DIRTY_MEMORY_VGA);
+    }
+    if (!clean && (mask & (1 << DIRTY_MEMORY_CODE))) {
+        clean = cpu_physical_memory_get_clean(start, length, DIRTY_MEMORY_CODE);
+    }
+    if (!clean && (mask & (1 << DIRTY_MEMORY_MIGRATION))) {
+        clean = cpu_physical_memory_get_clean(start, length, DIRTY_MEMORY_MIGRATION);
+    }
+    return clean;
 }
 
 static inline void cpu_physical_memory_set_dirty_flag(ram_addr_t addr,
