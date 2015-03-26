@@ -177,6 +177,9 @@ struct MemoryRegion {
  *
  * Allows a component to adjust to changes in the guest-visible memory map.
  * Use with memory_listener_register() and memory_listener_unregister().
+ *
+ * All functions called while holding the iothread lock, EXCEPT FOR log_sync
+ * which may be called either with or without the iothread lock held.
  */
 struct MemoryListener {
     void (*begin)(MemoryListener *listener);
@@ -694,6 +697,9 @@ bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
  * Flushes dirty information from accelerators such as kvm and vhost-net
  * and makes it available to users of the memory API.
  *
+ * Unlike other memory region function, memory_region_sync_dirty_bitmap
+ * may be called either with or without the iothread lock held.
+ *
  * @mr: the region being flushed.
  */
 void memory_region_sync_dirty_bitmap(MemoryRegion *mr);
@@ -1006,6 +1012,8 @@ MemoryRegionSection memory_region_find(MemoryRegion *mr,
  * address_space_sync_dirty_bitmap: synchronize the dirty log for all memory
  *
  * Synchronizes the dirty page log for an entire address space.
+ * May be called either with or without the iothread lock held.
+ *
  * @as: the address space that contains the memory being synchronized
  */
 void address_space_sync_dirty_bitmap(AddressSpace *as);

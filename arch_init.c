@@ -507,10 +507,10 @@ static void migration_bitmap_sync(void)
         start_time = qemu_clock_get_ms(QEMU_CLOCK_REALTIME);
     }
 
+    rcu_read_lock();
     trace_migration_bitmap_sync_start();
     address_space_sync_dirty_bitmap(&address_space_memory);
 
-    rcu_read_lock();
     QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
         migration_bitmap_sync_range(block->mr->ram_addr, block->used_length);
     }
@@ -838,7 +838,9 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
         acct_clear();
     }
 
-    /* iothread lock needed for ram_list.dirty_memory[] */
+    /* iothread lock needed for ram_list.dirty_memory[],
+     * ramlist lock needed for memory_global_dirty_log_start().
+     */
     qemu_mutex_lock_iothread();
     qemu_mutex_lock_ramlist();
     rcu_read_lock();
@@ -856,10 +858,10 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     migration_dirty_pages = ram_bytes_total() >> TARGET_PAGE_BITS;
 
     memory_global_dirty_log_start();
-    migration_bitmap_sync();
     qemu_mutex_unlock_ramlist();
     qemu_mutex_unlock_iothread();
 
+    migration_bitmap_sync();
     qemu_put_be64(f, ram_bytes_total() | RAM_SAVE_FLAG_MEM_SIZE);
 
     QLIST_FOREACH_RCU(block, &ram_list.blocks, next) {
@@ -980,11 +982,9 @@ static uint64_t ram_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
     remaining_size = ram_save_remaining() * TARGET_PAGE_SIZE;
 
     if (remaining_size < max_size) {
-        qemu_mutex_lock_iothread();
         rcu_read_lock();
         migration_bitmap_sync();
         rcu_read_unlock();
-        qemu_mutex_unlock_iothread();
         remaining_size = ram_save_remaining() * TARGET_PAGE_SIZE;
     }
     return remaining_size;
