@@ -1237,6 +1237,7 @@ void memory_region_init_iommu(MemoryRegion *mr,
     memory_region_init(mr, owner, name, size);
     mr->iommu_ops = ops,
     mr->terminates = true;  /* then re-forwards */
+    mr->ram_addr = ~(ram_addr_t)0;
     notifier_list_init(&mr->iommu_notify);
 }
 
@@ -1377,14 +1378,14 @@ void memory_region_set_log(MemoryRegion *mr, bool log, unsigned client)
 bool memory_region_get_dirty(MemoryRegion *mr, hwaddr addr,
                              hwaddr size, unsigned client)
 {
-    assert(mr->terminates);
+    assert(mr->terminates && mr->ram_addr != ~(ram_addr_t)0);
     return cpu_physical_memory_get_dirty(mr->ram_addr + addr, size, client);
 }
 
 void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr,
                              hwaddr size)
 {
-    assert(mr->terminates);
+    assert(mr->terminates && mr->ram_addr != ~(ram_addr_t)0);
     cpu_physical_memory_set_dirty_range(mr->ram_addr + addr, size,
                                         memory_region_get_dirty_log_mask(mr));
 }
@@ -1392,7 +1393,7 @@ void memory_region_set_dirty(MemoryRegion *mr, hwaddr addr,
 bool memory_region_test_and_clear_dirty(MemoryRegion *mr, hwaddr addr,
                                         hwaddr size, unsigned client)
 {
-    assert(mr->terminates);
+    assert(mr->terminates && mr->ram_addr != ~(ram_addr_t)0);
     return cpu_physical_memory_test_and_clear_dirty(mr->ram_addr + addr,
                                                     size, client);
 }
@@ -1437,7 +1438,7 @@ void memory_region_rom_device_set_romd(MemoryRegion *mr, bool romd_mode)
 void memory_region_reset_dirty(MemoryRegion *mr, hwaddr addr,
                                hwaddr size, unsigned client)
 {
-    assert(mr->terminates);
+    assert(mr->terminates && mr->ram_addr != ~(ram_addr_t)0);
     cpu_physical_memory_test_and_clear_dirty(mr->ram_addr + addr, size,
                                              client);
 }
@@ -1448,7 +1449,7 @@ int memory_region_get_fd(MemoryRegion *mr)
         return memory_region_get_fd(mr->alias);
     }
 
-    assert(mr->terminates);
+    assert(mr->terminates && mr->ram_addr != ~(ram_addr_t)0);
 
     return qemu_get_ram_fd(mr->ram_addr & TARGET_PAGE_MASK);
 }
@@ -1459,14 +1460,14 @@ void *memory_region_get_ram_ptr(MemoryRegion *mr)
         return memory_region_get_ram_ptr(mr->alias) + mr->alias_offset;
     }
 
-    assert(mr->terminates);
+    assert(mr->terminates && mr->ram_addr != ~(ram_addr_t)0);
 
     return qemu_get_ram_ptr(mr->ram_addr & TARGET_PAGE_MASK);
 }
 
 void memory_region_ram_resize(MemoryRegion *mr, ram_addr_t newsize, Error **errp)
 {
-    assert(mr->terminates);
+    assert(mr->terminates && mr->ram_addr != ~(ram_addr_t)0);
 
     qemu_ram_resize(mr->ram_addr, newsize, errp);
 }
