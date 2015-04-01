@@ -74,6 +74,7 @@ static bool has_msr_feature_control;
 static bool has_msr_async_pf_en;
 static bool has_msr_pv_eoi_en;
 static bool has_msr_misc_enable;
+static bool has_msr_smbase;
 static bool has_msr_bndcfgs;
 static bool has_msr_kvm_steal_time;
 static int lm_capable_kernel;
@@ -820,6 +821,10 @@ static int kvm_get_supported_msrs(KVMState *s)
                     has_msr_tsc_deadline = true;
                     continue;
                 }
+                if (kvm_msr_list->indices[i] == MSR_IA32_SMBASE) {
+                    has_msr_smbase = true;
+                    continue;
+                }
                 if (kvm_msr_list->indices[i] == MSR_IA32_MISC_ENABLE) {
                     has_msr_misc_enable = true;
                     continue;
@@ -1246,6 +1251,9 @@ static int kvm_put_msrs(X86CPU *cpu, int level)
         kvm_msr_entry_set(&msrs[n++], MSR_IA32_MISC_ENABLE,
                           env->msr_ia32_misc_enable);
     }
+    if (has_msr_smbase) {
+        kvm_msr_entry_set(&msrs[n++], MSR_IA32_SMBASE, env->smbase);
+    }
     if (has_msr_bndcfgs) {
         kvm_msr_entry_set(&msrs[n++], MSR_IA32_BNDCFGS, env->msr_bndcfgs);
     }
@@ -1607,6 +1615,9 @@ static int kvm_get_msrs(X86CPU *cpu)
     if (has_msr_misc_enable) {
         msrs[n++].index = MSR_IA32_MISC_ENABLE;
     }
+    if (has_msr_smbase) {
+        msrs[n++].index = MSR_IA32_SMBASE;
+    }
     if (has_msr_feature_control) {
         msrs[n++].index = MSR_IA32_FEATURE_CONTROL;
     }
@@ -1760,6 +1771,9 @@ static int kvm_get_msrs(X86CPU *cpu)
             break;
         case MSR_IA32_MISC_ENABLE:
             env->msr_ia32_misc_enable = msrs[i].data;
+            break;
+        case MSR_IA32_SMBASE:
+            env->smbase = msrs[i].data;
             break;
         case MSR_IA32_FEATURE_CONTROL:
             env->msr_ia32_feature_control = msrs[i].data;
@@ -1948,6 +1962,16 @@ static int kvm_put_vcpu_events(X86CPU *cpu, int level)
 
     events.sipi_vector = env->sipi_vector;
 
+    if (has_msr_smbase) {
+        events.smi.smm = !!(env->hflags & HF_SMM_MASK);
+        /* smi.pending is stored as CPU_INTERRUPT_SMI in cpu->interrupt_request.
+         * It is transferred to the kernel before the next vmentry
+         */
+        events.smi.pending = 0;
+        events.smi.smm_inside_nmi = !!(env->hflags2 & HF2_SMM_INSIDE_NMI_MASK);
+        events.flags |= KVM_VCPUEVENT_VALID_SMM;
+    }
+
     events.flags = 0;
     if (level >= KVM_PUT_RESET_STATE) {
         events.flags |=
@@ -1967,6 +1991,7 @@ static int kvm_get_vcpu_events(X86CPU *cpu)
         return 0;
     }
 
+    memset(&events, 0, sizeof(events));
     ret = kvm_vcpu_ioctl(CPU(cpu), KVM_GET_VCPU_EVENTS, &events);
     if (ret < 0) {
        return ret;
@@ -1986,6 +2011,24 @@ static int kvm_get_vcpu_events(X86CPU *cpu)
         env->hflags2 |= HF2_NMI_MASK;
     } else {
         env->hflags2 &= ~HF2_NMI_MASK;
+    }
+
+    if (events.flags & KVM_VCPUEVENT_VALID_SMM) {
+        if (events.smi.smm) {
+            env->hflags |= HF_SMM_MASK;
+        } else {
+            env->hflags &= ~HF_SMM_MASK;
+        }
+        if (events.smi.pending) {
+            cpu_interrupt(CPU(cpu), CPU_INTERRUPT_SMI);
+        } else {
+            cpu_reset_interrupt(CPU(cpu), CPU_INTERRUPT_SMI);
+        }
+        if (events.smi.smm_inside_nmi) {
+            env->hflags2 |= HF2_SMM_INSIDE_NMI_MASK;
+        } else {
+            env->hflags2 &= ~HF2_SMM_INSIDE_NMI_MASK;
+        }
     }
 
     env->sipi_vector = events.sipi_vector;
@@ -2191,13 +2234,24 @@ void kvm_arch_pre_run(CPUState *cpu, struct kvm_run *run)
     int ret;
 
     /* Inject NMI */
-    if (cpu->interrupt_request & CPU_INTERRUPT_NMI) {
-        cpu->interrupt_request &= ~CPU_INTERRUPT_NMI;
-        DPRINTF("injected NMI\n");
-        ret = kvm_vcpu_ioctl(cpu, KVM_NMI);
-        if (ret < 0) {
-            fprintf(stderr, "KVM: injection failed, NMI lost (%s)\n",
-                    strerror(-ret));
+    if (cpu->interrupt_request & (CPU_INTERRUPT_NMI | CPU_INTERRUPT_SMI)) {
+        if (cpu->interrupt_request & CPU_INTERRUPT_NMI) {
+            cpu->interrupt_request &= ~CPU_INTERRUPT_NMI;
+            DPRINTF("injected NMI\n");
+            ret = kvm_vcpu_ioctl(cpu, KVM_NMI);
+            if (ret < 0) {
+                fprintf(stderr, "KVM: injection failed, NMI lost (%s)\n",
+                        strerror(-ret));
+            }
+        }
+        if (cpu->interrupt_request & CPU_INTERRUPT_SMI) {
+            cpu->interrupt_request &= ~CPU_INTERRUPT_SMI;
+            DPRINTF("injected SMI\n");
+            ret = kvm_vcpu_ioctl(cpu, KVM_SMI);
+            if (ret < 0) {
+                fprintf(stderr, "KVM: injection failed, SMI lost (%s)\n",
+                        strerror(-ret));
+            }
         }
     }
 
@@ -2252,6 +2306,11 @@ MemTxAttrs kvm_arch_post_run(CPUState *cpu, struct kvm_run *run)
     X86CPU *x86_cpu = X86_CPU(cpu);
     CPUX86State *env = &x86_cpu->env;
 
+    if (run->flags & KVM_RUN_X86_SMM) {
+        env->hflags |= HF_SMM_MASK;
+    } else {
+        env->hflags &= HF_SMM_MASK;
+    }
     if (run->if_flag) {
         env->eflags |= IF_MASK;
     } else {
