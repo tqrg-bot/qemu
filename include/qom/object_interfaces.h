@@ -54,14 +54,13 @@ typedef struct UserCreatableClass {
 
 /**
  * user_creatable_complete:
- * @obj: the object whose complete() method is called if defined
+ * @uc: the object whose complete() method is called if defined
  * @errp: if an error occurs, a pointer to an area to store the error
  *
  * Wrapper to call complete() method if one of types it's inherited
- * from implements USER_CREATABLE interface, otherwise the call does
- * nothing.
+ * from implements USER_CREATABLE interface.
  */
-void user_creatable_complete(Object *obj, Error **errp);
+void user_creatable_complete(UserCreatable *uc, Error **errp);
 
 /**
  * user_creatable_can_be_deleted:

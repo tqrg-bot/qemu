@@ -188,7 +188,8 @@ void virtio_blk_data_plane_create(VirtIODevice *vdev, VirtIOBlkConf *conf,
         object_initialize(&s->internal_iothread_obj,
                           sizeof(s->internal_iothread_obj),
                           TYPE_IOTHREAD);
-        user_creatable_complete(OBJECT(&s->internal_iothread_obj), &error_abort);
+        user_creatable_complete(USER_CREATABLE(&s->internal_iothread_obj),
+                                &error_abort);
         s->iothread = &s->internal_iothread_obj;
     }
     s->ctx = iothread_get_aio_context(s->iothread);

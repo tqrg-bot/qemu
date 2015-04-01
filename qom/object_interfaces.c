@@ -1,18 +1,11 @@
 #include "qom/object_interfaces.h"
 #include "qemu/module.h"
 
-void user_creatable_complete(Object *obj, Error **errp)
+void user_creatable_complete(UserCreatable *uc, Error **errp)
 {
 
-    UserCreatableClass *ucc;
-    UserCreatable *uc =
-        (UserCreatable *)object_dynamic_cast(obj, TYPE_USER_CREATABLE);
+    UserCreatableClass *ucc = USER_CREATABLE_GET_CLASS(uc);
 
-    if (!uc) {
-        return;
-    }
-
-    ucc = USER_CREATABLE_GET_CLASS(uc);
     if (ucc->complete) {
         ucc->complete(uc, errp);
     }

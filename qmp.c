@@ -656,7 +656,7 @@ void object_add(const char *type, const char *id, const QDict *qdict,
         goto out;
     }
 
-    user_creatable_complete(obj, &local_err);
+    user_creatable_complete(USER_CREATABLE(obj), &local_err);
     if (local_err) {
         object_property_del(container_get(object_get_root(), "/objects"),
                             id, &error_abort);
