@@ -333,7 +333,9 @@ bool aio_dispatch(AioContext *ctx)
         if (!node->deleted &&
             (revents & (G_IO_IN | G_IO_HUP | G_IO_ERR)) &&
             node->io_read) {
+            aio_context_acquire(ctx);
             node->io_read(node->opaque);
+            aio_context_release(ctx);
 
             /* aio_notify() does not count as progress */
             if (node->opaque != &ctx->notifier) {
@@ -343,7 +345,9 @@ bool aio_dispatch(AioContext *ctx)
         if (!node->deleted &&
             (revents & (G_IO_OUT | G_IO_ERR)) &&
             node->io_write) {
+            aio_context_acquire(ctx);
             node->io_write(node->opaque);
+            aio_context_release(ctx);
             progress = true;
         }
 
@@ -359,7 +363,9 @@ bool aio_dispatch(AioContext *ctx)
     qemu_lockcnt_dec(&ctx->list_lock);
 
     /* Run our timers */
+    aio_context_acquire(ctx);
     progress |= timerlistgroup_run_timers(&ctx->tlg);
+    aio_context_release(ctx);
 
     return progress;
 }
@@ -417,7 +423,6 @@ bool aio_poll_internal(AioContext *ctx, bool blocking)
     bool progress;
     int64_t timeout;
 
-    aio_context_acquire(ctx);
     progress = false;
 
     /* aio_notify can avoid the expensive event_notifier_set if
@@ -446,9 +451,6 @@ bool aio_poll_internal(AioContext *ctx, bool blocking)
     timeout = blocking ? aio_compute_timeout(ctx) : 0;
 
     /* wait until next event */
-    if (timeout) {
-        aio_context_release(ctx);
-    }
     if (aio_epoll_check_poll(ctx, pollfds, npfd, timeout)) {
         AioHandler epoll_handler;
 
@@ -462,9 +464,6 @@ bool aio_poll_internal(AioContext *ctx, bool blocking)
     }
     if (blocking) {
         atomic_sub(&ctx->notify_me, 2);
-    }
-    if (timeout) {
-        aio_context_acquire(ctx);
     }
 
     aio_notify_accept(ctx);
@@ -483,8 +482,6 @@ bool aio_poll_internal(AioContext *ctx, bool blocking)
     if (aio_dispatch(ctx)) {
         progress = true;
     }
-
-    aio_context_release(ctx);
 
     return progress;
 }
