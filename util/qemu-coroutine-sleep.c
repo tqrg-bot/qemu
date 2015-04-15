@@ -18,13 +18,17 @@
 typedef struct CoSleepCB {
     QEMUTimer *ts;
     Coroutine *co;
+    AioContext *ctx;
 } CoSleepCB;
 
 static void co_sleep_cb(void *opaque)
 {
     CoSleepCB *sleep_cb = opaque;
+    AioContext *ctx = sleep_cb->ctx;
 
+    aio_context_acquire(ctx);
     qemu_coroutine_enter(sleep_cb->co, NULL);
+    aio_context_release(ctx);
 }
 
 void coroutine_fn co_aio_sleep_ns(AioContext *ctx, QEMUClockType type,
@@ -32,6 +36,7 @@ void coroutine_fn co_aio_sleep_ns(AioContext *ctx, QEMUClockType type,
 {
     CoSleepCB sleep_cb = {
         .co = qemu_coroutine_self(),
+        .ctx = ctx,
     };
     sleep_cb.ts = aio_timer_new(ctx, type, SCALE_NS, co_sleep_cb, &sleep_cb);
     timer_mod(sleep_cb.ts, qemu_clock_get_ns(type) + ns);
