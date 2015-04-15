@@ -722,10 +722,14 @@ static void curl_readv_bh_cb(void *p)
 {
     CURLState *state;
     int running;
+    int ret = -EINPROGRESS;
 
     CURLAIOCB *acb = p;
-    BDRVCURLState *s = acb->common.bs->opaque;
+    BlockDriverState *bs = acb->common.bs;
+    BDRVCURLState *s = bs->opaque;
+    AioContext *ctx = bdrv_get_aio_context(bs);
 
+    aio_context_acquire(ctx);
     qemu_bh_delete(acb->bh);
     acb->bh = NULL;
 
@@ -739,7 +743,7 @@ static void curl_readv_bh_cb(void *p)
             qemu_aio_unref(acb);
             // fall through
         case FIND_RET_WAIT:
-            return;
+            goto out;
         default:
             break;
     }
@@ -747,9 +751,8 @@ static void curl_readv_bh_cb(void *p)
     // No cache found, so let's start a new request
     state = curl_init_state(acb->common.bs, s);
     if (!state) {
-        acb->common.cb(acb->common.opaque, -EIO);
-        qemu_aio_unref(acb);
-        return;
+        ret = -EIO;
+        goto out;
     }
 
     acb->start = 0;
@@ -763,9 +766,8 @@ static void curl_readv_bh_cb(void *p)
     state->orig_buf = g_try_malloc(state->buf_len);
     if (state->buf_len && state->orig_buf == NULL) {
         curl_clean_state(state);
-        acb->common.cb(acb->common.opaque, -ENOMEM);
-        qemu_aio_unref(acb);
-        return;
+        ret = -ENOMEM;
+        goto out;
     }
     state->acb[0] = acb;
 
@@ -778,6 +780,13 @@ static void curl_readv_bh_cb(void *p)
 
     /* Tell curl it needs to kick things off */
     curl_multi_socket_action(s->multi, CURL_SOCKET_TIMEOUT, 0, &running);
+
+out:
+    if (ret != -EINPROGRESS) {
+        acb->common.cb(acb->common.opaque, ret);
+        qemu_aio_unref(acb);
+    }
+    aio_context_release(ctx);
 }
 
 static BlockAIOCB *curl_aio_readv(BlockDriverState *bs,
