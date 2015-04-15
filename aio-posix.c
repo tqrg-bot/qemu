@@ -364,9 +364,7 @@ bool aio_dispatch(AioContext *ctx)
     qemu_lockcnt_dec(&ctx->list_lock);
 
     /* Run our timers */
-    aio_context_acquire(ctx);
     progress |= timerlistgroup_run_timers(&ctx->tlg);
-    aio_context_release(ctx);
 
     return progress;
 }
