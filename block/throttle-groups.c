@@ -371,7 +371,9 @@ static void timer_cb(BlockDriverState *bs, bool is_write)
     qemu_mutex_unlock(&tg->lock);
 
     /* Run the request that was waiting for this timer */
+    aio_context_acquire(bdrv_get_aio_context(bs));
     empty_queue = !qemu_co_enter_next(&bs->throttled_reqs[is_write]);
+    aio_context_release(bdrv_get_aio_context(bs));
 
     /* If the request queue was empty then we have to take care of
      * scheduling the next one */
