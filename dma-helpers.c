@@ -69,6 +69,7 @@ void qemu_sglist_destroy(QEMUSGList *qsg)
 
 typedef struct {
     BlockAIOCB common;
+    AioContext *ctx;
     BlockBackend *blk;
     BlockAIOCB *acb;
     QEMUSGList *sg;
@@ -153,8 +154,7 @@ static void dma_blk_cb(void *opaque, int ret)
 
     if (dbs->iov.size == 0) {
         trace_dma_map_wait(dbs);
-        dbs->bh = aio_bh_new(blk_get_aio_context(dbs->blk),
-                             reschedule_dma, dbs);
+        dbs->bh = aio_bh_new(dbs->ctx, reschedule_dma, dbs);
         cpu_register_map_client(dbs->bh);
         return;
     }
@@ -163,8 +163,10 @@ static void dma_blk_cb(void *opaque, int ret)
         qemu_iovec_discard_back(&dbs->iov, dbs->iov.size & ~BDRV_SECTOR_MASK);
     }
 
+    aio_context_acquire(dbs->ctx);
     dbs->acb = dbs->io_func(dbs->blk, dbs->sector_num, &dbs->iov,
                             dbs->iov.size / 512, dma_blk_cb, dbs);
+    aio_context_release(dbs->ctx);
     assert(dbs->acb);
 }
 
@@ -201,6 +203,7 @@ BlockAIOCB *dma_blk_io(
 
     dbs->acb = NULL;
     dbs->blk = blk;
+    dbs->ctx = blk_get_aio_context(blk);
     dbs->sg = sg;
     dbs->sector_num = sector_num;
     dbs->sg_cur_index = 0;

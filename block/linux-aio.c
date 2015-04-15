@@ -46,6 +46,8 @@ typedef struct {
 } LaioQueue;
 
 struct qemu_laio_state {
+    AioContext *aio_context;
+
     io_context_t ctx;
     EventNotifier e;
 
@@ -109,6 +111,7 @@ static void qemu_laio_completion_bh(void *opaque)
     struct qemu_laio_state *s = opaque;
 
     /* Fetch more completion events when empty */
+    aio_context_acquire(s->aio_context);
     if (s->event_idx == s->event_max) {
         do {
             struct timespec ts = { 0 };
@@ -119,7 +122,7 @@ static void qemu_laio_completion_bh(void *opaque)
         s->event_idx = 0;
         if (s->event_max <= 0) {
             s->event_max = 0;
-            return; /* no more events */
+            goto out; /* no more events */
         }
     }
 
@@ -141,6 +144,9 @@ static void qemu_laio_completion_bh(void *opaque)
     if (!s->io_q.plugged && !QSIMPLEQ_EMPTY(&s->io_q.pending)) {
         ioq_submit(s);
     }
+
+out:
+    aio_context_release(s->aio_context);
 }
 
 static void qemu_laio_completion_cb(EventNotifier *e)
@@ -289,12 +295,14 @@ void laio_detach_aio_context(void *s_, AioContext *old_context)
 
     aio_set_event_notifier(old_context, &s->e, false, NULL);
     qemu_bh_delete(s->completion_bh);
+    s->aio_context = NULL;
 }
 
 void laio_attach_aio_context(void *s_, AioContext *new_context)
 {
     struct qemu_laio_state *s = s_;
 
+    s->aio_context = new_context;
     s->completion_bh = aio_bh_new(new_context, qemu_laio_completion_bh, s);
     aio_set_event_notifier(new_context, &s->e, false,
                            qemu_laio_completion_cb);

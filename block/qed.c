@@ -937,6 +937,7 @@ static void qed_update_l2_table(BDRVQEDState *s, QEDTable *table, int index,
 static void qed_aio_complete_bh(void *opaque)
 {
     QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
     BlockCompletionFunc *cb = acb->common.cb;
     void *user_opaque = acb->common.opaque;
     int ret = acb->bh_ret;
@@ -945,7 +946,9 @@ static void qed_aio_complete_bh(void *opaque)
     qemu_aio_unref(acb);
 
     /* Invoke callback */
+    qed_acquire(s);
     cb(user_opaque, ret);
+    qed_release(s);
 }
 
 static void qed_aio_complete(QEDAIOCB *acb, int ret)
