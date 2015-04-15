@@ -2069,12 +2069,15 @@ static const AIOCBInfo bdrv_em_aiocb_info = {
 static void bdrv_aio_bh_cb(void *opaque)
 {
     BlockAIOCBSync *acb = opaque;
+    AioContext *ctx = bdrv_get_aio_context(acb->common.bs);
 
     if (!acb->is_write && acb->ret >= 0) {
         qemu_iovec_from_buf(acb->qiov, 0, acb->bounce, acb->qiov->size);
     }
     qemu_vfree(acb->bounce);
+    aio_context_acquire(ctx);
     acb->common.cb(acb->common.opaque, acb->ret);
+    aio_context_release(ctx);
     qemu_bh_delete(acb->bh);
     acb->bh = NULL;
     qemu_aio_unref(acb);
@@ -2150,10 +2153,13 @@ static void bdrv_co_complete(BlockAIOCBCoroutine *acb)
 static void bdrv_co_em_bh(void *opaque)
 {
     BlockAIOCBCoroutine *acb = opaque;
+    AioContext *ctx = bdrv_get_aio_context(acb->common.bs);
 
     assert(!acb->need_bh);
     qemu_bh_delete(acb->bh);
+    aio_context_acquire(ctx);
     bdrv_co_complete(acb);
+    aio_context_release(ctx);
 }
 
 static void bdrv_co_maybe_schedule_bh(BlockAIOCBCoroutine *acb)

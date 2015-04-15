@@ -188,13 +188,16 @@ static BlkverifyAIOCB *blkverify_aio_get(BlockDriverState *bs, bool is_write,
 static void blkverify_aio_bh(void *opaque)
 {
     BlkverifyAIOCB *acb = opaque;
+    AioContext *ctx = bdrv_get_aio_context(acb->common.bs);
 
     qemu_bh_delete(acb->bh);
     if (acb->buf) {
         qemu_iovec_destroy(&acb->raw_qiov);
         qemu_vfree(acb->buf);
     }
+    aio_context_acquire(ctx);
     acb->common.cb(acb->common.opaque, acb->ret);
+    aio_context_release(ctx);
     qemu_aio_unref(acb);
 }
 
