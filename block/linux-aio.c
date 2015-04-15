@@ -52,10 +52,10 @@ struct LinuxAioState {
     io_context_t ctx;
     EventNotifier e;
 
-    /* io queue for submit at batch */
+    /* io queue for submit at batch.  Protected by AioContext lock. */
     LaioQueue io_q;
 
-    /* I/O completion processing */
+    /* I/O completion processing.  Only runs in I/O thread.  */
     QEMUBH *completion_bh;
     struct io_event events[MAX_EVENTS];
     int event_idx;
@@ -90,7 +90,9 @@ static void qemu_laio_process_completion(struct qemu_laiocb *laiocb)
             }
         }
     }
+    aio_context_acquire(s->aio_context);
     laiocb->common.cb(laiocb->common.opaque, ret);
+    aio_context_release(s->aio_context);
 
     qemu_aio_unref(laiocb);
 }
@@ -140,9 +142,11 @@ static void qemu_laio_completion_bh(void *opaque)
         qemu_laio_process_completion(laiocb);
     }
 
+    aio_context_acquire(s->aio_context);
     if (!s->io_q.plugged && !QSIMPLEQ_EMPTY(&s->io_q.pending)) {
         ioq_submit(s);
     }
+    aio_context_release(s->aio_context);
 }
 
 static void qemu_laio_completion_cb(EventNotifier *e)
@@ -281,6 +285,7 @@ void laio_detach_aio_context(LinuxAioState *s, AioContext *old_context)
 {
     aio_set_event_notifier(old_context, &s->e, false, NULL);
     qemu_bh_delete(s->completion_bh);
+    s->aio_context = NULL;
 }
 
 void laio_attach_aio_context(LinuxAioState *s, AioContext *new_context)
