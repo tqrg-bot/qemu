@@ -40,6 +40,7 @@ struct PCMachineState {
 
     uint64_t max_ram_below_4g;
     OnOffAuto vmport;
+    OnOffAuto smm;
     bool enforce_aligned_dimm;
 };
 
@@ -47,6 +48,7 @@ struct PCMachineState {
 #define PC_MACHINE_MEMHP_REGION_SIZE "hotplug-memory-region-size"
 #define PC_MACHINE_MAX_RAM_BELOW_4G "max-ram-below-4g"
 #define PC_MACHINE_VMPORT           "vmport"
+#define PC_MACHINE_SMM              "smm"
 #define PC_MACHINE_ENFORCE_ALIGNED_DIMM "enforce-aligned-dimm"
 
 /**
@@ -160,6 +162,7 @@ void i8042_setup_a20_line(ISADevice *dev, qemu_irq *a20_out);
 /* pc.c */
 extern int fd_bootchk;
 
+bool pc_machine_is_smm_enabled(PCMachineState *pcms);
 void pc_register_ferr_irq(qemu_irq irq);
 void pc_acpi_smi_interrupt(void *opaque, int irq, int level);
 
