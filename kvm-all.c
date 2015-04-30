@@ -1990,6 +1990,11 @@ int kvm_vm_check_attr(KVMState *s, uint32_t group, uint64_t attr)
     return ret ? 0 : 1;
 }
 
+int kvm_has_smm(void)
+{
+    return kvm_check_extension(kvm_state, KVM_CAP_X86_SMM);
+}
+
 int kvm_has_sync_mmu(void)
 {
     return kvm_check_extension(kvm_state, KVM_CAP_SYNC_MMU);

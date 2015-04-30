@@ -154,7 +154,8 @@ static void vga_update_memory_access(VGACommonState *s)
         s->has_chain4_alias = false;
         s->plane_updated = 0xf;
     }
-    if ((s->sr[VGA_SEQ_PLANE_WRITE] & VGA_SR02_ALL_PLANES) ==
+    if (s->use_chain4_alias &&
+	(s->sr[VGA_SEQ_PLANE_WRITE] & VGA_SR02_ALL_PLANES) ==
         VGA_SR02_ALL_PLANES && s->sr[VGA_SEQ_MEMORY_MODE] & VGA_SR04_CHN_4M) {
         offset = 0;
         switch ((s->gr[VGA_GFX_MISC] >> 2) & 3) {
@@ -2219,8 +2220,11 @@ void vga_init(VGACommonState *s, Object *obj, MemoryRegion *address_space,
 
     qemu_register_reset(vga_reset, s);
 
-    s->bank_offset = 0;
+    if (!kvm_enabled() || !kvm_has_smm()) {
+        s->use_chain4_alias = true;
+    }
 
+    s->bank_offset = 0;
     s->legacy_address_space = address_space;
 
     vga_io_memory = vga_init_io(s, obj, &vga_ports, &vbe_ports);

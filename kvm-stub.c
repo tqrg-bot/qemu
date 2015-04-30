@@ -56,6 +56,11 @@ int kvm_cpu_exec(CPUState *cpu)
     abort();
 }
 
+int kvm_has_smm(void)
+{
+    return 0;
+}
+
 int kvm_has_sync_mmu(void)
 {
     return 0;
