@@ -87,6 +87,8 @@ static bool has_msr_xss;
 static bool has_msr_architectural_pmu;
 static uint32_t num_architectural_pmu_counters;
 
+static Notifier smram_machine_done;
+
 bool kvm_allows_irq0_override(void)
 {
     return !kvm_irqchip_in_kernel() || kvm_has_gsi_routing();
@@ -846,6 +848,25 @@ static int kvm_get_supported_msrs(KVMState *s)
     return ret;
 }
 
+static void smram_notify(Notifier *n, void *unused)
+{
+    MemoryRegion *smram =
+       (MemoryRegion *) object_resolve_path("/machine/smram", NULL);
+
+    if (!smram) {
+        return;
+    }
+
+    /* Add the SMRAM regions to the KVM address space, so that they will
+     * be considered when adding memory slots.
+     *
+     * This requires that the chipsets *disables* regions in /machine/smram
+     * whenever SMRAM is opened.
+     */
+    memory_region_add_subregion_overlap(&kvm_state->kvm_as_root, 0, smram, 10);
+    smram->kvm_mem_flags |= KVM_MEM_X86_SMRAM;
+}
+
 int kvm_arch_init(MachineState *ms, KVMState *s)
 {
     uint64_t identity_base = 0xfffbc000;
@@ -904,6 +925,12 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
             return ret;
         }
     }
+
+    if (kvm_check_extension(s, KVM_CAP_X86_SMM)) {
+        smram_machine_done.notify = smram_notify;
+        qemu_add_machine_init_done_notifier(&smram_machine_done);
+    }
+
     return 0;
 }
 
