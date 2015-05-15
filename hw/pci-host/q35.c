@@ -305,18 +305,24 @@ static void mch_update_smram(MCHPCIState *mch)
         memory_region_set_enabled(&mch->smram_region, h_smrame);
         /* Show high SMRAM if H_SMRAME = 1 */
         memory_region_set_enabled(&mch->open_high_smram, h_smrame);
+
+        /* KVM requires disabling the region in /machine/smram when SMRAM
+         * is open.
+         */
+        memory_region_set_enabled(&mch->low_smram, false);
+        memory_region_set_enabled(&mch->high_smram, false);
     } else {
         /* Hide high SMRAM and low SMRAM */
         memory_region_set_enabled(&mch->smram_region, true);
         memory_region_set_enabled(&mch->open_high_smram, false);
-    }
 
-    if (pd->config[MCH_HOST_BRIDGE_SMRAM] & SMRAM_G_SMRAME) {
-        memory_region_set_enabled(&mch->low_smram, !h_smrame);
-        memory_region_set_enabled(&mch->high_smram, h_smrame);
-    } else {
-        memory_region_set_enabled(&mch->low_smram, false);
-        memory_region_set_enabled(&mch->high_smram, false);
+        if (pd->config[MCH_HOST_BRIDGE_SMRAM] & SMRAM_G_SMRAME) {
+            memory_region_set_enabled(&mch->low_smram, !h_smrame);
+            memory_region_set_enabled(&mch->high_smram, h_smrame);
+        } else {
+            memory_region_set_enabled(&mch->low_smram, false);
+            memory_region_set_enabled(&mch->high_smram, false);
+        }
     }
 
     if (pd->config[MCH_HOST_BRIDGE_ESMRAMC] & MCH_HOST_BRIDGE_ESMRAMC_T_EN) {

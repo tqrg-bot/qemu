@@ -142,6 +142,12 @@ static void i440fx_update_memory_mappings(PCII440FXState *d)
                               !(pd->config[I440FX_SMRAM] & SMRAM_D_OPEN));
     memory_region_set_enabled(&d->smram,
                               pd->config[I440FX_SMRAM] & SMRAM_G_SMRAME);
+
+    /* KVM requires disabling the region in /machine/smram when SMRAM
+     * is open.
+     */
+    memory_region_set_enabled(&d->low_smram,
+                              !(pd->config[I440FX_SMRAM] & SMRAM_D_OPEN));
     memory_region_transaction_commit();
 }
 
