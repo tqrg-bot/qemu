@@ -60,6 +60,9 @@ struct KVMState
     QTAILQ_HEAD(msi_hashtab, KVMMSIRoute) msi_hashtab[KVM_MSI_HASHTAB_SIZE];
     bool direct_msi;
 #endif
+
+    AddressSpace kvm_as;
+    MemoryRegion kvm_as_root, kvm_as_mem;
 };
 
 #define TYPE_KVM_ACCEL ACCEL_CLASS_NAME("kvm")

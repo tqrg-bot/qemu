@@ -1401,6 +1401,7 @@ static int kvm_init(MachineState *ms)
     const char *kvm_type;
 
     s = KVM_STATE(ms->accelerator);
+    kvm_state = s;
 
     /*
      * On systems where the kernel can support different base page
@@ -1578,9 +1579,21 @@ static int kvm_init(MachineState *ms)
     kvm_vm_attributes_allowed =
         (kvm_check_extension(s, KVM_CAP_VM_ATTRIBUTES) > 0);
 
+    /* An outer container, with normal system memory inside.
+     * kvm_arch_init can add more.
+     */
+    memory_region_init(&s->kvm_as_root, OBJECT(s), "mem-container", ~0ull);
+    memory_region_set_enabled(&s->kvm_as_root, true);
+    memory_region_init_alias(&s->kvm_as_mem, OBJECT(s), "memory",
+                             get_system_memory(), 0, ~0ull);
+    memory_region_set_enabled(&s->kvm_as_mem, true);
+    memory_region_add_subregion_overlap(&s->kvm_as_root, 0, &s->kvm_as_mem, 0);
+
+    address_space_init(&s->kvm_as, &s->kvm_as_root, "KVM");
+
     ret = kvm_arch_init(ms, s);
     if (ret < 0) {
-        goto err;
+        goto err_as_destroy;
     }
 
     ret = kvm_irqchip_create(ms, s);
@@ -1588,8 +1601,7 @@ static int kvm_init(MachineState *ms)
         goto err;
     }
 
-    kvm_state = s;
-    memory_listener_register(&kvm_memory_listener, &address_space_memory);
+    memory_listener_register(&kvm_memory_listener, &s->kvm_as);
     memory_listener_register(&kvm_io_listener, &address_space_io);
 
     s->many_ioeventfds = kvm_check_many_ioeventfds();
@@ -1598,6 +1610,8 @@ static int kvm_init(MachineState *ms)
 
     return 0;
 
+err_as_destroy:
+    address_space_destroy(&s->kvm_as);
 err:
     assert(ret < 0);
     if (s->vmfd >= 0) {
@@ -1607,6 +1621,7 @@ err:
         close(s->fd);
     }
     g_free(s->slots);
+    kvm_state = NULL;
 
     return ret;
 }
