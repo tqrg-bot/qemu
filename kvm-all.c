@@ -237,10 +237,11 @@ err:
  * dirty pages logging control
  */
 
-static int kvm_mem_flags(MemoryRegion *mr)
+static int kvm_mem_flags(MemoryRegionSection *section)
 {
+    MemoryRegion *mr = section->mr;
     bool readonly = mr->readonly || memory_region_is_romd(mr);
-    int flags = 0;
+    int flags = section->kvm_mem_flags;
 
     if (memory_region_is_logging(mr)) {
         flags |= KVM_MEM_LOG_DIRTY_PAGES;
@@ -689,7 +690,7 @@ static void kvm_set_phys_mem(MemoryRegionSection *section, bool add)
             mem->memory_size = old.memory_size;
             mem->start_addr = old.start_addr;
             mem->ram = old.ram;
-            mem->flags = kvm_mem_flags(mr);
+            mem->flags = kvm_mem_flags(section);
 
             err = kvm_set_user_memory_region(s, mem);
             if (err) {
@@ -710,7 +711,7 @@ static void kvm_set_phys_mem(MemoryRegionSection *section, bool add)
             mem->memory_size = start_addr - old.start_addr;
             mem->start_addr = old.start_addr;
             mem->ram = old.ram;
-            mem->flags =  kvm_mem_flags(mr);
+            mem->flags =  kvm_mem_flags(section);
 
             err = kvm_set_user_memory_region(s, mem);
             if (err) {
@@ -734,7 +735,7 @@ static void kvm_set_phys_mem(MemoryRegionSection *section, bool add)
             size_delta = mem->start_addr - old.start_addr;
             mem->memory_size = old.memory_size - size_delta;
             mem->ram = old.ram + size_delta;
-            mem->flags = kvm_mem_flags(mr);
+            mem->flags = kvm_mem_flags(section);
 
             err = kvm_set_user_memory_region(s, mem);
             if (err) {
@@ -756,7 +757,7 @@ static void kvm_set_phys_mem(MemoryRegionSection *section, bool add)
     mem->memory_size = size;
     mem->start_addr = start_addr;
     mem->ram = ram;
-    mem->flags = kvm_mem_flags(mr);
+    mem->flags = kvm_mem_flags(section);
 
     err = kvm_set_user_memory_region(s, mem);
     if (err) {

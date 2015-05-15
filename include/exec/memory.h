@@ -192,6 +192,8 @@ struct MemoryRegion {
     unsigned ioeventfd_nb;
     MemoryRegionIoeventfd *ioeventfds;
     NotifierList iommu_notify;
+
+    int kvm_mem_flags;
 };
 
 /**
@@ -264,6 +266,8 @@ struct MemoryRegionSection {
     Int128 size;
     hwaddr offset_within_address_space;
     bool readonly;
+
+    int kvm_mem_flags;
 };
 
 /**

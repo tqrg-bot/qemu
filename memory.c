@@ -160,6 +160,7 @@ static bool memory_listener_match(MemoryListener *listener,
         .size = (fr)->addr.size,                                        \
         .offset_within_address_space = int128_get64((fr)->addr.start),  \
         .readonly = (fr)->readonly,                                     \
+        .kvm_mem_flags = (fr)->kvm_mem_flags,                           \
               }))
 
 struct CoalescedMemoryRange {
@@ -219,6 +220,7 @@ struct FlatRange {
     MemoryRegion *mr;
     hwaddr offset_in_region;
     AddrRange addr;
+    int kvm_mem_flags;
     uint8_t dirty_log_mask;
     bool romd_mode;
     bool readonly;
@@ -246,6 +248,7 @@ static bool flatrange_equal(FlatRange *a, FlatRange *b)
         && addrrange_equal(a->addr, b->addr)
         && a->offset_in_region == b->offset_in_region
         && a->romd_mode == b->romd_mode
+        && a->kvm_mem_flags == b->kvm_mem_flags
         && a->readonly == b->readonly;
 }
 
@@ -306,7 +309,8 @@ static bool can_merge(FlatRange *r1, FlatRange *r2)
                      int128_make64(r2->offset_in_region))
         && r1->dirty_log_mask == r2->dirty_log_mask
         && r1->romd_mode == r2->romd_mode
-        && r1->readonly == r2->readonly;
+        && r1->readonly == r2->readonly
+        && r1->kvm_mem_flags == r2->kvm_mem_flags;
 }
 
 /* Attempt to simplify a view by merging adjacent ranges */
@@ -542,6 +546,7 @@ static void render_memory_region(FlatView *view,
                                  MemoryRegion *mr,
                                  Int128 base,
                                  AddrRange clip,
+                                 int kvm_mem_flags,
                                  bool readonly)
 {
     MemoryRegion *subregion;
@@ -556,6 +561,7 @@ static void render_memory_region(FlatView *view,
         return;
     }
 
+    kvm_mem_flags |= mr->kvm_mem_flags;
     int128_addto(&base, int128_make64(mr->addr));
     readonly |= mr->readonly;
 
@@ -570,13 +576,15 @@ static void render_memory_region(FlatView *view,
     if (mr->alias) {
         int128_subfrom(&base, int128_make64(mr->alias->addr));
         int128_subfrom(&base, int128_make64(mr->alias_offset));
-        render_memory_region(view, mr->alias, base, clip, readonly);
+        render_memory_region(view, mr->alias, base, clip,
+			     kvm_mem_flags, readonly);
         return;
     }
 
     /* Render subregions in priority order. */
     QTAILQ_FOREACH(subregion, &mr->subregions, subregions_link) {
-        render_memory_region(view, subregion, base, clip, readonly);
+        render_memory_region(view, subregion, base, clip, 
+                             kvm_mem_flags, readonly);
     }
 
     if (!mr->terminates) {
@@ -591,6 +599,7 @@ static void render_memory_region(FlatView *view,
     fr.dirty_log_mask = mr->dirty_log_mask;
     fr.romd_mode = mr->romd_mode;
     fr.readonly = readonly;
+    fr.kvm_mem_flags = kvm_mem_flags;
 
     /* Render the region itself into any gaps left by the current view. */
     for (i = 0; i < view->nr && int128_nz(remain); ++i) {
@@ -632,7 +641,7 @@ static FlatView *generate_memory_topology(MemoryRegion *mr)
 
     if (mr) {
         render_memory_region(view, mr, int128_zero(),
-                             addrrange_make(int128_zero(), int128_2_64()), false);
+                             addrrange_make(int128_zero(), int128_2_64()), 0, false);
     }
     flatview_simplify(view);
 
