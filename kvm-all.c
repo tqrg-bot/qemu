@@ -24,13 +24,11 @@
 #include "qemu/atomic.h"
 #include "qemu/option.h"
 #include "qemu/config-file.h"
-#include "sysemu/sysemu.h"
-#include "sysemu/accel.h"
 #include "hw/hw.h"
 #include "hw/pci/msi.h"
 #include "hw/s390x/adapter.h"
 #include "exec/gdbstub.h"
-#include "sysemu/kvm.h"
+#include "sysemu/kvm_int.h"
 #include "qemu/bswap.h"
 #include "exec/memory.h"
 #include "exec/ram_addr.h"
@@ -57,60 +55,6 @@
 #define DPRINTF(fmt, ...) \
     do { } while (0)
 #endif
-
-#define KVM_MSI_HASHTAB_SIZE    256
-
-typedef struct KVMSlot
-{
-    hwaddr start_addr;
-    ram_addr_t memory_size;
-    void *ram;
-    int slot;
-    int flags;
-} KVMSlot;
-
-struct KVMState
-{
-    AccelState parent_obj;
-
-    KVMSlot *slots;
-    int nr_slots;
-    int fd;
-    int vmfd;
-    int coalesced_mmio;
-    struct kvm_coalesced_mmio_ring *coalesced_mmio_ring;
-    bool coalesced_flush_in_progress;
-    int broken_set_mem_region;
-    int migration_log;
-    int vcpu_events;
-    int robust_singlestep;
-    int debugregs;
-#ifdef KVM_CAP_SET_GUEST_DEBUG
-    struct kvm_sw_breakpoint_head kvm_sw_breakpoints;
-#endif
-    int pit_state2;
-    int xsave, xcrs;
-    int many_ioeventfds;
-    int intx_set_mask;
-    /* The man page (and posix) say ioctl numbers are signed int, but
-     * they're not.  Linux, glibc and *BSD all treat ioctl numbers as
-     * unsigned, and treating them as signed here can break things */
-    unsigned irq_set_ioctl;
-    unsigned int sigmask_len;
-#ifdef KVM_CAP_IRQ_ROUTING
-    struct kvm_irq_routing *irq_routes;
-    int nr_allocated_irq_routes;
-    uint32_t *used_gsi_bitmap;
-    unsigned int gsi_count;
-    QTAILQ_HEAD(msi_hashtab, KVMMSIRoute) msi_hashtab[KVM_MSI_HASHTAB_SIZE];
-    bool direct_msi;
-#endif
-};
-
-#define TYPE_KVM_ACCEL ACCEL_CLASS_NAME("kvm")
-
-#define KVM_STATE(obj) \
-    OBJECT_CHECK(KVMState, (obj), TYPE_KVM_ACCEL)
 
 KVMState *kvm_state;
 bool kvm_kernel_irqchip;
