@@ -440,7 +440,7 @@ static FeatureWordInfo feature_word_info[FEATURE_WORDS] = {
         .cpuid_eax = 0xd,
         .cpuid_needs_ecx = true, .cpuid_ecx = 1,
         .cpuid_reg = R_EAX,
-        .tcg_features = CPUID_XSAVE_XGETBV1,
+        .tcg_features = CPUID_XSAVE_XSAVEOPT | CPUID_XSAVE_XGETBV1,
     },
     [FEAT_6_EAX] = {
         .feat_names = cpuid_6_feature_name,
