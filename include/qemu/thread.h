@@ -1,6 +1,7 @@
 #ifndef __QEMU_THREAD_H
 #define __QEMU_THREAD_H 1
 
+#include "config-host.h"
 #include <inttypes.h>
 #include <stdbool.h>
 
@@ -67,7 +68,9 @@ void qemu_thread_atexit_add(struct Notifier *notifier);
 void qemu_thread_atexit_remove(struct Notifier *notifier);
 
 struct QemuLockCnt {
+#ifndef CONFIG_LINUX
     QemuMutex mutex;
+#endif
     unsigned count;
 };
 
