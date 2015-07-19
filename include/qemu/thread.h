@@ -6,6 +6,7 @@ typedef struct QemuMutex QemuMutex;
 typedef struct QemuCond QemuCond;
 typedef struct QemuSemaphore QemuSemaphore;
 typedef struct QemuEvent QemuEvent;
+typedef struct QemuLockCnt QemuLockCnt;
 typedef struct QemuThread QemuThread;
 
 #ifdef _WIN32
@@ -62,5 +63,21 @@ void qemu_thread_naming(bool enable);
 struct Notifier;
 void qemu_thread_atexit_add(struct Notifier *notifier);
 void qemu_thread_atexit_remove(struct Notifier *notifier);
+
+struct QemuLockCnt {
+    QemuMutex mutex;
+    unsigned count;
+};
+
+void qemu_lockcnt_init(QemuLockCnt *lockcnt);
+void qemu_lockcnt_destroy(QemuLockCnt *lockcnt);
+void qemu_lockcnt_inc(QemuLockCnt *lockcnt);
+void qemu_lockcnt_dec(QemuLockCnt *lockcnt);
+bool qemu_lockcnt_dec_and_lock(QemuLockCnt *lockcnt);
+bool qemu_lockcnt_dec_if_lock(QemuLockCnt *lockcnt);
+void qemu_lockcnt_lock(QemuLockCnt *lockcnt);
+void qemu_lockcnt_unlock(QemuLockCnt *lockcnt);
+void qemu_lockcnt_inc_and_unlock(QemuLockCnt *lockcnt);
+unsigned qemu_lockcnt_count(QemuLockCnt *lockcnt);
 
 #endif
