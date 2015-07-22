@@ -210,9 +210,25 @@ BlockAIOCB *dma_blk_io(
     dbs->sg_cur_byte = 0;
     dbs->dir = dir;
     dbs->io_func = io_func;
-    dbs->bh = NULL;
     qemu_iovec_init(&dbs->iov, sg->nsg);
-    dma_blk_cb(dbs, 0);
+
+    /* FIXME: dma_blk_io usually is called while the thread has acquired the
+     * AioContext, for consistency with blk_aio_readv.  However, dma_memory_map
+     * may acquire the iothread lock and thus requires being called with _no_ lock.
+     *
+     * The solution would be to call dma_blk_io without the AioContext lock,
+     * but this requires changes in the core block and SCSI layers.  In the
+     * interest of doing things a step at a time, defer to a bottom half
+     * if the iothread lock isn't taken.  The bottom half is called without
+     * the AioContext lock taken.
+     */
+    if (qemu_mutex_iothread_locked()) {
+        dbs->bh = NULL;
+        dma_blk_cb(dbs, 0);
+    } else {
+        dbs->bh = aio_bh_new(dbs->ctx, reschedule_dma, dbs);
+        qemu_bh_schedule(dbs->bh);
+    }
     return &dbs->common;
 }
 
