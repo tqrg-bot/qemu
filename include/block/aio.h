@@ -154,17 +154,18 @@ void aio_context_ref(AioContext *ctx);
  */
 void aio_context_unref(AioContext *ctx);
 
-/* Take ownership of the AioContext.  If the AioContext will be shared between
- * threads, and a thread does not want to be interrupted, it will have to
- * take ownership around calls to aio_poll().  Otherwise, aio_poll()
- * automatically takes care of calling aio_context_acquire and
- * aio_context_release.
+/* Each AioContext has a recursive mutex that protects all the block
+ * devices under that AioContext (both backends and frontends).
+ * This is just a convenience provided by AioContext to the devices.
+ * The AioContext uses its own locks to protect the internal data
+ * structures.
+ *
+ * Callbacks of all sorts (AIO, file descriptor handlers, bottom
+ * halves and timers) typically acquire/release the AioContext in
+ * order to make accesses to their data structures thread safe.
  *
  * Note that this is separate from bdrv_drained_begin/bdrv_drained_end.  A
  * thread still has to call those to avoid being interrupted by the guest.
- *
- * Bottom halves, timers and callbacks can be created or removed without
- * acquiring the AioContext.
  */
 void aio_context_acquire(AioContext *ctx);
 
