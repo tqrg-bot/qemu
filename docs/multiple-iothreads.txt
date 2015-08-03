@@ -47,8 +47,11 @@ How to program for IOThreads
 The main difference between legacy code and new code that can run in an
 IOThread is dealing explicitly with the event loop object, AioContext
 (see include/block/aio.h).  Code that only works in the main loop
-implicitly uses the main loop's AioContext.  Code that supports running
-in IOThreads must be aware of its AioContext.
+implicitly uses the main loop's AioContext, and does not need to handle
+locking because it implicitly uses the QEMU global mutex.
+
+Code that supports running in IOThreads, instead, must be aware of its
+AioContext and of synchronization.
 
 AioContext supports the following services:
  * File descriptor monitoring (read/write/error on POSIX hosts)
@@ -79,6 +82,11 @@ iothread_get_aio_context() or for the main loop using qemu_get_aio_context().
 Code that takes an AioContext argument works both in IOThreads or the main
 loop, depending on which AioContext instance the caller passes in.
 
+When running in an IOThread, handlers for bottom halves, file descriptors,
+and timers have to handle their own synchronization.  Block layer AIO
+callbacks also have to handle synchronization.  How to do this is the
+topic of the next sections.
+
 How to synchronize with an IOThread
 -----------------------------------
 AioContext is not thread-safe so some rules must be followed when using file
@@ -87,7 +95,13 @@ descriptors, event notifiers, timers, or BHs across threads:
 1. AioContext functions can always be called safely.  They handle their
 own locking internally.
 
-2. Other threads wishing to access the AioContext must take the QEMU global
+2. AioContext does not attempt to provide mutual exclusion of any kind
+to bottom half handlers, file descriptor handlers, timer handlers and AIO
+callbacks.  aio_context_acquire() and aio_context_release() are the
+typical choice; aio_context_acquire()/aio_context_release() calls may
+be nested.
+
+3. Other threads wishing to access the AioContext must take the QEMU global
 mutex *as well as* call aio_context_acquire()/aio_context_release() for
 mutual exclusion.  The QEMU global mutex must be taken outside the call
 to aio_context_acquire().
@@ -129,9 +143,48 @@ section".  The functions must be called between aio_context_acquire()
 and aio_context_release().  You can freely release and re-acquire the
 AioContext within a drained section.
 
+AioContext and coroutines
+-------------------------
 Long-running jobs (usually in the form of coroutines) are best scheduled in
 the BlockDriverState's AioContext to avoid the need to acquire/release around
 each bdrv_*() call.  The functions bdrv_add/remove_aio_context_notifier,
 or alternatively blk_add/remove_aio_context_notifier if you use BlockBackends,
 can be used to get a notification whenever bdrv_set_aio_context() moves a
 BlockDriverState to a different AioContext.
+
+Usually, the coroutine is created and first entered in the main loop.  After
+some time it will yield and, when entered again, it will run in the
+IOThread.  In general, however, the coroutine never has to worry about
+releasing and acquiring the AioContext.  The release will happen in the
+function that entered the coroutine; the acquire will happen (e.g. in
+a bottom half or AIO callback) before the coroutine is entered.  For
+example:
+
+1) the coroutine yields because it waits on I/O (e.g. during a call to
+bdrv_co_readv) or sleeps for a determinate period of time (e.g. with
+co_aio_sleep_ns).  In this case, functions such as bdrv_co_io_em_complete
+or co_sleep_cb take the AioContext lock before re-entering.
+
+2) the coroutine explicitly yields.  In this case, the code implementing
+the long-running job will have a bottom half, AIO callback or similar that
+should acquire the AioContext before re-entering the coroutine.
+
+3) the coroutine yields through a CoQueue (directly or indirectly, e.g.
+through a CoMutex or CoRwLock).  This also "just works", but the mechanism
+is more subtle.  Suppose coroutine C1 has just released a mutex and C2
+was waiting on it.  C2 is woken up at C1's next yield point, or just
+before C1 terminates; C2 then runs *before qemu_coroutine_enter(C1)
+returns to its caller*.  Assuming that C1 was entered with a sequence like
+
+    aio_context_acquire(ctx);
+    qemu_coroutine_enter(co);     // enters C1
+    aio_context_release(ctx);
+
+... then C2 will also be protected by the AioContext lock.
+
+
+Bullet 3 provides the following rule for using coroutine mutual exclusion
+in multiple threads:
+
+    *** If two coroutines can exclude each other through a CoMutex or
+    *** CoRwLock or CoQueue, they should all run under the same AioContext.
