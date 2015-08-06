@@ -252,15 +252,10 @@ static void quorum_rewrite_aio_cb(void *opaque, int ret)
 {
     QuorumAIOCB *acb = opaque;
 
-    /* one less rewrite to do */
-    acb->rewrite_count--;
-
     /* wait until all rewrite callbacks have completed */
-    if (acb->rewrite_count) {
-        return;
+    if (atomic_fetch_dec(&acb->rewrite_count) == 1) {
+        quorum_aio_finalize(acb);
     }
-
-    quorum_aio_finalize(acb);
 }
 
 static BlockAIOCB *read_fifo_child(QuorumAIOCB *acb);
@@ -375,7 +370,7 @@ static bool quorum_rewrite_bad_versions(BDRVQuorumState *s, QuorumAIOCB *acb,
     }
 
     /* quorum_rewrite_aio_cb will count down this to zero */
-    acb->rewrite_count = count;
+    atomic_mb_set(&acb->rewrite_count, count);
 
     /* now fire the correcting rewrites */
     QLIST_FOREACH(version, &acb->votes.vote_list, next) {
