@@ -276,27 +276,35 @@ static void quorum_copy_qiov(QEMUIOVector *dest, QEMUIOVector *source)
     }
 }
 
+static void quorum_fifo_aio_cb(void *opaque, int ret)
+{
+    QuorumChildRequest *sacb = opaque;
+    QuorumAIOCB *acb = sacb->parent;
+    BDRVQuorumState *s = acb->common.bs->opaque;
+
+    assert(acb->is_read && s->read_pattern == QUORUM_READ_PATTERN_FIFO);
+
+    /* We try to read next child in FIFO order if we fail to read */
+    if (ret < 0 && acb->children_read < s->num_children) {
+        read_fifo_child(acb);
+        return;
+    }
+
+    if (ret == 0) {
+        quorum_copy_qiov(acb->qiov, &acb->qcrs[acb->children_read - 1].qiov);
+    }
+    acb->vote_ret = ret;
+
+    /* FIXME: rewrite failed children if acb->children_read > 1? */
+    quorum_aio_finalize(acb);
+}
+
 static void quorum_aio_cb(void *opaque, int ret)
 {
     QuorumChildRequest *sacb = opaque;
     QuorumAIOCB *acb = sacb->parent;
     BDRVQuorumState *s = acb->common.bs->opaque;
     bool rewrite = false;
-
-    if (acb->is_read && s->read_pattern == QUORUM_READ_PATTERN_FIFO) {
-        /* We try to read next child in FIFO order if we fail to read */
-        if (ret < 0 && acb->children_read < s->num_children) {
-            read_fifo_child(acb);
-            return;
-        }
-
-        if (ret == 0) {
-            quorum_copy_qiov(acb->qiov, &acb->qcrs[acb->children_read - 1].qiov);
-        }
-        acb->vote_ret = ret;
-        quorum_aio_finalize(acb);
-        return;
-    }
 
     sacb->ret = ret;
     acb->count++;
@@ -664,7 +672,7 @@ static BlockAIOCB *read_fifo_child(QuorumAIOCB *acb)
     qemu_iovec_clone(&acb->qcrs[n].qiov, acb->qiov, acb->qcrs[n].buf);
     bdrv_aio_readv(s->children[n]->bs,
                    acb->sector_num, &acb->qcrs[n].qiov, acb->nb_sectors,
-                   quorum_aio_cb, &acb->qcrs[n]);
+                   quorum_fifo_aio_cb, &acb->qcrs[n]);
 
     return &acb->common;
 }
