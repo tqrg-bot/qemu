@@ -1122,10 +1122,14 @@ TranslationBlock *tb_gen_code(CPUState *cpu,
     if (unlikely(!tb)) {
  buffer_overflow:
         /* flush must be done */
+#ifdef CONFIG_USER_ONLY
+        /* FIXME: kick all other CPUs out also for user-mode emulation.  */
         tb_flush(cpu);
-        /* cannot fail at this point */
-        tb = tb_alloc(pc);
-        assert(tb != NULL);
+        mmap_unlock();
+#else
+        tb_flush_safe(cpu);
+#endif
+        cpu_loop_exit(cpu);
     }
 
     gen_code_buf = tcg_ctx.code_gen_ptr;
