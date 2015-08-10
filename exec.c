@@ -789,6 +789,7 @@ int cpu_breakpoint_insert(CPUState *cpu, vaddr pc, int flags,
 {
     CPUBreakpoint *bp;
 
+    /* TODO: locking (RCU?) */
     bp = g_malloc(sizeof(*bp));
 
     bp->pc = pc;
