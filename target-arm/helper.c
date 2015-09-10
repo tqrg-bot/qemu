@@ -2975,16 +2975,16 @@ static const ARMCPRegInfo v8_cp_reginfo[] = {
       .opc0 = 1, .opc1 = 0, .crn = 7, .crm = 8, .opc2 = 3,
       .access = PL1_W, .type = ARM_CP_NO_RAW, .writefn = ats_write64 },
     { .name = "AT_S12E1R", .state = ARM_CP_STATE_AA64,
-      .opc0 = 1, .opc1 = 0, .crn = 7, .crm = 8, .opc2 = 4,
+      .opc0 = 1, .opc1 = 4, .crn = 7, .crm = 8, .opc2 = 4,
       .access = PL2_W, .type = ARM_CP_NO_RAW, .writefn = ats_write64 },
     { .name = "AT_S12E1W", .state = ARM_CP_STATE_AA64,
-      .opc0 = 1, .opc1 = 0, .crn = 7, .crm = 8, .opc2 = 5,
+      .opc0 = 1, .opc1 = 4, .crn = 7, .crm = 8, .opc2 = 5,
       .access = PL2_W, .type = ARM_CP_NO_RAW, .writefn = ats_write64 },
     { .name = "AT_S12E0R", .state = ARM_CP_STATE_AA64,
-      .opc0 = 1, .opc1 = 0, .crn = 7, .crm = 8, .opc2 = 6,
+      .opc0 = 1, .opc1 = 4, .crn = 7, .crm = 8, .opc2 = 6,
       .access = PL2_W, .type = ARM_CP_NO_RAW, .writefn = ats_write64 },
     { .name = "AT_S12E0W", .state = ARM_CP_STATE_AA64,
-      .opc0 = 1, .opc1 = 0, .crn = 7, .crm = 8, .opc2 = 7,
+      .opc0 = 1, .opc1 = 4, .crn = 7, .crm = 8, .opc2 = 7,
       .access = PL2_W, .type = ARM_CP_NO_RAW, .writefn = ats_write64 },
     /* AT S1E2* are elsewhere as they UNDEF from EL3 if EL2 is not present */
     { .name = "AT_S1E3R", .state = ARM_CP_STATE_AA64,
@@ -2993,6 +2993,12 @@ static const ARMCPRegInfo v8_cp_reginfo[] = {
     { .name = "AT_S1E3W", .state = ARM_CP_STATE_AA64,
       .opc0 = 1, .opc1 = 6, .crn = 7, .crm = 8, .opc2 = 1,
       .access = PL3_W, .type = ARM_CP_NO_RAW, .writefn = ats_write64 },
+    { .name = "PAR_EL1", .state = ARM_CP_STATE_AA64,
+      .type = ARM_CP_ALIAS,
+      .opc0 = 3, .opc1 = 0, .crn = 7, .crm = 4, .opc2 = 0,
+      .access = PL1_RW, .resetvalue = 0,
+      .fieldoffset = offsetof(CPUARMState, cp15.par_el[1]),
+      .writefn = par_write },
 #endif
     /* TLB invalidate last level of translation table walk */
     { .name = "TLBIMVALIS", .cp = 15, .opc1 = 0, .crn = 8, .crm = 3, .opc2 = 5,
@@ -4990,7 +4996,7 @@ int bank_number(int mode)
     case ARM_CPU_MODE_MON:
         return 7;
     }
-    hw_error("bank number requested for bad CPSR mode value 0x%x\n", mode);
+    g_assert_not_reached();
 }
 
 void switch_mode(CPUARMState *env, int mode)
@@ -5228,8 +5234,10 @@ void arm_v7m_cpu_do_interrupt(CPUState *cs)
             nr = arm_lduw_code(env, env->regs[15], env->bswap_code) & 0xff;
             if (nr == 0xab) {
                 env->regs[15] += 2;
+                qemu_log_mask(CPU_LOG_INT,
+                              "...handling as semihosting call 0x%x\n",
+                              env->regs[0]);
                 env->regs[0] = do_arm_semihosting(env);
-                qemu_log_mask(CPU_LOG_INT, "...handled as semihosting call\n");
                 return;
             }
         }
@@ -5322,35 +5330,35 @@ void aarch64_sync_32_to_64(CPUARMState *env)
     }
 
     if (mode == ARM_CPU_MODE_IRQ) {
-        env->xregs[16] = env->regs[13];
-        env->xregs[17] = env->regs[14];
+        env->xregs[16] = env->regs[14];
+        env->xregs[17] = env->regs[13];
     } else {
-        env->xregs[16] = env->banked_r13[bank_number(ARM_CPU_MODE_IRQ)];
-        env->xregs[17] = env->banked_r14[bank_number(ARM_CPU_MODE_IRQ)];
+        env->xregs[16] = env->banked_r14[bank_number(ARM_CPU_MODE_IRQ)];
+        env->xregs[17] = env->banked_r13[bank_number(ARM_CPU_MODE_IRQ)];
     }
 
     if (mode == ARM_CPU_MODE_SVC) {
-        env->xregs[18] = env->regs[13];
-        env->xregs[19] = env->regs[14];
+        env->xregs[18] = env->regs[14];
+        env->xregs[19] = env->regs[13];
     } else {
-        env->xregs[18] = env->banked_r13[bank_number(ARM_CPU_MODE_SVC)];
-        env->xregs[19] = env->banked_r14[bank_number(ARM_CPU_MODE_SVC)];
+        env->xregs[18] = env->banked_r14[bank_number(ARM_CPU_MODE_SVC)];
+        env->xregs[19] = env->banked_r13[bank_number(ARM_CPU_MODE_SVC)];
     }
 
     if (mode == ARM_CPU_MODE_ABT) {
-        env->xregs[20] = env->regs[13];
-        env->xregs[21] = env->regs[14];
+        env->xregs[20] = env->regs[14];
+        env->xregs[21] = env->regs[13];
     } else {
-        env->xregs[20] = env->banked_r13[bank_number(ARM_CPU_MODE_ABT)];
-        env->xregs[21] = env->banked_r14[bank_number(ARM_CPU_MODE_ABT)];
+        env->xregs[20] = env->banked_r14[bank_number(ARM_CPU_MODE_ABT)];
+        env->xregs[21] = env->banked_r13[bank_number(ARM_CPU_MODE_ABT)];
     }
 
     if (mode == ARM_CPU_MODE_UND) {
-        env->xregs[22] = env->regs[13];
-        env->xregs[23] = env->regs[14];
+        env->xregs[22] = env->regs[14];
+        env->xregs[23] = env->regs[13];
     } else {
-        env->xregs[22] = env->banked_r13[bank_number(ARM_CPU_MODE_UND)];
-        env->xregs[23] = env->banked_r14[bank_number(ARM_CPU_MODE_UND)];
+        env->xregs[22] = env->banked_r14[bank_number(ARM_CPU_MODE_UND)];
+        env->xregs[23] = env->banked_r13[bank_number(ARM_CPU_MODE_UND)];
     }
 
     /* Registers x24-x30 are mapped to r8-r14 in FIQ mode.  If we are in FIQ
@@ -5427,35 +5435,35 @@ void aarch64_sync_64_to_32(CPUARMState *env)
     }
 
     if (mode == ARM_CPU_MODE_IRQ) {
-        env->regs[13] = env->xregs[16];
-        env->regs[14] = env->xregs[17];
+        env->regs[14] = env->xregs[16];
+        env->regs[13] = env->xregs[17];
     } else {
-        env->banked_r13[bank_number(ARM_CPU_MODE_IRQ)] = env->xregs[16];
-        env->banked_r14[bank_number(ARM_CPU_MODE_IRQ)] = env->xregs[17];
+        env->banked_r14[bank_number(ARM_CPU_MODE_IRQ)] = env->xregs[16];
+        env->banked_r13[bank_number(ARM_CPU_MODE_IRQ)] = env->xregs[17];
     }
 
     if (mode == ARM_CPU_MODE_SVC) {
-        env->regs[13] = env->xregs[18];
-        env->regs[14] = env->xregs[19];
+        env->regs[14] = env->xregs[18];
+        env->regs[13] = env->xregs[19];
     } else {
-        env->banked_r13[bank_number(ARM_CPU_MODE_SVC)] = env->xregs[18];
-        env->banked_r14[bank_number(ARM_CPU_MODE_SVC)] = env->xregs[19];
+        env->banked_r14[bank_number(ARM_CPU_MODE_SVC)] = env->xregs[18];
+        env->banked_r13[bank_number(ARM_CPU_MODE_SVC)] = env->xregs[19];
     }
 
     if (mode == ARM_CPU_MODE_ABT) {
-        env->regs[13] = env->xregs[20];
-        env->regs[14] = env->xregs[21];
+        env->regs[14] = env->xregs[20];
+        env->regs[13] = env->xregs[21];
     } else {
-        env->banked_r13[bank_number(ARM_CPU_MODE_ABT)] = env->xregs[20];
-        env->banked_r14[bank_number(ARM_CPU_MODE_ABT)] = env->xregs[21];
+        env->banked_r14[bank_number(ARM_CPU_MODE_ABT)] = env->xregs[20];
+        env->banked_r13[bank_number(ARM_CPU_MODE_ABT)] = env->xregs[21];
     }
 
     if (mode == ARM_CPU_MODE_UND) {
-        env->regs[13] = env->xregs[22];
-        env->regs[14] = env->xregs[23];
+        env->regs[14] = env->xregs[22];
+        env->regs[13] = env->xregs[23];
     } else {
-        env->banked_r13[bank_number(ARM_CPU_MODE_UND)] = env->xregs[22];
-        env->banked_r14[bank_number(ARM_CPU_MODE_UND)] = env->xregs[23];
+        env->banked_r14[bank_number(ARM_CPU_MODE_UND)] = env->xregs[22];
+        env->banked_r13[bank_number(ARM_CPU_MODE_UND)] = env->xregs[23];
     }
 
     /* Registers x24-x30 are mapped to r8-r14 in FIQ mode.  If we are in FIQ
@@ -5549,8 +5557,10 @@ void arm_cpu_do_interrupt(CPUState *cs)
             if (((mask == 0x123456 && !env->thumb)
                     || (mask == 0xab && env->thumb))
                   && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
+                qemu_log_mask(CPU_LOG_INT,
+                              "...handling as semihosting call 0x%x\n",
+                              env->regs[0]);
                 env->regs[0] = do_arm_semihosting(env);
-                qemu_log_mask(CPU_LOG_INT, "...handled as semihosting call\n");
                 return;
             }
         }
@@ -5567,8 +5577,10 @@ void arm_cpu_do_interrupt(CPUState *cs)
             if (mask == 0xab
                   && (env->uncached_cpsr & CPSR_M) != ARM_CPU_MODE_USR) {
                 env->regs[15] += 2;
+                qemu_log_mask(CPU_LOG_INT,
+                              "...handling as semihosting call 0x%x\n",
+                              env->regs[0]);
                 env->regs[0] = do_arm_semihosting(env);
-                qemu_log_mask(CPU_LOG_INT, "...handled as semihosting call\n");
                 return;
             }
         }

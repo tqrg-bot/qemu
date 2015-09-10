@@ -24,6 +24,7 @@
 
 #include "glib-compat.h"
 #include "qemu/option.h"
+#include "qemu/host-utils.h"
 
 /* HOST_LONG_BITS is the size of a native pointer in bits. */
 #if UINTPTR_MAX == UINT32_MAX
@@ -199,7 +200,6 @@ int qemu_strnlen(const char *s, int max_len);
  */
 char *qemu_strsep(char **input, const char *delim);
 time_t mktimegm(struct tm *tm);
-int qemu_fls(int i);
 int qemu_fdatasync(int fd);
 int fcntl_setfl(int fd, int flag);
 int qemu_parse_fd(const char *param);
@@ -424,21 +424,6 @@ static inline uint8_t from_bcd(uint8_t val)
 
 /* Round number up to multiple */
 #define QEMU_ALIGN_UP(n, m) QEMU_ALIGN_DOWN((n) + (m) - 1, (m))
-
-static inline bool is_power_of_2(uint64_t value)
-{
-    if (!value) {
-        return 0;
-    }
-
-    return !(value & (value - 1));
-}
-
-/* round down to the nearest power of 2*/
-int64_t pow2floor(int64_t value);
-
-/* round up to the nearest power of 2 (0 if overflow) */
-uint64_t pow2ceil(uint64_t value);
 
 #include "qemu/module.h"
 

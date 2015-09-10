@@ -125,9 +125,7 @@ static void pc_q35_init(MachineState *machine)
         pcms->below_4g_mem_size = machine->ram_size;
     }
 
-    if (xen_enabled() && xen_hvm_init(&pcms->below_4g_mem_size,
-                                      &pcms->above_4g_mem_size,
-                                      &ram_memory) != 0) {
+    if (xen_enabled() && xen_hvm_init(pcms, &ram_memory) != 0) {
         fprintf(stderr, "xen hardware virtual machine initialisation failed\n");
         exit(1);
     }
@@ -165,7 +163,8 @@ static void pc_q35_init(MachineState *machine)
     if (smbios_defaults) {
         /* These values are guest ABI, do not change */
         smbios_set_defaults("QEMU", "Standard PC (Q35 + ICH9, 2009)",
-                            mc->name, smbios_legacy_mode, smbios_uuid_encoded);
+                            mc->name, smbios_legacy_mode, smbios_uuid_encoded,
+                            SMBIOS_ENTRY_POINT_21);
     }
 
     /* allocate ram and load rom/bios */
@@ -369,7 +368,9 @@ static void pc_q35_machine_options(MachineClass *m)
 
 static void pc_q35_2_4_machine_options(MachineClass *m)
 {
+    PCMachineClass *pcmc = PC_MACHINE_CLASS(m);
     pc_q35_machine_options(m);
+    pcmc->broken_reserved_end = true;
     m->default_machine_opts = "firmware=bios-256k.bin";
     m->default_display = "std";
     m->no_floppy = 1;
