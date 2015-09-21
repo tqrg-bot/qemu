@@ -288,14 +288,11 @@ static bool aio_dispatch_handlers(AioContext *ctx, HANDLE event)
     return progress;
 }
 
-bool aio_dispatch(AioContext *ctx)
+void aio_dispatch(AioContext *ctx)
 {
-    bool progress;
-
-    progress = aio_bh_poll(ctx);
-    progress |= aio_dispatch_handlers(ctx, INVALID_HANDLE_VALUE);
-    progress |= timerlistgroup_run_timers(&ctx->tlg);
-    return progress;
+    aio_bh_poll(ctx);
+    aio_dispatch_handlers(ctx, INVALID_HANDLE_VALUE);
+    timerlistgroup_run_timers(&ctx->tlg);
 }
 
 bool aio_poll(AioContext *ctx, bool blocking)
