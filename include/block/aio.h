@@ -289,7 +289,7 @@ bool aio_pending(AioContext *ctx);
  *
  * This is used internally in the implementation of the GSource.
  */
-bool aio_dispatch(AioContext *ctx);
+void aio_dispatch(AioContext *ctx);
 
 /* Progress in completing AIO work to occur.  This can issue new pending
  * aio as a result of executing I/O completion or bh callbacks.
