@@ -305,25 +305,10 @@ bool aio_pending(AioContext *ctx)
     return result;
 }
 
-bool aio_dispatch(AioContext *ctx)
+static bool aio_dispatch_handlers(AioContext *ctx)
 {
     AioHandler *node, *tmp;
     bool progress = false;
-
-    /*
-     * If there are callbacks left that have been queued, we need to call them.
-     * Do not call select in this case, because it is possible that the caller
-     * does not need a complete flush (as is the case for aio_poll loops).
-     */
-    if (aio_bh_poll(ctx)) {
-        progress = true;
-    }
-
-    /*
-     * We have to walk very carefully in case aio_set_fd_handler is
-     * called while we're walking.
-     */
-    qemu_lockcnt_inc(&ctx->list_lock);
 
     QLIST_FOREACH_SAFE_RCU(node, &ctx->aio_handlers, node, tmp) {
         int revents;
@@ -356,12 +341,18 @@ bool aio_dispatch(AioContext *ctx)
         }
     }
 
+    return progress;
+}
+
+void aio_dispatch(AioContext *ctx)
+{
+    aio_bh_poll(ctx);
+
+    qemu_lockcnt_inc(&ctx->list_lock);
+    aio_dispatch_handlers(ctx);
     qemu_lockcnt_dec(&ctx->list_lock);
 
-    /* Run our timers */
-    progress |= timerlistgroup_run_timers(&ctx->tlg);
-
-    return progress;
+    timerlistgroup_run_timers(&ctx->tlg);
 }
 
 /* These thread-local variables are used only in a small part of aio_poll
@@ -472,10 +463,13 @@ bool aio_poll_internal(AioContext *ctx, bool blocking)
     npfd = 0;
     qemu_lockcnt_dec(&ctx->list_lock);
 
-    /* Run dispatch even if there were no readable fds to run timers */
-    if (aio_dispatch(ctx)) {
-        progress = true;
-    }
+    progress |= aio_bh_poll(ctx);
+
+    qemu_lockcnt_inc(&ctx->list_lock);
+    progress |= aio_dispatch_handlers(ctx);
+    qemu_lockcnt_dec(&ctx->list_lock);
+
+    progress |= timerlistgroup_run_timers(&ctx->tlg);
 
     return progress;
 }

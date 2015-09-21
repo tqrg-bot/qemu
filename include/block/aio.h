@@ -286,7 +286,7 @@ bool aio_pending(AioContext *ctx);
  *
  * This is used internally in the implementation of the GSource.
  */
-bool aio_dispatch(AioContext *ctx);
+void aio_dispatch(AioContext *ctx);
 
 /* Same as aio_poll, but only meant for use in the I/O thread.
  *
