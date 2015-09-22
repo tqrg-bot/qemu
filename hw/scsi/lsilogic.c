@@ -37,14 +37,15 @@
  */
 
 
-#include "hw.h"
-#include "pci.h"
-#include "dma.h"
-#include "msix.h"
-#include "iov.h"
-#include "scsi.h"
-#include "scsi-defs.h"
-#include "block_int.h"
+#include "hw/hw.h"
+#include "hw/pci/pci.h"
+#include "sysemu/dma.h"
+#include "sysemu/block-backend.h"
+#include "hw/pci/msi.h"
+#include "hw/pci/msix.h"
+#include "qemu/iov.h"
+#include "hw/scsi/scsi.h"
+#include "block/scsi.h"
 #include "trace.h"
 
 #include "lsilogic.h"
@@ -68,7 +69,7 @@ typedef struct LsilogicCmd {
     uint16_t count;
     uint64_t context;
 
-    target_phys_addr_t host_msg_frame_pa;
+    hwaddr host_msg_frame_pa;
     MptRequestUnion request;
     MptReplyUnion reply;
     SCSIRequest *req;
@@ -191,11 +192,11 @@ static void lsilogic_update_interrupt(LsilogicState *s)
             msix_notify(&s->dev, 0);
         } else {
             trace_lsilogic_irq_raise();
-            qemu_irq_raise(s->dev.irq[0]);
+            pci_set_irq(&s->dev, true);
         }
     } else if (!msix_enabled(&s->dev)) {
         trace_lsilogic_irq_lower();
-        qemu_irq_lower(s->dev.irq[0]);
+        pci_set_irq(&s->dev, false);
     }
 }
 
@@ -238,7 +239,7 @@ static void lsilogic_finish_address_reply(LsilogicState *s,
         int reply_copied = (s->reply_frame_size < sizeof(MptReplyUnion)) ?
                 s->reply_frame_size : sizeof(MptReplyUnion);
 
-        cpu_physical_memory_write((target_phys_addr_t)reply_message_pa,
+        cpu_physical_memory_write((hwaddr)reply_message_pa,
                 (uint8_t *)reply, reply_copied);
 
         /* Write low 32bits of reply frame into post reply queue. */
@@ -311,7 +312,7 @@ static void lsilogic_command_complete(SCSIRequest *req,
     uint8_t sense_buf[SCSI_SENSE_BUF_SIZE];
     uint8_t sense_len;
 
-    target_phys_addr_t sense_buffer_pa =
+    hwaddr sense_buffer_pa =
         cmd->request.SCSIIO.u32SenseBufferLowAddress |
             ((uint64_t)cmd->state->sense_buffer_high_addr << 32);
 
@@ -383,7 +384,7 @@ static void lsilogic_command_cancel(SCSIRequest *req)
 }
 
 static void lsilogic_map_sgl(LsilogicState *s, LsilogicCmd *cmd,
-        target_phys_addr_t sgl_pa, uint32_t chain_offset)
+        hwaddr sgl_pa, uint32_t chain_offset)
 {
     uint32_t iov_count = 0;
     bool do_mapping = false;
@@ -391,13 +392,13 @@ static void lsilogic_map_sgl(LsilogicState *s, LsilogicCmd *cmd,
 
     for (pass = 0; pass < 2; pass++) {
         bool end_of_list = false;
-        target_phys_addr_t next_sge_pa = sgl_pa;
-        target_phys_addr_t seg_start_pa = sgl_pa;
+        hwaddr next_sge_pa = sgl_pa;
+        hwaddr seg_start_pa = sgl_pa;
         uint32_t next_chain_offset = chain_offset;
 
         if (do_mapping) {
             cmd->sge_cnt = iov_count;
-            qemu_sglist_init(&cmd->qsg, iov_count, pci_dma_context(&s->dev));
+            pci_dma_sglist_init(&cmd->qsg, &s->dev, iov_count);
         }
         while (end_of_list == false) {
             bool end_of_seg = false;
@@ -580,7 +581,7 @@ static bool lsilogic_queue_consumer(LsilogicState *s)
         uint32_t u32RequestMessageFrameDesc =
                 s->request_queue[s->request_queue_next_address_read];
         MptRequestUnion request;
-        target_phys_addr_t host_msg_frame_pa;
+        hwaddr host_msg_frame_pa;
 
 
         host_msg_frame_pa = ((uint64_t)s->host_mfa_high_addr) << 32 |
@@ -1530,8 +1531,9 @@ static void lsilogic_process_message(LsilogicState *s, MptMessageHdr *msg,
     }
     case MPT_MESSAGE_HDR_FUNCTION_FW_UPLOAD:
     {
+#if 0
         PMptFWUploadRequest pFWUploadReq = (PMptFWUploadRequest)msg;
-        target_phys_addr_t iov_pa = pFWUploadReq->sge.u32DataBufferAddressLow;
+        hwaddr iov_pa = pFWUploadReq->sge.u32DataBufferAddressLow;
         void *ptr;
 
         reply->FWUpload.u8ImageType        = pFWUploadReq->u8ImageType;
@@ -1549,6 +1551,7 @@ static void lsilogic_process_message(LsilogicState *s, MptMessageHdr *msg,
             pFWUploadReq->TCSge.ImageOffset, pFWUploadReq->sge.u24Length);
         qemu_put_ram_ptr(ptr);
         reply->FWUpload.u32ActualImageSize = memory_region_size(&s->dev.rom);
+#endif
         break;
     }
     case MPT_MESSAGE_HDR_FUNCTION_FW_DOWNLOAD:
@@ -1570,7 +1573,7 @@ static void lsilogic_process_message(LsilogicState *s, MptMessageHdr *msg,
     lsilogic_finish_address_reply(s, reply, fForceReplyPostFifo);
 }
 
-static uint64_t lsilogic_mmio_read(void *opaque, target_phys_addr_t addr,
+static uint64_t lsilogic_mmio_read(void *opaque, hwaddr addr,
                                   unsigned size)
 {
     LsilogicState *s = opaque;
@@ -1635,7 +1638,7 @@ static uint64_t lsilogic_mmio_read(void *opaque, target_phys_addr_t addr,
     return retval;
 }
 
-static void lsilogic_mmio_write(void *opaque, target_phys_addr_t addr,
+static void lsilogic_mmio_write(void *opaque, hwaddr addr,
                                uint64_t val, unsigned size)
 {
     static const uint8_t DiagnosticAccess[] = {0x04, 0x0b, 0x02, 0x07, 0x0d};
@@ -1753,13 +1756,13 @@ static const MemoryRegionOps lsilogic_mmio_ops = {
     }
 };
 
-static uint64_t lsilogic_port_read(void *opaque, target_phys_addr_t addr,
+static uint64_t lsilogic_port_read(void *opaque, hwaddr addr,
                                   unsigned size)
 {
     return lsilogic_mmio_read(opaque, addr & 0xff, size);
 }
 
-static void lsilogic_port_write(void *opaque, target_phys_addr_t addr,
+static void lsilogic_port_write(void *opaque, hwaddr addr,
                                uint64_t val, unsigned size)
 {
     lsilogic_mmio_write(opaque, addr & 0xff, val, size);
@@ -1775,14 +1778,14 @@ static const MemoryRegionOps lsilogic_port_ops = {
     }
 };
 
-static uint64_t lsilogic_diag_read(void *opaque, target_phys_addr_t addr,
+static uint64_t lsilogic_diag_read(void *opaque, hwaddr addr,
                                    unsigned size)
 {
     trace_lsilogic_diag_readl(addr, 0);
     return 0;
 }
 
-static void lsilogic_diag_write(void *opaque, target_phys_addr_t addr,
+static void lsilogic_diag_write(void *opaque, hwaddr addr,
                                uint64_t val, unsigned size)
 {
     trace_lsilogic_diag_writel(addr, val);
@@ -2516,9 +2519,6 @@ static void lsilogic_scsi_uninit(PCIDevice *d)
 #ifdef USE_MSIX
     msix_uninit(&s->dev, &s->mmio_io);
 #endif
-    memory_region_destroy(&s->mmio_io);
-    memory_region_destroy(&s->port_io);
-    memory_region_destroy(&s->diag_io);
 }
 
 static const struct SCSIBusInfo lsilogic_scsi_info = {
@@ -2550,35 +2550,25 @@ static int lsilogic_queues_alloc(LsilogicState *s)
     return 0;
 }
 
-static int lsilogic_scsi_init(PCIDevice *dev, LSILOGICCTRLTYPE ctrl_type)
+static void lsilogic_scsi_init(PCIDevice *dev, LSILOGICCTRLTYPE ctrl_type,
+                               Error **errp)
 {
     LsilogicState *s = DO_UPCAST(LsilogicState, dev, dev);
-    uint8_t *pci_conf;
+    DeviceState *d = DEVICE(dev);
 
     s->ctrl_type = ctrl_type;
 
-    pci_conf = s->dev.config;
-
     /* PCI latency timer = 0 */
-    pci_conf[PCI_LATENCY_TIMER] = 0;
+    dev->config[PCI_LATENCY_TIMER] = 0;
     /* Interrupt pin 1 */
-    pci_conf[PCI_INTERRUPT_PIN] = 0x01;
+    dev->config[PCI_INTERRUPT_PIN] = 0x01;
 
-    if (s->ctrl_type == LSILOGICCTRLTYPE_SCSI_SPI) {
-        memory_region_init_io(&s->mmio_io, &lsilogic_mmio_ops, s,
-                              "lsilogic-mmio", 0x4000);
-        memory_region_init_io(&s->port_io, &lsilogic_port_ops, s,
-                              "lsilogic-io", 256);
-        memory_region_init_io(&s->diag_io, &lsilogic_diag_ops, s,
-                              "lsilogic-diag", 0x10000);
-    } else if (s->ctrl_type == LSILOGICCTRLTYPE_SCSI_SAS) {
-        memory_region_init_io(&s->mmio_io, &lsilogic_mmio_ops, s,
-                              "lsilogic-mmio", 0x4000);
-        memory_region_init_io(&s->port_io, &lsilogic_port_ops, s,
-                              "lsilogic-io", 256);
-        memory_region_init_io(&s->diag_io, &lsilogic_diag_ops, s,
-                              "lsilogic-diag", 0x10000);
-    }
+    memory_region_init_io(&s->mmio_io, OBJECT(s), &lsilogic_mmio_ops, s,
+                          "lsilogic-mmio", 0x4000);
+    memory_region_init_io(&s->port_io, OBJECT(s), &lsilogic_port_ops, s,
+                          "lsilogic-io", 256);
+    memory_region_init_io(&s->diag_io, OBJECT(s), &lsilogic_diag_ops, s,
+                          "lsilogic-diag", 0x10000);
 
 #ifdef USE_MSIX
     /* MSI-X support is currently broken */
@@ -2622,19 +2612,20 @@ static int lsilogic_scsi_init(PCIDevice *dev, LSILOGICCTRLTYPE ctrl_type)
         s->max_devices = s->ports * LSILOGICSCSI_PCI_SAS_DEVICES_PER_PORT_MAX;
     }
 
-    scsi_bus_new(&s->bus, &dev->qdev, &lsilogic_scsi_info);
-    scsi_bus_legacy_handle_cmdline(&s->bus);
-    return 0;
+    scsi_bus_new(&s->bus, sizeof(s->bus), &dev->qdev, &lsilogic_scsi_info, NULL);
+    if (!d->hotplugged) {
+        scsi_bus_legacy_handle_cmdline(&s->bus, errp);
+    }
 }
 
-static int lsilogic_scsi_spi_init(PCIDevice *dev)
+static void lsilogic_scsi_spi_init(PCIDevice *dev, Error **errp)
 {
-    return lsilogic_scsi_init(dev, LSILOGICCTRLTYPE_SCSI_SPI);
+    return lsilogic_scsi_init(dev, LSILOGICCTRLTYPE_SCSI_SPI, errp);
 }
 
-static int lsilogic_scsi_sas_init(PCIDevice *dev)
+static void lsilogic_scsi_sas_init(PCIDevice *dev, Error **errp)
 {
-    return lsilogic_scsi_init(dev, LSILOGICCTRLTYPE_SCSI_SAS);
+    return lsilogic_scsi_init(dev, LSILOGICCTRLTYPE_SCSI_SAS, errp);
 }
 
 static Property lsilogicscsi_properties[] = {
@@ -2648,7 +2639,7 @@ static Property lsilogicscsi_properties[] = {
 static Property lsilogicsas_properties[] = {
     DEFINE_PROP_UINT32("ports", LsilogicState, ports,
                        LSILOGICSCSI_PCI_SAS_PORTS_DEFAULT),
-    DEFINE_PROP_HEX64("sas_address", LsilogicState, sas_addr, 0),
+    DEFINE_PROP_UINT64("sas_address", LsilogicState, sas_addr, 0),
 #ifdef USE_MSIX
     DEFINE_PROP_BIT("use_msix", LsilogicState, flags,
                     LSILOGIC_FLAG_USE_MSIX, false),
@@ -2661,7 +2652,7 @@ static void lsilogicscsi_class_init(ObjectClass *oc, void *data)
     DeviceClass *dc = DEVICE_CLASS(oc);
     PCIDeviceClass *pc = PCI_DEVICE_CLASS(oc);
 
-    pc->init = lsilogic_scsi_spi_init;
+    pc->realize = lsilogic_scsi_spi_init;
     pc->exit = lsilogic_scsi_uninit;
     pc->vendor_id = PCI_VENDOR_ID_LSI_LOGIC;
     pc->device_id = PCI_DEVICE_ID_LSI_53C1030;
@@ -2679,7 +2670,7 @@ static void lsilogicsas_class_init(ObjectClass *oc, void *data)
     DeviceClass *dc = DEVICE_CLASS(oc);
     PCIDeviceClass *pc = PCI_DEVICE_CLASS(oc);
 
-    pc->init = lsilogic_scsi_sas_init;
+    pc->realize = lsilogic_scsi_sas_init;
     pc->exit = lsilogic_scsi_uninit;
     pc->romfile = 0;
     pc->vendor_id = PCI_VENDOR_ID_LSI_LOGIC;
@@ -2698,7 +2689,7 @@ static void lsilogicsase_class_init(ObjectClass *oc, void *data)
     DeviceClass *dc = DEVICE_CLASS(oc);
     PCIDeviceClass *pc = PCI_DEVICE_CLASS(oc);
 
-    pc->init = lsilogic_scsi_sas_init;
+    pc->realize = lsilogic_scsi_sas_init;
     pc->exit = lsilogic_scsi_uninit;
     pc->romfile = 0;
     pc->vendor_id = PCI_VENDOR_ID_LSI_LOGIC;
