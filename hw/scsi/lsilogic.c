@@ -166,11 +166,6 @@ static bool lsilogic_use_msix(LsilogicState *s)
     return s->flags & LSILOGIC_MASK_USE_MSIX;
 }
 
-static bool lsilogic_is_sas(LsilogicState *s)
-{
-    return true;
-}
-
 static uint16_t lsilogicGetHandle(LsilogicState *s)
 {
     uint16_t u16Handle = s->next_handle++;
@@ -1867,7 +1862,7 @@ static void lsilogic_init_config_pages_spi(LsilogicState *s)
     PMptConfigurationPagesSpi pPages = &s->config_pages->u.SpiPages;
 
     /* Clear everything first. */
-    memset(pPages, 0, sizeof(PMptConfigurationPagesSpi));
+    memset(pPages, 0, sizeof(MptConfigurationPagesSpi));
 
     for (i = 0; i < RT_ELEMENTS(pPages->aPortPages); i++) {
         /* SCSI-SPI port page 0. */
@@ -2249,7 +2244,7 @@ static void lsilogic_init_config_pages(LsilogicState *s)
     strncpy((char *)pPages->ManufacturingPage0.u.fields.abBoardName,
                                                     "QEMU MPT Fusion", 16);
     strncpy((char *)pPages->ManufacturingPage0.u.fields.abBoardAssembly,
-                                                    "Verizon", 8);
+                                                    "QEMU", 8);
     strncpy((char *)pPages->ManufacturingPage0.u.fields.abBoardTracerNumber,
                                                     "DEADBEEFDEADBEEF", 16);
 
@@ -2600,10 +2595,6 @@ static void lsilogic_scsi_init(PCIDevice *dev, LSILOGICCTRLTYPE ctrl_type,
     s->reply_queue_entries = LSILOGICSCSI_REPLY_QUEUE_DEPTH_DEFAULT + 1;
     s->request_queue_entries = LSILOGICSCSI_REQUEST_QUEUE_DEPTH_DEFAULT + 1;
     lsilogic_queues_alloc(s);
-
-    trace_lsilogic_init(0, 0,
-                       lsilogic_use_msix(s) ? "MSI-X" : "INTx",
-                       lsilogic_is_sas(s) ? "sas" : "scsi");
 
     if (s->ctrl_type == LSILOGICCTRLTYPE_SCSI_SPI) {
         s->ports = LSILOGICSCSI_PCI_SPI_PORTS_MAX;
