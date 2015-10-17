@@ -227,6 +227,8 @@ struct kvm_run;
  * @tcg_exit_req: Set to force TCG to stop executing linked TBs for this
  *           CPU and return to its top level loop.
  * @tb_invalidated_flag: Set to tell TCG that tb_flush has been called.
+ * It is only cleared while holding the tb_lock, so that no tb_flush can
+ * happen concurrently.
  * @singlestep_enabled: Flags for single-stepping.
  * @icount_extra: Instructions until next timer event.
  * @icount_decr: Number of cycles left, with interrupt flag in high bit.

@@ -222,8 +222,9 @@ static TranslationBlock *tb_find_physical(CPUState *cpu,
     phys_page1 = phys_pc & TARGET_PAGE_MASK;
     h = tb_phys_hash_func(phys_pc);
     for (ptb1 = &tcg_ctx.tb_ctx.tb_phys_hash[h];
-         (tb = *ptb1) != NULL;
+         (tb = atomic_read(ptb1)) != NULL;
          ptb1 = &tb->phys_hash_next) {
+        smp_read_barrier_depends();
         if (tb->pc != pc ||
             tb->page_addr[0] != phys_page1 ||
             tb->cs_base != cs_base ||
@@ -246,10 +247,18 @@ static TranslationBlock *tb_find_physical(CPUState *cpu,
         }
     }
 
-    /* Move the TB to the head of the list */
-    *ptb1 = tb->phys_hash_next;
-    tb->phys_hash_next = tcg_ctx.tb_ctx.tb_phys_hash[h];
-    tcg_ctx.tb_ctx.tb_phys_hash[h] = tb;
+    if (!tb) {
+        return NULL;
+    }
+
+    /* If tb_flush was called since the last time we released the lock,
+     * forget about this TB.
+     */
+    smp_rmb();
+    if (atomic_read(&cpu->tb_invalidated_flag)) {
+        return NULL;
+    }
+
     return tb;
 }
 
@@ -260,36 +269,31 @@ static TranslationBlock *tb_find_slow(CPUState *cpu,
 {
     TranslationBlock *tb;
 
-    tb = tb_find_physical(cpu, pc, cs_base, flags);
-    if (tb) {
-        goto found;
-    }
-
-#ifdef CONFIG_USER_ONLY
-    /* mmap_lock is needed by tb_gen_code, and mmap_lock must be
-     * taken outside tb_lock.  Since we're momentarily dropping
-     * tb_lock, there's a chance that our desired tb has been
-     * translated.
+    /* First try to get the tb.  If we don't find it we need to lock and
+     * compile it.
      */
-    tb_unlock();
-    mmap_lock();
-    tb_lock();
     tb = tb_find_physical(cpu, pc, cs_base, flags);
-    if (tb) {
-        mmap_unlock();
-        goto found;
-    }
-#endif
-
-    /* if no translated code available, then translate it now */
-    cpu->tb_invalidated_flag = 0;
-    tb = tb_gen_code(cpu, pc, cs_base, flags, 0);
-
+    if (!tb) {
 #ifdef CONFIG_USER_ONLY
-    mmap_unlock();
-#endif
+        /* mmap_lock is needed by tb_gen_code, and mmap_lock must be
+         * taken outside tb_lock.  tb_lock is released later in
+         * cpu_exec.
+         */
+        mmap_lock();
+        tb_lock();
 
-found:
+        /* Retry to get the TB in case a CPU just translate it to avoid having
+         * duplicated TB in the pool.
+         */
+        tb = tb_find_physical(cpu, pc, cs_base, flags);
+#endif
+        if (!tb) {
+            /* if no translated code available, then translate it now */
+            tb = tb_gen_code(cpu, pc, cs_base, flags, 0);
+        }
+        mmap_unlock();
+    }
+
     /* we add the TB in the virtual pc hash table */
     cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)] = tb;
     return tb;
@@ -307,6 +311,8 @@ static inline TranslationBlock *tb_find_fast(CPUState *cpu)
        is executed. */
     cpu_get_tb_cpu_state(env, &pc, &cs_base, &flags);
     tb = cpu->tb_jmp_cache[tb_jmp_cache_hash_func(pc)];
+    /* Read tb_jmp_cache before tb->pc.  */
+    smp_read_barrier_depends();
     if (unlikely(!tb || tb->pc != pc || tb->cs_base != cs_base ||
                  tb->flags != flags)) {
         tb = tb_find_slow(cpu, pc, cs_base, flags);
@@ -457,15 +463,18 @@ int cpu_exec(CPUState *cpu)
                     cpu->exception_index = EXCP_INTERRUPT;
                     cpu_loop_exit(cpu);
                 }
-                tb_lock();
                 tb = tb_find_fast(cpu);
                 /* Note: we do it here to avoid a gcc bug on Mac OS X when
                    doing it in tb_find_slow */
-                if (cpu->tb_invalidated_flag) {
+                if (atomic_read(&cpu->tb_invalidated_flag)) {
                     /* as some TB could have been invalidated because
                        of a tb_flush while generating the code, we
                        must recompute the hash index here */
                     next_tb = 0;
+
+                    /* Clear the flag, we've now observed the flush.  */
+                    tb_lock_recursive();
+                    cpu->tb_invalidated_flag = 0;
                 }
                 if (qemu_loglevel_mask(CPU_LOG_EXEC)) {
                     qemu_log("Trace %p [" TARGET_FMT_lx "] %s\n",
@@ -475,10 +484,14 @@ int cpu_exec(CPUState *cpu)
                    spans two pages, we cannot safely do a direct
                    jump. */
                 if (next_tb != 0 && tb->page_addr[1] == -1) {
+                    tb_lock_recursive();
                     tb_add_jump((TranslationBlock *)(next_tb & ~TB_EXIT_MASK),
                                 next_tb & TB_EXIT_MASK, tb);
                 }
-                tb_unlock();
+                /* The lock may not be taken if we went through the
+                 * fast lookup path and did not have to do any patching.
+                 */
+                tb_lock_reset();
                 if (likely(!cpu->exit_request)) {
                     trace_exec_tb(tb, tb->pc);
                     tc_ptr = tb->tc_ptr;

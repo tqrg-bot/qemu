@@ -149,6 +149,17 @@ void tb_unlock(void)
 #endif
 }
 
+bool tb_lock_recursive(void)
+{
+#ifdef CONFIG_USER_ONLY
+    if(have_tb_lock) {
+        return false;
+    }
+    tb_lock();
+#endif
+    return true;
+}
+
 void tb_lock_reset(void)
 {
 #ifdef CONFIG_USER_ONLY
@@ -847,7 +858,8 @@ void tb_flush(CPUState *cpu)
     tcg_ctx.tb_ctx.nb_tbs = 0;
 
     CPU_FOREACH(cpu) {
-        cpu->tb_invalidated_flag = 1;
+        atomic_set(&cpu->tb_invalidated_flag, 1);
+        smp_wmb();
         memset(cpu->tb_jmp_cache, 0, sizeof(cpu->tb_jmp_cache));
     }
 
@@ -982,6 +994,9 @@ void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr)
      */
     pc = tb->pc;
     tb->pc = -1;
+
+    /* Pairs with smp_read_barrier_depends() in tb_find_fast.  */
+    smp_wmb();
 
     /* Then suppress this TB from the two jump lists.  CPUs will not jump
      * anymore into this translation block.
@@ -1482,7 +1497,13 @@ static void tb_link_page(TranslationBlock *tb, tb_page_addr_t phys_pc,
     /* add in the physical hash table */
     h = tb_phys_hash_func(phys_pc);
     ptb = &tcg_ctx.tb_ctx.tb_phys_hash[h];
+
+    /* Both write barriers pair with tb_find_physical's
+     * smp_read_barrier_depends.
+     */
+    smp_wmb();
     tb->phys_hash_next = *ptb;
+    smp_wmb();
     *ptb = tb;
 
     /* add in the page list */
