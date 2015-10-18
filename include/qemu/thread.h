@@ -3,6 +3,8 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <errno.h>
+#include "qemu/atomic.h"
 
 typedef struct QemuMutex QemuMutex;
 typedef struct QemuCond QemuCond;
@@ -61,5 +63,34 @@ void qemu_thread_naming(bool enable);
 struct Notifier;
 void qemu_thread_atexit_add(struct Notifier *notifier);
 void qemu_thread_atexit_remove(struct Notifier *notifier);
+
+typedef struct QemuSpin {
+    int value;
+} QemuSpin;
+
+static inline void qemu_spin_init(QemuSpin *spin)
+{
+    spin->value = 0;
+}
+
+static inline void qemu_spin_lock(QemuSpin *spin)
+{
+    do {
+        while (atomic_read(&spin->value));
+    } while (atomic_xchg(&spin->value, true));
+}
+
+static inline int qemu_spin_trylock(QemuSpin *spin)
+{
+    if (atomic_read(&spin->value) || atomic_xchg(&spin->value, true)) {
+        return -EBUSY;
+    }
+    return 0;
+}
+
+static inline void qemu_spin_unlock(QemuSpin *spin)
+{
+    atomic_mb_set(&spin->value, 0);
+}
 
 #endif
