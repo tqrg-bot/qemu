@@ -150,6 +150,7 @@ static AIOCBInfo quorum_aiocb_info = {
     .cancel_async       = quorum_aio_cancel,
 };
 
+/* Called _without_ acquiring AioContext.  */
 static void quorum_aio_finalize(QuorumAIOCB *acb)
 {
     int i, ret = 0;
@@ -276,12 +277,15 @@ static void quorum_fifo_aio_cb(void *opaque, int ret)
     QuorumChildRequest *sacb = opaque;
     QuorumAIOCB *acb = sacb->parent;
     BDRVQuorumState *s = acb->common.bs->opaque;
+    AioContext *ctx = bdrv_get_aio_context(acb->common.bs);
 
+    aio_context_acquire(ctx);
     assert(acb->is_read && s->read_pattern == QUORUM_READ_PATTERN_FIFO);
 
     /* We try to read next child in FIFO order if we fail to read */
     if (ret < 0 && acb->children_read < s->num_children) {
         read_fifo_child(acb);
+        aio_context_release(ctx);
         return;
     }
 
@@ -289,6 +293,7 @@ static void quorum_fifo_aio_cb(void *opaque, int ret)
         quorum_copy_qiov(acb->qiov, &acb->qcrs[acb->children_read - 1].qiov);
     }
     acb->vote_ret = ret;
+    aio_context_release(ctx);
 
     /* FIXME: rewrite failed children if acb->children_read > 1? */
     quorum_aio_finalize(acb);
@@ -299,7 +304,10 @@ static void quorum_aio_cb(void *opaque, int ret)
     QuorumChildRequest *sacb = opaque;
     QuorumAIOCB *acb = sacb->parent;
     BDRVQuorumState *s = acb->common.bs->opaque;
+    AioContext *ctx = bdrv_get_aio_context(acb->common.bs);
     bool rewrite = false;
+
+    aio_context_acquire(ctx);
 
     sacb->ret = ret;
     acb->count++;
@@ -310,7 +318,9 @@ static void quorum_aio_cb(void *opaque, int ret)
     }
     assert(acb->count <= s->num_children);
     assert(acb->success_count <= s->num_children);
+
     if (acb->count < s->num_children) {
+        aio_context_release(ctx);
         return;
     }
 
@@ -320,6 +330,8 @@ static void quorum_aio_cb(void *opaque, int ret)
     } else {
         quorum_has_too_much_io_failed(acb);
     }
+
+    aio_context_release(ctx);
 
     /* if no rewrite is done the code will finish right away */
     if (!rewrite) {

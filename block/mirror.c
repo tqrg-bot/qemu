@@ -146,6 +146,8 @@ static void mirror_write_complete(void *opaque, int ret)
 {
     MirrorOp *op = opaque;
     MirrorBlockJob *s = op->s;
+
+    aio_context_acquire(bdrv_get_aio_context(s->common.bs));
     if (ret < 0) {
         BlockErrorAction action;
 
@@ -156,12 +158,15 @@ static void mirror_write_complete(void *opaque, int ret)
         }
     }
     mirror_iteration_done(op, ret);
+    aio_context_release(bdrv_get_aio_context(s->common.bs));
 }
 
 static void mirror_read_complete(void *opaque, int ret)
 {
     MirrorOp *op = opaque;
     MirrorBlockJob *s = op->s;
+
+    aio_context_acquire(bdrv_get_aio_context(s->common.bs));
     if (ret < 0) {
         BlockErrorAction action;
 
@@ -172,10 +177,11 @@ static void mirror_read_complete(void *opaque, int ret)
         }
 
         mirror_iteration_done(op, ret);
-        return;
+    } else {
+        bdrv_aio_writev(s->target, op->sector_num, &op->qiov, op->nb_sectors,
+                        mirror_write_complete, op);
     }
-    bdrv_aio_writev(s->target, op->sector_num, &op->qiov, op->nb_sectors,
-                    mirror_write_complete, op);
+    aio_context_release(bdrv_get_aio_context(s->common.bs));
 }
 
 /* Round sector_num and/or nb_sectors to target cluster if COW is needed, and

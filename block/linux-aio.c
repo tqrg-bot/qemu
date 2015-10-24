@@ -90,9 +90,7 @@ static void qemu_laio_process_completion(struct qemu_laiocb *laiocb)
             }
         }
     }
-    aio_context_acquire(s->aio_context);
     laiocb->common.cb(laiocb->common.opaque, ret);
-    aio_context_release(s->aio_context);
 
     qemu_aio_unref(laiocb);
 }
