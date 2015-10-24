@@ -376,7 +376,6 @@ static int qemu_rbd_create(const char *filename, QemuOpts *opts, Error **errp)
 static void qemu_rbd_complete_aio(RADOSCB *rcb)
 {
     RBDAIOCB *acb = rcb->acb;
-    AioContext *ctx = bdrv_get_aio_context(acb->common.bs);
     int64_t r;
 
     r = rcb->ret;
@@ -409,10 +408,7 @@ static void qemu_rbd_complete_aio(RADOSCB *rcb)
         qemu_iovec_from_buf(acb->qiov, 0, acb->bounce, acb->qiov->size);
     }
     qemu_vfree(acb->bounce);
-
-    aio_context_acquire(ctx);
     acb->common.cb(acb->common.opaque, (acb->ret > 0 ? 0 : acb->ret));
-    aio_context_release(ctx);
 
     qemu_aio_unref(acb);
 }

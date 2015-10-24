@@ -185,7 +185,9 @@ restart:
              */
             qemu_bh_schedule(pool->completion_bh);
 
+            aio_context_release(pool->ctx);
             elem->common.cb(elem->common.opaque, elem->ret);
+            aio_context_acquire(pool->ctx);
             qemu_aio_unref(elem);
             goto restart;
         } else {
@@ -261,21 +263,29 @@ BlockAIOCB *thread_pool_submit_aio(ThreadPool *pool,
 
 typedef struct ThreadPoolCo {
     Coroutine *co;
+    AioContext *ctx;
     int ret;
 } ThreadPoolCo;
 
 static void thread_pool_co_cb(void *opaque, int ret)
 {
     ThreadPoolCo *co = opaque;
+    AioContext *ctx = co->ctx;
 
     co->ret = ret;
+    aio_context_acquire(ctx);
     qemu_coroutine_enter(co->co, NULL);
+    aio_context_release(ctx);
 }
 
 int coroutine_fn thread_pool_submit_co(ThreadPool *pool, ThreadPoolFunc *func,
                                        void *arg)
 {
-    ThreadPoolCo tpc = { .co = qemu_coroutine_self(), .ret = -EINPROGRESS };
+    ThreadPoolCo tpc = {
+        .co = qemu_coroutine_self(),
+        .ctx = pool->ctx,
+        .ret = -EINPROGRESS
+    };
     assert(qemu_in_coroutine());
     thread_pool_submit_aio(pool, func, arg, thread_pool_co_cb, &tpc);
     qemu_coroutine_yield();
