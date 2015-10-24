@@ -2097,15 +2097,12 @@ static void bdrv_aio_bh_cb(void *opaque)
 {
     BlockAIOCBSync *acb = opaque;
     BlockDriverState *bs = acb->common.bs;
-    AioContext *ctx = bdrv_get_aio_context(bs);
 
     if (!acb->is_write && acb->ret >= 0) {
         qemu_iovec_from_buf(acb->qiov, 0, acb->bounce, acb->qiov->size);
     }
     qemu_vfree(acb->bounce);
-    aio_context_acquire(ctx);
     acb->common.cb(acb->common.opaque, acb->ret);
-    aio_context_release(ctx);
     qemu_bh_delete(acb->bh);
     bdrv_dec_in_flight(bs);
     acb->bh = NULL;
@@ -2184,15 +2181,10 @@ static void bdrv_co_complete(BlockAIOCBCoroutine *acb)
 static void bdrv_co_em_bh(void *opaque)
 {
     BlockAIOCBCoroutine *acb = opaque;
-    BlockDriverState *bs = acb->common.bs;
-    AioContext *ctx = bdrv_get_aio_context(bs);
 
     assert(!acb->need_bh);
     qemu_bh_delete(acb->bh);
-
-    aio_context_acquire(ctx);
     bdrv_co_complete(acb);
-    aio_context_release(ctx);
 }
 
 static void bdrv_co_maybe_schedule_bh(BlockAIOCBCoroutine *acb)
@@ -2352,15 +2344,19 @@ void qemu_aio_unref(void *p)
 
 typedef struct CoroutineIOCompletion {
     Coroutine *coroutine;
+    AioContext *ctx;
     int ret;
 } CoroutineIOCompletion;
 
 static void bdrv_co_io_em_complete(void *opaque, int ret)
 {
     CoroutineIOCompletion *co = opaque;
+    AioContext *ctx = co->ctx;
 
     co->ret = ret;
+    aio_context_acquire(ctx);
     qemu_coroutine_enter(co->coroutine, NULL);
+    aio_context_release(ctx);
 }
 
 static int coroutine_fn bdrv_co_io_em(BlockDriverState *bs, int64_t sector_num,
@@ -2369,6 +2365,7 @@ static int coroutine_fn bdrv_co_io_em(BlockDriverState *bs, int64_t sector_num,
 {
     CoroutineIOCompletion co = {
         .coroutine = qemu_coroutine_self(),
+        .ctx = bdrv_get_aio_context(bs),
     };
     BlockAIOCB *acb;
 
@@ -2448,6 +2445,7 @@ int coroutine_fn bdrv_co_flush(BlockDriverState *bs)
         BlockAIOCB *acb;
         CoroutineIOCompletion co = {
             .coroutine = qemu_coroutine_self(),
+            .ctx = bdrv_get_aio_context(bs),
         };
 
         acb = bs->drv->bdrv_aio_flush(bs, bdrv_co_io_em_complete, &co);
@@ -2576,6 +2574,7 @@ int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
             BlockAIOCB *acb;
             CoroutineIOCompletion co = {
                 .coroutine = qemu_coroutine_self(),
+                .ctx = bdrv_get_aio_context(bs),
             };
 
             acb = bs->drv->bdrv_aio_discard(bs, sector_num, nb_sectors,

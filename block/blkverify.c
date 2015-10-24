@@ -190,23 +190,22 @@ static BlkverifyAIOCB *blkverify_aio_get(BlockDriverState *bs, bool is_write,
 static void blkverify_aio_bh(void *opaque)
 {
     BlkverifyAIOCB *acb = opaque;
-    AioContext *ctx = bdrv_get_aio_context(acb->common.bs);
 
     qemu_bh_delete(acb->bh);
     if (acb->buf) {
         qemu_iovec_destroy(&acb->raw_qiov);
         qemu_vfree(acb->buf);
     }
-    aio_context_acquire(ctx);
     acb->common.cb(acb->common.opaque, acb->ret);
-    aio_context_release(ctx);
     qemu_aio_unref(acb);
 }
 
 static void blkverify_aio_cb(void *opaque, int ret)
 {
     BlkverifyAIOCB *acb = opaque;
+    AioContext *ctx = bdrv_get_aio_context(acb->common.bs);
 
+    aio_context_acquire(ctx);
     switch (++acb->done) {
     case 1:
         acb->ret = ret;
@@ -221,11 +220,11 @@ static void blkverify_aio_cb(void *opaque, int ret)
             acb->verify(acb);
         }
 
-        acb->bh = aio_bh_new(bdrv_get_aio_context(acb->common.bs),
-                             blkverify_aio_bh, acb);
+        acb->bh = aio_bh_new(ctx, blkverify_aio_bh, acb);
         qemu_bh_schedule(acb->bh);
         break;
     }
+    aio_context_release(ctx);
 }
 
 static void blkverify_verify_readv(BlkverifyAIOCB *acb)

@@ -819,12 +819,8 @@ int blk_write_zeroes(BlockBackend *blk, int64_t sector_num,
 static void error_callback_bh(void *opaque)
 {
     struct BlockBackendAIOCB *acb = opaque;
-    AioContext *ctx = bdrv_get_aio_context(acb->common.bs);
-
     qemu_bh_delete(acb->bh);
-    aio_context_acquire(ctx);
     acb->common.cb(acb->common.opaque, acb->ret);
-    aio_context_release(ctx);
     qemu_aio_unref(acb);
 }
 
