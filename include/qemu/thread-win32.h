@@ -7,6 +7,16 @@ struct QemuMutex {
     LONG owner;
 };
 
+typedef struct QemuRecMutex QemuRecMutex;
+struct QemuRecMutex {
+    CRITICAL_SECTION lock;
+};
+
+void qemu_rec_mutex_destroy(QemuMutex *mutex);
+void qemu_rec_mutex_lock(QemuMutex *mutex);
+int qemu_rec_mutex_trylock(QemuMutex *mutex);
+void qemu_rec_mutex_unlock(QemuMutex *mutex);
+
 struct QemuCond {
     LONG waiters, target;
     HANDLE sema;
