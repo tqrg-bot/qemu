@@ -19,7 +19,6 @@
 #include "qemu/queue.h"
 #include "qemu/event_notifier.h"
 #include "qemu/thread.h"
-#include "qemu/rfifolock.h"
 #include "qemu/timer.h"
 
 typedef struct BlockAIOCB BlockAIOCB;
@@ -52,7 +51,7 @@ struct AioContext {
     GSource source;
 
     /* Protects all fields from multi-threaded access */
-    RFifoLock lock;
+    QemuRecMutex lock;
 
     /* The list of registered AIO handlers */
     QLIST_HEAD(, AioHandler) aio_handlers;
