@@ -27,7 +27,6 @@
 #include "qom/object_interfaces.h"
 
 struct VirtIOBlockDataPlane {
-    bool started;
     bool starting;
     bool stopping;
     bool disabled;
@@ -222,11 +221,7 @@ void virtio_blk_data_plane_start(VirtIOBlockDataPlane *s)
     VirtQueue *vq;
     int r;
 
-    if (s->started || s->disabled) {
-        return;
-    }
-
-    if (s->starting) {
+    if (vblk->dataplane_started || s->starting) {
         return;
     }
 
@@ -258,7 +253,7 @@ void virtio_blk_data_plane_start(VirtIOBlockDataPlane *s)
     vblk->complete_request = complete_request_vring;
 
     s->starting = false;
-    s->started = true;
+    vblk->dataplane_started = true;
     trace_virtio_blk_data_plane_start(s);
 
     blk_set_aio_context(s->conf->conf.blk, s->ctx);
@@ -277,9 +272,10 @@ void virtio_blk_data_plane_start(VirtIOBlockDataPlane *s)
     k->set_guest_notifiers(qbus->parent, 1, false);
   fail_guest_notifiers:
     vring_teardown(&s->vring, s->vdev, 0);
-    s->disabled = true;
   fail_vring:
+    s->disabled = true;
     s->starting = false;
+    vblk->dataplane_started = true;
 }
 
 /* Context: QEMU global mutex held */
@@ -289,13 +285,14 @@ void virtio_blk_data_plane_stop(VirtIOBlockDataPlane *s)
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
     VirtIOBlock *vblk = VIRTIO_BLK(s->vdev);
 
+    if (!vblk->dataplane_started || s->stopping) {
+        return;
+    }
 
     /* Better luck next time. */
     if (s->disabled) {
         s->disabled = false;
-        return;
-    }
-    if (!s->started || s->stopping) {
+        vblk->dataplane_started = false;
         return;
     }
     s->stopping = true;
@@ -322,6 +319,6 @@ void virtio_blk_data_plane_stop(VirtIOBlockDataPlane *s)
     /* Clean up guest notifier (irq) */
     k->set_guest_notifiers(qbus->parent, 1, false);
 
-    s->started = false;
+    vblk->dataplane_started = false;
     s->stopping = false;
 }
