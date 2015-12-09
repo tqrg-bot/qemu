@@ -1092,7 +1092,11 @@ void virtio_queue_notify_vq(VirtQueue *vq)
         VirtIODevice *vdev = vq->vdev;
 
         trace_virtio_queue_notify(vdev, vq - vdev->vq, vq);
+
+        /* Taking RCU here makes calls to address_space_read a bit cheaper.  */
+        rcu_read_lock();
         vq->handle_output(vdev, vq);
+        rcu_read_unlock();
     }
 }
 
