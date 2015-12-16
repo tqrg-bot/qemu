@@ -19,8 +19,8 @@
 #include "qemu/iov.h"
 #include "qemu/sockets.h"
 
-size_t iov_from_buf(const struct iovec *iov, unsigned int iov_cnt,
-                    size_t offset, const void *buf, size_t bytes)
+size_t iov_from_buf_full(const struct iovec *iov, unsigned int iov_cnt,
+                         size_t offset, const void *buf, size_t bytes)
 {
     size_t done;
     unsigned int i;
@@ -38,8 +38,8 @@ size_t iov_from_buf(const struct iovec *iov, unsigned int iov_cnt,
     return done;
 }
 
-size_t iov_to_buf(const struct iovec *iov, const unsigned int iov_cnt,
-                  size_t offset, void *buf, size_t bytes)
+size_t iov_to_buf_full(const struct iovec *iov, const unsigned int iov_cnt,
+                       size_t offset, void *buf, size_t bytes)
 {
     size_t done;
     unsigned int i;
