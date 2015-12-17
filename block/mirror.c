@@ -31,6 +31,12 @@ typedef struct MirrorBuffer {
     QSIMPLEQ_ENTRY(MirrorBuffer) next;
 } MirrorBuffer;
 
+typedef enum MirrorPhase {
+    MIRROR_PHASE_BULK,
+    MIRROR_PHASE_SYNCED,
+    MIRROR_PHASE_COMPLETING,
+} MirrorPhase;
+
 typedef struct MirrorBlockJob {
     BlockJob common;
     RateLimit limit;
@@ -44,8 +50,7 @@ typedef struct MirrorBlockJob {
     Error *replace_blocker;
     bool is_none_mode;
     BlockdevOnError on_source_error, on_target_error;
-    bool synced;
-    bool should_complete;
+    MirrorPhase phase;
     int64_t sector_num;
     int64_t granularity;
     size_t buf_size;
@@ -75,7 +80,7 @@ typedef struct MirrorOp {
 static BlockErrorAction mirror_error_action(MirrorBlockJob *s, bool read,
                                             int error)
 {
-    s->synced = false;
+    s->phase = MIRROR_PHASE_BULK;
     if (read) {
         return block_job_error_action(&s->common, s->common.bs,
                                       s->on_source_error, true, error);
@@ -262,7 +267,7 @@ static uint64_t coroutine_fn mirror_iteration(MirrorBlockJob *s)
         nb_chunks += added_chunks;
         next_sector += added_sectors;
         next_chunk += added_chunks;
-        if (!s->synced && s->common.speed) {
+        if (s->phase == MIRROR_PHASE_BULK && s->common.speed) {
             delay_ns = ratelimit_calculate_delay(&s->limit, added_sectors);
         }
     } while (delay_ns == 0 && next_sector < end);
@@ -368,7 +373,7 @@ static void mirror_exit(BlockJob *job, void *opaque)
         aio_context_acquire(replace_aio_context);
     }
 
-    if (s->should_complete && data->ret == 0) {
+    if (s->phase >= MIRROR_PHASE_COMPLETING && data->ret == 0) {
         BlockDriverState *to_replace = s->common.bs;
         if (s->to_replace) {
             to_replace = s->to_replace;
@@ -406,6 +411,12 @@ out:
     bdrv_unref(src);
 }
 
+static bool mirror_should_complete(MirrorBlockJob *s)
+{
+    return (s->phase >= MIRROR_PHASE_COMPLETING ||
+            block_job_is_cancelled(&s->common));
+}
+
 static void coroutine_fn mirror_run(void *opaque)
 {
     MirrorBlockJob *s = opaque;
@@ -430,8 +441,8 @@ static void coroutine_fn mirror_run(void *opaque)
     } else if (s->bdev_length == 0) {
         /* Report BLOCK_JOB_READY and wait for complete. */
         block_job_event_ready(&s->common);
-        s->synced = true;
-        while (!block_job_is_cancelled(&s->common) && !s->should_complete) {
+        s->phase = MIRROR_PHASE_SYNCED;
+        while (!mirror_should_complete(s)) {
             block_job_yield(&s->common);
         }
         s->common.cancelled = false;
@@ -550,18 +561,17 @@ static void coroutine_fn mirror_run(void *opaque)
                     goto immediate_exit;
                 }
             } else {
-                /* We're out of the streaming phase.  From now on, if the job
+                /* We're out of the bulk phase.  From now on, if the job
                  * is cancelled we will actually complete all pending I/O and
                  * report completion.  This way, block-job-cancel will leave
                  * the target in a consistent state.
                  */
-                if (!s->synced) {
+                if (s->phase == MIRROR_PHASE_BULK) {
                     block_job_event_ready(&s->common);
-                    s->synced = true;
+                    s->phase = MIRROR_PHASE_SYNCED;
                 }
 
-                should_complete = s->should_complete ||
-                    block_job_is_cancelled(&s->common);
+                should_complete = mirror_should_complete(s);
                 cnt = bdrv_get_dirty_count(s->dirty_bitmap);
             }
         }
@@ -581,8 +591,8 @@ static void coroutine_fn mirror_run(void *opaque)
         }
 
         ret = 0;
-        trace_mirror_before_sleep(s, cnt, s->synced, delay_ns);
-        if (!s->synced) {
+        trace_mirror_before_sleep(s, cnt, s->phase, delay_ns);
+        if (s->phase == MIRROR_PHASE_BULK) {
             block_job_sleep_ns(&s->common, QEMU_CLOCK_REALTIME, delay_ns);
             if (block_job_is_cancelled(&s->common)) {
                 break;
@@ -607,7 +617,7 @@ immediate_exit:
          * or it was cancelled prematurely so that we do not guarantee that
          * the target is a copy of the source.
          */
-        assert(ret < 0 || (!s->synced && block_job_is_cancelled(&s->common)));
+        assert(ret < 0 || (s->phase == MIRROR_PHASE_BULK && block_job_is_cancelled(&s->common)));
         mirror_drain(s);
     }
 
@@ -659,7 +669,7 @@ static void mirror_complete(BlockJob *job, Error **errp)
         error_propagate(errp, local_err);
         return;
     }
-    if (!s->synced) {
+    if (s->phase == MIRROR_PHASE_BULK) {
         error_setg(errp, QERR_BLOCK_JOB_NOT_READY, job->id);
         return;
     }
@@ -685,7 +695,7 @@ static void mirror_complete(BlockJob *job, Error **errp)
         aio_context_release(replace_aio_context);
     }
 
-    s->should_complete = true;
+    s->phase = MIRROR_PHASE_COMPLETING;
     block_job_enter(&s->common);
 }
 
