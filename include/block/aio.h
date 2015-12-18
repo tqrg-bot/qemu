@@ -287,6 +287,12 @@ bool aio_pending(AioContext *ctx);
  */
 bool aio_dispatch(AioContext *ctx);
 
+/* Same as aio_poll, but only meant for use in the I/O thread.
+ *
+ * This is used internally in the implementation of aio_poll.
+ */
+bool aio_poll_internal(AioContext *ctx, bool blocking);
+
 /* Progress in completing AIO work to occur.  This can issue new pending
  * aio as a result of executing I/O completion or bh callbacks.
  *

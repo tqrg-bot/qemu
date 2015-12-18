@@ -300,6 +300,14 @@ void aio_notify_accept(AioContext *ctx)
     }
 }
 
+bool aio_poll(AioContext *ctx, bool blocking)
+{
+    assert(qemu_mutex_iothread_locked() ||
+           aio_context_in_iothread(ctx));
+
+    return aio_poll_internal(ctx, blocking);
+}
+
 static void aio_timerlist_notify(void *opaque)
 {
     aio_notify(opaque);
