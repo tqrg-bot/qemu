@@ -447,6 +447,13 @@ static inline bool aio_node_check(AioContext *ctx, bool is_external)
 }
 
 /**
+ * @ctx: the aio context
+ *
+ * Return whether we are running in the I/O thread that manages @ctx.
+ */
+bool aio_context_in_iothread(AioContext *ctx);
+
+/**
  * aio_context_setup:
  * @ctx: the aio context
  *
