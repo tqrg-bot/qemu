@@ -368,10 +368,18 @@ void aio_context_unref(AioContext *ctx)
 
 void aio_context_acquire(AioContext *ctx)
 {
-    rfifolock_lock(&ctx->lock);
+    if (ctx == qemu_get_aio_context()) {
+        assert(qemu_mutex_iothread_locked());
+    } else {
+        rfifolock_lock(&ctx->lock);
+    }
 }
 
 void aio_context_release(AioContext *ctx)
 {
-    rfifolock_unlock(&ctx->lock);
+    if (ctx == qemu_get_aio_context()) {
+        assert(qemu_mutex_iothread_locked());
+    } else {
+        rfifolock_unlock(&ctx->lock);
+    }
 }
