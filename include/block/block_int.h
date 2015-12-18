@@ -404,9 +404,12 @@ struct BlockDriverState {
     /* Callback before write request is processed */
     NotifierWithReturnList before_write_notifiers;
 
-    /* number of in-flight requests; overall and serialising */
+    /* number of in-flight requests; overall and serialising.
+     * in_flight_event is set when in_flight becomes 0.
+     */
     unsigned int in_flight;
     unsigned int serialising_in_flight;
+    QemuEvent in_flight_event;
 
     /* I/O throttling.
      * throttle_state tells us if this BDS has I/O limits configured.

@@ -239,11 +239,21 @@ bool bdrv_requests_pending(BlockDriverState *bs)
 
 static bool bdrv_drain_io_recurse(BlockDriverState *bs)
 {
-    BdrvChild *child;
+    AioContext *ctx = bdrv_get_aio_context(bs);
     bool waited = false;
+    BdrvChild *child;
 
     while (atomic_read(&bs->in_flight) > 0) {
-        aio_poll(bdrv_get_aio_context(bs), true);
+        if (aio_context_in_iothread(ctx)) {
+            aio_poll(ctx, true);
+        } else {
+            qemu_event_reset(&bs->in_flight_event);
+            if (atomic_read(&bs->in_flight) > 0) {
+                aio_context_release(ctx);
+                qemu_event_wait(&bs->in_flight_event);
+                aio_context_acquire(ctx);
+            }
+        }
         waited = true;
     }
 
@@ -455,7 +465,9 @@ void bdrv_inc_in_flight(BlockDriverState *bs)
 
 void bdrv_dec_in_flight(BlockDriverState *bs)
 {
-    atomic_dec(&bs->in_flight);
+    if (atomic_fetch_dec(&bs->in_flight) == 1) {
+        qemu_event_set(&bs->in_flight_event);
+    }
 }
 
 static bool coroutine_fn wait_serialising_requests(BdrvTrackedRequest *self)

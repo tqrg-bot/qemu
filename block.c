@@ -267,6 +267,7 @@ BlockDriverState *bdrv_new(void)
     qemu_co_queue_init(&bs->throttled_reqs[1]);
     bs->refcnt = 1;
     bs->aio_context = qemu_get_aio_context();
+    qemu_event_init(&bs->in_flight_event, true);
 
     QTAILQ_INSERT_TAIL(&all_bdrv_states, bs, bs_list);
 
@@ -2391,6 +2392,7 @@ static void bdrv_delete(BlockDriverState *bs)
     bdrv_make_anon(bs);
 
     QTAILQ_REMOVE(&all_bdrv_states, bs, bs_list);
+    qemu_event_destroy(&bs->in_flight_event);
 
     g_free(bs);
 }
