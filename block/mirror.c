@@ -561,27 +561,30 @@ static void coroutine_fn mirror_run(void *opaque)
 
         should_complete = false;
         if (s->in_flight == 0 && cnt == 0) {
-            trace_mirror_before_flush(s);
-            ret = bdrv_flush(s->target);
-            if (ret < 0) {
-                if (mirror_error_action(s, false, -ret) ==
-                    BLOCK_ERROR_ACTION_REPORT) {
-                    goto immediate_exit;
-                }
-            } else {
-                /* We're out of the bulk phase.  From now on, if the job
-                 * is cancelled we will actually complete all pending I/O and
-                 * report completion.  This way, block-job-cancel will leave
-                 * the target in a consistent state.
-                 */
-                if (s->phase == MIRROR_PHASE_BULK) {
-                    block_job_event_ready(&s->common);
-                    s->phase = MIRROR_PHASE_SYNCED;
-                }
-
-                should_complete = mirror_should_complete(s);
-                cnt = bdrv_get_dirty_count(s->dirty_bitmap);
+            /* We're out of the bulk phase.  From now on, if the job
+             * is cancelled we will actually complete all pending I/O and
+             * report completion.  This way, block-job-cancel will leave
+             * the target in a consistent state.
+             */
+            if (s->phase == MIRROR_PHASE_BULK) {
+                block_job_event_ready(&s->common);
+                s->phase = MIRROR_PHASE_SYNCED;
             }
+
+            trace_mirror_before_flush(s);
+            should_complete = mirror_should_complete(s);
+            if (should_complete) {
+                ret = bdrv_flush(s->target);
+                if (ret < 0) {
+                    if (mirror_error_action(s, false, -ret) ==
+                        BLOCK_ERROR_ACTION_REPORT) {
+                        goto immediate_exit;
+                    }
+                    should_complete = mirror_should_complete(s);
+                }
+            }
+
+            cnt = bdrv_get_dirty_count(s->dirty_bitmap);
         }
 
         if (cnt == 0 && should_complete) {
