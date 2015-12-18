@@ -280,7 +280,7 @@ bool aio_dispatch(AioContext *ctx)
     return progress;
 }
 
-bool aio_poll(AioContext *ctx, bool blocking)
+bool aio_poll_internal(AioContext *ctx, bool blocking)
 {
     AioHandler *node;
     HANDLE events[MAXIMUM_WAIT_OBJECTS + 1];

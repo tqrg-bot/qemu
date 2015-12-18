@@ -400,7 +400,7 @@ static void add_pollfd(AioHandler *node)
     npfd++;
 }
 
-bool aio_poll(AioContext *ctx, bool blocking)
+bool aio_poll_internal(AioContext *ctx, bool blocking)
 {
     AioHandler *node;
     int i, ret;
