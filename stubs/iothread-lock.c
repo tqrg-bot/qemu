@@ -13,3 +13,8 @@ void qemu_mutex_lock_iothread(void)
 void qemu_mutex_unlock_iothread(void)
 {
 }
+
+bool aio_context_in_iothread(AioContext *ctx)
+{
+    return true;
+}

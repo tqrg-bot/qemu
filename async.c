@@ -299,12 +299,224 @@ void aio_notify_accept(AioContext *ctx)
     }
 }
 
+/* aio_poll_internal is not thread-safe; it only reports progress
+ * correctly when called from one thread, because it has no
+ * history of what happened in different threads.  When called
+ * from two threads, there is a race:
+ *
+ *      main thread                       I/O thread
+ *      -----------------------           --------------------------
+ *      blk_drain
+ *        bdrv_requests_pending -> true
+ *                                        aio_poll_internal
+ *                                          process last request
+ *        aio_poll_internal
+ *
+ * Now aio_poll_internal will never exit, because there is no pending
+ * I/O on the AioContext.
+ *
+ * Therefore, aio_poll is a wrapper around aio_poll_internal that allows
+ * usage from _two_ threads: the I/O thread of course, and the main thread.
+ * When called from the main thread, aio_poll just asks the I/O thread
+ * for a nudge as soon as the next call to aio_poll is complete.
+ * Because we use QemuEvent, and QemuEvent supports a single consumer
+ * only, this only works when the calling thread holds the big QEMU lock.
+ *
+ * Because aio_poll is used in a loop, spurious wakeups are okay.
+ * Therefore, the I/O thread calls qemu_event_set very liberally
+ * (it helps that qemu_event_set is cheap on an already-set event).
+ * generally used in a loop, it's okay to have spurious wakeups.
+ * Similarly it is okay to return true when no progress was made
+ * (as long as this doesn't happen forever, or you get livelock).
+ *
+ * The important thing is that you need to report progress from
+ * aio_poll(ctx, false) correctly.  This is complicated and the
+ * implementation builds on event_notifier_set plus
+ * aio_poll(ctx, true).
+ *
+ * The implementation consists of the following functions:
+ * - aio_poll_and_wake: runs in the iothread and takes care of
+ *   waking up the main thread after aio_poll_internal returns
+ *
+ * - aio_wait_iteration: implementation of aio_poll(ctx, true)
+ *   for the main thread
+ *
+ * - aio_force_iteration: implementation of aio_poll(ctx, false)
+ *   for the main thread
+ */
+static bool aio_poll_and_wake(AioContext *ctx, bool blocking)
+{
+    bool progress = aio_poll_internal(ctx, blocking);
+    smp_wmb();
+    if (progress) {
+        ctx->progress = true;
+    }
+
+    qemu_event_set(&ctx->sync_io_event);
+    return progress;
+}
+
+static bool aio_wait_iteration(AioContext *ctx)
+{
+    /* Wait until at least one iteration has passed since the main thread
+     * last called aio_poll.
+     */
+    qemu_event_wait(&ctx->sync_io_event);
+
+    /* Remember how aio_poll is used---in a loop, until a guard condition
+     * becomes true.   By resetting the event here, we ensure that the guard
+     * condition will be checked before the next call to qemu_event_wait.
+     * The above race is resolved as follows.
+     *
+     *      main thread                       I/O thread
+     *      -----------------------           --------------------------
+     *      blk_drain
+     *        bdrv_requests_pending -> true
+     *                                        aio_poll_internal
+     *                                          process last request
+     *                                        qemu_event_set
+     *        qemu_event_wait
+     */
+    qemu_event_reset(&ctx->sync_io_event);
+
+    return atomic_xchg(&ctx->progress, false);
+}
+
+/* The first idea is to simply implement non-blocking aio_poll as
+ *
+ *     // cannot use aio_notify; because of the notify_me optimization,
+ *     // aio_notify might do nothing and then poll will block
+ *     event_notifier_set(&ctx->notifier);
+ *     progress = aio_wait_iteration(ctx);
+ *
+ * which doesn't work because of a relatively simple race.  Remember
+ * that spurious wakeups of aio_poll are common.  What can happen then is:
+ *
+ *     main thread                             I/O thread
+ *     ---------------------------             -------------------------
+ *                                             qemu_event_set();
+ *                                             ...
+ *                                             qemu_bh_schedule()
+ *     aio_poll(ctx, true)
+ *       aio_wait_iteration
+ *         qemu_event_wait();
+ *         qemu_event_reset();
+ *                                             ctx->progress = true;
+ *         progress=xchg(ctx->progress, false)
+ *                                             qemu_event_set();
+ *     ...
+ *     aio_poll(ctx, false)
+ *       event_notifier_set()
+ *       aio_wait_iteration
+ *         qemu_event_wait();
+ *         qemu_event_reset();
+ *       <<returns false>>
+ *
+ * aio_poll's contract ensures that *some* progress is made if possible;
+ * hence the bottom half should be executed before aio_poll(ctx, false)
+ * returns, and aio_poll should return true.  The failure happened because
+ * aio_poll_internal has not run at all since the last qemu_event_wait;
+ * the execution threads interleaved so that aio_poll(ctx, false)
+ * immediately returns false.
+ *
+ *
+ * The next idea then is to add a reset of the event in the non-blocking
+ * aio_poll.  This has the same problem, just a little harder to trigger:
+ *
+ *     main thread                             I/O thread
+ *     ---------------------------             -----------------------------
+ *                                             qemu_event_set();
+ *                                             qemu_bh_schedule()
+ *     aio_poll(ctx, true)
+ *       aio_wait_iteration
+ *         qemu_event_wait();
+ *         qemu_event_reset();
+ *                                             ctx->progress = true;
+ *         progress=xchg(ctx->progress, false)
+ *     ...
+ *     aio_poll(ctx, false)
+ *       qemu_event_reset();
+ *                                             qemu_event_set();
+ *       event_notifier_set()
+ *       aio_wait_iteration
+ *         qemu_event_wait();
+ *         qemu_event_reset();
+ *         progress=xchg(ctx->progress, false)
+ *       <<returns false>>
+ *
+ *
+ * Let's change approach and try running aio_wait_iteration *twice*.
+ * This doesn't work either, but for a different reason.  If the main
+ * thread is "slow", an entire execution of the loop happens in the I/O
+ * thread, and a preceding aio_poll(ctx, true) can leave ctx->progress
+ * equal to false.  But unlike the previous example, some progress was
+ * made *after* qemu_event_wait returned:
+ *
+ *     main thread                             I/O thread
+ *     ---------------------------             -----------------------------
+ *                                             qemu_event_set();
+ *                                             ...
+ *     aio_poll(ctx, true)
+ *       aio_wait_iteration
+ *         qemu_event_wait();
+ *         qemu_event_reset();
+ *                                             ctx->progress = true;
+ *                                             qemu_event_set();
+ *                                             ...
+ *                                             qemu_bh_schedule()
+ *         progress=xchg(ctx->progress, false)
+ *     aio_poll(ctx, false)
+ *       event_notifier_set()
+ *       aio_wait_iteration
+ *         qemu_event_wait();
+ *         qemu_event_reset();
+ *         progress=xchg(ctx->progress, false)
+ *                                             qemu_event_set();
+ *       event_notifier_set()
+ *       aio_wait_iteration
+ *         qemu_event_wait();
+ *         qemu_event_reset();
+ *         progress|=xchg(ctx->progress, false)
+ *       <<returns false>>
+ *
+ * However, applying both workarounds solves the problems.  The initial
+ * qemu_event_reset removes leftovers of previously completed iterations
+ * (such as in the last example).  Then, the double iteration ensures
+ * at least one execution of the dispatch phase to happen.  The dispatch
+ * phase will then execute pending bottom halves and return progress
+ * correctly.
+ */
+static bool aio_force_iteration(AioContext *ctx)
+{
+    bool progress;
+    qemu_event_reset(&ctx->sync_io_event);
+
+    event_notifier_set(&ctx->notifier);
+    progress = aio_wait_iteration(ctx);
+
+    event_notifier_set(&ctx->notifier);
+    progress |= aio_wait_iteration(ctx);
+
+    return progress;
+}
+
 bool aio_poll(AioContext *ctx, bool blocking)
 {
-    assert(qemu_mutex_iothread_locked() ||
-           aio_context_in_iothread(ctx));
+    bool progress;
 
-    return aio_poll_internal(ctx, blocking);
+    if (aio_context_in_iothread(ctx)) {
+        return aio_poll_and_wake(ctx, blocking);
+    }
+
+    assert(qemu_mutex_iothread_locked());
+    aio_context_release(ctx);
+    if (blocking) {
+        progress = aio_wait_iteration(ctx);
+    } else {
+        progress = aio_force_iteration(ctx);
+    }
+    aio_context_acquire(ctx);
+    return progress;
 }
 
 static void aio_timerlist_notify(void *opaque)

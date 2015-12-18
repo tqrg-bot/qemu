@@ -1,0 +1,210 @@
+/*
+ * Demonstrate the behavior of blk_drain() when called from the
+ * iothread.
+ *
+ * Author: Paolo Bonzini <pbonzini@redhat.com>
+ *
+ * This file is in the public domain.  If you really want a license,
+ * the WTFPL will do.
+ *
+ * To simulate it:
+ *     spin -p docs/aio_poll_sync_io.promela
+ *
+ * To verify it:
+ *     spin -a docs/aio_poll_sync_io.promela
+ *     gcc -O2 pan.c -DSAFETY
+ *     ./a.out
+ *
+ * To verify it (with a bug planted):
+ *     spin -DBUG1 -a docs/aio_poll_sync_io.promela
+ *     gcc -O2 pan.c -DSAFETY
+ *     ./a.out
+ *
+ * (try BUG2/BUG3/BUG4 too)
+ */
+
+#define REQS         3
+#define REQS_INITIAL 1
+
+int req_submitted = 0;
+int req_completed = 0;
+int req_pending   = 0;
+
+
+/* This is a mutex.  */
+int mutex = 0;
+#define LOCK(mutex)   atomic { mutex == 0 -> mutex = 1; }
+#define UNLOCK(mutex) mutex = 0
+
+/* A QEMUBH (e.g. from thread-pool.c) */
+bool io_bh_scheduled;
+bool spawn_bh_scheduled;
+
+/* The AioContext's EventNotifier */
+bool aio_notify;
+
+/* The AioContext's QemuEvent.  Typically the first call to aio_poll
+ * produces a spurious wakeup, which is modeled by these initializers.
+ */
+bool progress = 1;
+bool sync_io_event = 1;
+
+proctype io_worker(int req_id)
+{
+    LOCK(mutex);
+        req_completed++;
+    UNLOCK(mutex);
+
+    io_bh_scheduled = 1;
+    aio_notify = 1;
+}
+
+#define SUBMIT_ONE_REQ {                         \
+       run io_worker(req_submitted);             \
+       req_submitted++;                          \
+       req_pending++;                            \
+    }
+
+active proctype iothread()
+{
+    bool old;
+    bool aio_poll_progress;
+
+    /* The iothread keeps calling aio_poll(..., true).  At the end
+     * of the simulation it is stuck here waiting for a request,
+     * so mark this as a valid end state.
+     */
+end:
+    do
+        :: aio_notify -> {
+            /* aio_notify_accept */
+            aio_notify = 0;
+
+            aio_poll_progress = 0;
+
+            /* Execute the "bottom half" which can spawn more requests */
+            atomic { old = spawn_bh_scheduled; spawn_bh_scheduled = 0; }
+            if
+                :: old -> {
+                    LOCK(mutex);
+                        if
+                           :: req_submitted < REQS -> SUBMIT_ONE_REQ
+                           :: else                 -> skip;
+                        fi;
+                    UNLOCK(mutex);
+                    aio_poll_progress = 1;
+                }
+                :: else -> skip;
+            fi;
+
+            /* Execute the bottom half which spawns the other bh */
+            atomic { old = io_bh_scheduled; io_bh_scheduled = 0; }
+            if
+                :: old -> {
+                    LOCK(mutex);
+                        req_pending = req_pending - req_completed;
+                        req_completed = 0;
+                        assert(req_pending >= 0);
+                    UNLOCK(mutex);
+                    aio_poll_progress = 1;
+                    spawn_bh_scheduled = 1;
+                    aio_notify = 1;
+                }
+                :: else -> skip;
+            fi;
+
+            /* The above is aio_poll_internal, this is aio_poll */
+            if
+                :: aio_poll_progress -> progress = 1;
+                :: else -> skip;
+            fi;
+            sync_io_event = 1;
+        }
+    od;
+}
+
+#define AIO_POLL_ITERATION             \
+    if                                 \
+        :: sync_io_event -> skip;      \
+    fi;                                \
+    sync_io_event = 0;                 \
+    atomic {                           \
+        aio_poll_result = aio_poll_result | progress;    \
+        progress = 0;                  \
+    }
+    
+#define AIO_POLL                       \
+    aio_poll_result = 0;               \
+    AIO_POLL_ITERATION
+
+#if defined BUG1
+/* Skip the nonblocking aio_poll altogether */
+#define AIO_POLL_NONBLOCKING aio_poll_result = 0
+
+#elif defined BUG2
+/* Simple but wrong implementation */
+#define AIO_POLL_NONBLOCKING           \
+    aio_poll_result = 0;               \
+    aio_notify = 1;                    \
+    AIO_POLL_ITERATION
+
+#elif defined BUG3
+/* Workaround 1 is not enough */
+#define AIO_POLL_NONBLOCKING           \
+    sync_io_event = 0;                 \
+    aio_poll_result = 0;               \
+    aio_notify = 1;                    \
+    AIO_POLL_ITERATION
+
+#elif defined BUG4
+/* Workaround 2 is not enough */
+#define AIO_POLL_NONBLOCKING           \
+    aio_poll_result = 0;               \
+    aio_notify = 1;                    \
+    AIO_POLL_ITERATION                 \
+    aio_notify = 1;                    \
+    AIO_POLL_ITERATION
+
+#else
+/* Combining them works! */
+#define AIO_POLL_NONBLOCKING           \
+    sync_io_event = 0;                 \
+    aio_poll_result = 0;               \
+    aio_notify = 1;                    \
+    AIO_POLL_ITERATION                 \
+    aio_notify = 1;                    \
+    AIO_POLL_ITERATION
+#endif
+
+active proctype mainthread()
+{
+    bool aio_poll_result;
+    bool busy = true;
+
+    LOCK(mutex);
+        /* Start with a few requests */
+        do
+           :: req_submitted < REQS_INITIAL -> SUBMIT_ONE_REQ
+           :: else                         -> break;
+        od;
+    UNLOCK(mutex);
+
+    do
+        :: !busy -> break;
+
+        :: else -> {
+            /* This is blk_drain */
+            LOCK(mutex);
+                busy = req_pending > 0;
+            UNLOCK(mutex);
+            if
+               :: busy -> AIO_POLL;
+               :: else -> AIO_POLL_NONBLOCKING; busy = aio_poll_result;
+            fi;
+        }
+    od;
+
+    LOCK(mutex);
+        assert(!req_pending && req_submitted == REQS);
+    UNLOCK(mutex);
+}

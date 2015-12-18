@@ -88,17 +88,15 @@ descriptors, event notifiers, timers, or BHs across threads:
 notifier, timer, or BH callbacks invoked by the AioContext.  No locking is
 necessary.
 
-2. Other threads wishing to access the AioContext must use
-aio_context_acquire()/aio_context_release() for mutual exclusion.  Once the
-context is acquired no other thread can access it or run event loop iterations
-in this AioContext.
+2. Other threads wishing to access the AioContext must take the QEMU global
+mutex *as well as* call aio_context_acquire()/aio_context_release() for
+mutual exclusion.  The QEMU global mutex must be taken outside the call
+to aio_context_acquire().
 
-aio_context_acquire()/aio_context_release() calls may be nested.  This
-means you can call them if you're not sure whether #1 applies.
-
-There is currently no lock ordering rule if a thread needs to acquire multiple
-AioContexts simultaneously.  Therefore, it is only safe for code holding the
-QEMU global mutex to acquire other AioContexts.
+No lock ordering rule is necessary if a thread needs to acquire multiple
+AioContexts simultaneously.  Because the IOThreads won't ever acquire
+multiple AioContexts, it is always safe for the owner of the QEMU global
+mutex to acquire any number of them.
 
 Side note: the best way to schedule a function call across threads is to create
 a BH in the target AioContext beforehand and then call qemu_bh_schedule().  No
