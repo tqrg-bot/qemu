@@ -129,6 +129,12 @@ struct AioContext {
     int epollfd;
     bool epoll_enabled;
     bool epoll_available;
+
+    /* Returns whether there has been progress on the AioContext since
+     * the last time this field was set to false.
+     */
+    bool progress;
+    QemuEvent sync_io_event;
 };
 
 /**
@@ -296,9 +302,9 @@ bool aio_poll_internal(AioContext *ctx, bool blocking);
 /* Progress in completing AIO work to occur.  This can issue new pending
  * aio as a result of executing I/O completion or bh callbacks.
  *
- * Return whether any progress was made by executing AIO or bottom half
- * handlers.  If @blocking == true, this should always be true except
- * if someone called aio_notify.
+ * Return whether any progress was made since the last call to aio_poll
+ * in the execution of AIO or bottom half handlers.  If @blocking ==
+ * true, this should always be true except if someone called aio_notify.
  *
  * If there are no pending bottom halves, but there are pending AIO
  * operations, it may not be possible to make any progress without

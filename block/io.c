@@ -270,15 +270,19 @@ static void bdrv_drain_recurse(BlockDriverState *bs)
  */
 void bdrv_drain(BlockDriverState *bs)
 {
-    bool busy = true;
+    bool busy;
 
     bdrv_drain_recurse(bs);
-    while (busy) {
+    do {
         /* Keep iterating */
          bdrv_flush_io_queue(bs);
-         busy = bdrv_requests_pending(bs);
-         busy |= aio_poll(bdrv_get_aio_context(bs), busy);
-    }
+         if (bdrv_requests_pending(bs)) {
+             aio_poll(bdrv_get_aio_context(bs), true);
+             busy = true;
+         } else {
+             busy = aio_poll(bdrv_get_aio_context(bs), false);
+         }
+    } while (busy);
 }
 
 /*

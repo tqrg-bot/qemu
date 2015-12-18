@@ -1,0 +1,88 @@
+/*
+ * Demonstrate the behavior of aio_poll(ctx, true) when called from the
+ * iothread.
+ *
+ * Author: Paolo Bonzini <pbonzini@redhat.com>
+ *
+ * This file is in the public domain.  If you really want a license,
+ * the WTFPL will do.
+ *
+ * To simulate it:
+ *     spin -p docs/aio_poll_sync_io.promela
+ *
+ * To verify it:
+ *     spin -a docs/aio_poll_sync_io.promela
+ *     gcc -O2 pan.c -DSAFETY
+ *     ./a.out
+ *
+ * To verify it (with a bug planted in the model):
+ *     spin -a -DBUG docs/aio_poll_sync_io.promela
+ *     gcc -O2 pan.c -DSAFETY
+ *     ./a.out
+ */
+
+/* A QEMUBH (e.g. from thread-pool.c) */
+bool io_bh_scheduled;
+
+/* The AioContext's EventNotifier */
+bool aio_notify;
+
+/* The "guard condition" for synchronous I/O */
+bool io_done;
+
+/* The AioContext's QemuEvent */
+bool sync_io_event;
+
+active proctype io_worker()
+{
+    /* qemu_bh_schedule */
+    io_bh_scheduled = 1;
+    aio_notify = 1;
+}
+
+active proctype iothread()
+{
+    bool old;
+
+    /* The iothread keeps calling aio_poll(..., true).  At the end
+     * of the simulation it is stuck here waiting for a request,
+     * so mark this as a valid end state.
+     */
+end:
+    do
+        :: aio_notify -> {
+            /* aio_notify_accept */
+            aio_notify = 0;
+
+            /* Execute the "bottom half" */
+
+            atomic { old = io_bh_scheduled; io_bh_scheduled = 0; }
+            if
+                :: old -> { io_done = 1; }
+                :: else -> skip;
+            fi;
+
+            /* The above is aio_poll_internal, this is aio_poll */
+#ifndef BUG
+            sync_io_event = 1;
+#endif
+        }
+    od;
+}
+
+active proctype mainthread()
+{
+    do
+        :: io_done -> break;
+
+        :: else -> {
+            /* qemu_event_wait */
+            if
+               :: sync_io_event -> skip;
+            fi;
+
+            /* qemu_event_reset */
+            sync_io_event = 0;
+        }
+    od;
+}
