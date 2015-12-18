@@ -19,6 +19,7 @@
 #include "qmp-commands.h"
 #include "qemu/error-report.h"
 #include "qemu/rcu.h"
+#include "qemu/main-loop.h"
 
 typedef ObjectClass IOThreadClass;
 
@@ -27,6 +28,13 @@ typedef ObjectClass IOThreadClass;
 #define IOTHREAD_CLASS(klass) \
    OBJECT_CLASS_CHECK(IOThreadClass, klass, TYPE_IOTHREAD)
 
+static __thread IOThread *my_iothread;
+
+bool aio_context_in_iothread(AioContext *ctx)
+{
+    return ctx == (my_iothread ? my_iothread->ctx : qemu_get_aio_context());
+}
+
 static void *iothread_run(void *opaque)
 {
     IOThread *iothread = opaque;
@@ -34,6 +42,7 @@ static void *iothread_run(void *opaque)
 
     rcu_register_thread();
 
+    my_iothread = iothread;
     qemu_mutex_lock(&iothread->init_done_lock);
     iothread->thread_id = qemu_get_thread_id();
     qemu_cond_signal(&iothread->init_done_cond);
