@@ -304,6 +304,7 @@ void bdrv_drain_all(void)
         if (bs->job) {
             block_job_pause(bs->job);
         }
+        bdrv_drain_recurse(bs);
         aio_context_release(aio_context);
 
         if (!g_slist_find(aio_ctxs, aio_context)) {
