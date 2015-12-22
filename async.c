@@ -351,7 +351,18 @@ void aio_notify_accept(AioContext *ctx)
  */
 static bool aio_poll_and_wake(AioContext *ctx, bool blocking)
 {
-    bool progress = aio_poll_internal(ctx, blocking);
+    bool progress;
+
+    /* Non-blocking waits can be a little more efficient, because
+     * they do not set notify_me and thus never need an
+     * event_notifier_set.  They also need not compute a
+     * timeout.  Use them if we know we have something to run.
+     */
+    if (atomic_read(&ctx->notified)) {
+        blocking = false;
+    }
+
+    progress = aio_poll_internal(ctx, blocking);
     smp_wmb();
     if (progress) {
         ctx->progress = true;
