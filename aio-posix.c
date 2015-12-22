@@ -450,7 +450,12 @@ bool aio_poll_internal(AioContext *ctx, bool blocking)
         atomic_sub(&ctx->notify_me, 2);
     }
 
-    aio_notify_accept(ctx);
+    /* Do not clear the event notifier unless we need it to avoid
+     * busy waiting.
+     */
+    if (ret == 1) {
+        aio_notify_accept(ctx);
+    }
 
     /* if we have any readable fds, dispatch event */
     if (ret > 0) {
