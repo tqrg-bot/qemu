@@ -417,6 +417,25 @@ static bool mirror_should_complete(MirrorBlockJob *s)
             block_job_is_cancelled(&s->common));
 }
 
+/* FIXME: there is no bdrv_flush vs. bdrv_co_flush distinction,
+ * so bdrv_flush can yield.  If it does, the VCPU thread can
+ * run.  As a workaround use bdrv_aio_flush + bdrv_drain.
+ */
+static void mirror_flush_cb(void *opaque, int ret)
+{
+    int *p_ret = (int *)opaque;
+    *p_ret = ret;
+}
+
+static int mirror_flush(BlockDriverState *bs)
+{
+    int ret = -EINPROGRESS;
+    bdrv_aio_flush(bs, mirror_flush_cb, &ret);
+    bdrv_drain(bs);
+    assert(ret != -EINPROGRESS);
+    return ret;
+}
+
 static void coroutine_fn mirror_run(void *opaque)
 {
     MirrorBlockJob *s = opaque;
@@ -424,6 +443,7 @@ static void coroutine_fn mirror_run(void *opaque)
     BlockDriverState *bs = s->common.bs;
     int64_t sector_num, end, length;
     uint64_t last_pause_ns;
+    bool drained = false;
     BlockDriverInfo bdi;
     char backing_filename[2]; /* we only need 2 characters because we are only
                                  checking for a NULL string */
@@ -561,38 +581,52 @@ static void coroutine_fn mirror_run(void *opaque)
             if (s->phase == MIRROR_PHASE_BULK) {
                 block_job_event_ready(&s->common);
                 s->phase = MIRROR_PHASE_SYNCED;
+                goto sleep;
             }
 
-            trace_mirror_before_flush(s);
             should_complete = mirror_should_complete(s);
-            if (should_complete) {
-                ret = bdrv_flush(s->target);
-                if (ret < 0) {
-                    if (mirror_error_action(s, false, -ret) ==
-                        BLOCK_ERROR_ACTION_REPORT) {
-                        goto immediate_exit;
-                    }
-                    should_complete = mirror_should_complete(s);
-                }
+            if (!should_complete) {
+                goto sleep;
             }
 
-            cnt = bdrv_get_dirty_count(s->dirty_bitmap);
-        }
-
-        if (cnt == 0 && should_complete) {
             /* The dirty bitmap is not updated while operations are pending.
              * If we're about to exit, wait for pending operations before
              * calling bdrv_get_dirty_count(bs), or we may exit while the
              * source has dirty data to copy!
-             *
-             * Note that I/O can be submitted by the guest while
-             * mirror_populate runs.
              */
             trace_mirror_before_drain(s, cnt);
-            bdrv_drain(bs);
+            bdrv_drained_begin(bs);
             cnt = bdrv_get_dirty_count(s->dirty_bitmap);
+            if (cnt > 0) {
+                bdrv_drained_end(bs);
+                goto sleep;
+            }
+
+            trace_mirror_before_flush(s);
+            ret = mirror_flush(s->target);
+            if (ret < 0) {
+                bdrv_drained_end(bs);
+                if (mirror_error_action(s, false, -ret) ==
+                    BLOCK_ERROR_ACTION_REPORT) {
+                    goto immediate_exit;
+                }
+                should_complete = false;
+                goto sleep;
+            }
+
+            /* We're under bdrv_drained_begin; guest operations are
+             * blocked temporarily, so the two disks must be in sync.
+             * Exit and report successful completion.
+             */
+            cnt = bdrv_get_dirty_count(s->dirty_bitmap);
+            assert(cnt == 0);
+            assert(QLIST_EMPTY(&bs->tracked_requests));
+            s->common.cancelled = false;
+            drained = true;
+            break;
         }
 
+sleep:
         ret = 0;
         trace_mirror_before_sleep(s, cnt, s->phase, delay_ns);
         if (s->phase == MIRROR_PHASE_BULK) {
@@ -603,13 +637,6 @@ static void coroutine_fn mirror_run(void *opaque)
         } else if (!should_complete) {
             delay_ns = (s->in_flight == 0 && cnt == 0 ? SLICE_TIME : 0);
             block_job_sleep_ns(&s->common, QEMU_CLOCK_REALTIME, delay_ns);
-        } else if (cnt == 0) {
-            /* The two disks are in sync.  Exit and report successful
-             * completion.
-             */
-            assert(QLIST_EMPTY(&bs->tracked_requests));
-            s->common.cancelled = false;
-            break;
         }
         last_pause_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
     }
@@ -637,7 +664,9 @@ immediate_exit:
     data->ret = ret;
     /* Before we switch to target in mirror_exit, make sure data doesn't
      * change. */
-    bdrv_drained_begin(s->common.bs);
+    if (!drained) {
+        bdrv_drained_begin(s->common.bs);
+    }
     block_job_defer_to_main_loop(&s->common, mirror_exit, data);
 }
 
