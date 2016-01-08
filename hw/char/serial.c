@@ -226,6 +226,7 @@ static void serial_update_msl(SerialState *s)
 static gboolean serial_xmit(GIOChannel *chan, GIOCondition cond, void *opaque)
 {
     SerialState *s = opaque;
+    uint64_t new_xmit_ts;
 
     do {
         assert(!(s->lsr & UART_LSR_TEMT));
@@ -248,6 +249,16 @@ static gboolean serial_xmit(GIOChannel *chan, GIOCondition cond, void *opaque)
             }
         }
 
+        new_xmit_ts = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+
+        /* Do not transmit faster than the desired baud rate.  */
+        if (new_xmit_ts < s->last_xmit_ts + s->char_transmit_time) {
+            assert(s->tsr_retry == 0);
+            s->tsr_retry++;
+            timer_mod(s->transmit_timer, s->last_xmit_ts + s->char_transmit_time);
+            return FALSE;
+        }
+
         if (s->mcr & UART_MCR_LOOP) {
             /* in loopback mode, say that we just received a char */
             serial_receive1(s, &s->tsr, 1);
@@ -261,15 +272,21 @@ static gboolean serial_xmit(GIOChannel *chan, GIOCondition cond, void *opaque)
             }
         }
         s->tsr_retry = 0;
+        s->last_xmit_ts = new_xmit_ts;
 
         /* Transmit another byte if it is already available. It is only
            possible when FIFO is enabled and not empty. */
     } while (!(s->lsr & UART_LSR_THRE));
 
-    s->last_xmit_ts = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
     s->lsr |= UART_LSR_TEMT;
-
     return FALSE;
+}
+
+static void serial_xmit_timer_cb(void *opaque)
+{
+    SerialState *s = opaque;
+
+    serial_xmit(NULL, G_IO_OUT, s);
 }
 
 
@@ -645,8 +662,11 @@ static int serial_post_load(void *opaque, int version_id)
             return -1;
         }
 
-        assert(s->watch_tag == 0);
-        s->watch_tag = qemu_chr_fe_add_watch(s->chr, G_IO_OUT|G_IO_HUP, serial_xmit, s);
+        if (!timer_pending(&s->transmit_timer)) {
+            assert(s->watch_tag == 0);
+            s->watch_tag = qemu_chr_fe_add_watch(s->chr, G_IO_OUT|G_IO_HUP,
+                                                 serial_xmit, s);
+        }
     } else {
         /* tsr_retry == 0 implies LSR.TEMT = 1 (transmitter empty).  */
         if (!(s->lsr & UART_LSR_TEMT)) {
@@ -703,6 +723,23 @@ static const VMStateDescription vmstate_serial_tsr = {
         VMSTATE_UINT32(tsr_retry, SerialState),
         VMSTATE_UINT8(thr, SerialState),
         VMSTATE_UINT8(tsr, SerialState),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static bool serial_xmit_timer_needed(void *opaque)
+{
+    SerialState *s = (SerialState *)opaque;
+    return timer_pending(s->transmit_timer);
+}
+
+static const VMStateDescription vmstate_serial_xmit_timer = {
+    .name = "serial/xmit_timer",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = serial_xmit_timer_needed,
+    .fields = (VMStateField[]) {
+        VMSTATE_TIMER_PTR(transmit_timer, SerialState),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -822,6 +859,7 @@ const VMStateDescription vmstate_serial = {
         &vmstate_serial_fifo_timeout_timer,
         &vmstate_serial_timeout_ipending,
         &vmstate_serial_poll,
+        &vmstate_serial_xmit_timer,
         NULL
     }
 };
@@ -852,6 +890,7 @@ static void serial_reset(void *opaque)
     s->timeout_ipending = 0;
     timer_del(s->fifo_timeout_timer);
     timer_del(s->modem_status_poll);
+    timer_del(s->transmit_timer);
 
     fifo8_reset(&s->recv_fifo);
     fifo8_reset(&s->xmit_fifo);
@@ -876,6 +915,7 @@ void serial_realize_core(SerialState *s, Error **errp)
     s->modem_status_poll = timer_new_ns(QEMU_CLOCK_VIRTUAL, (QEMUTimerCB *) serial_update_msl, s);
 
     s->fifo_timeout_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, (QEMUTimerCB *) fifo_timeout_int, s);
+    s->transmit_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, (QEMUTimerCB *) serial_xmit_timer_cb, s);
     qemu_register_reset(serial_reset, s);
 
     qemu_chr_add_handlers(s->chr, serial_can_receive1, serial_receive1,
@@ -887,6 +927,7 @@ void serial_realize_core(SerialState *s, Error **errp)
 
 void serial_exit_core(SerialState *s)
 {
+    timer_del(s->transmit_timer);
     qemu_chr_add_handlers(s->chr, NULL, NULL, NULL, NULL);
     qemu_unregister_reset(serial_reset, s);
 }
