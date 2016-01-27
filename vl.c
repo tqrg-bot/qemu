@@ -4008,6 +4008,7 @@ int main(int argc, char **argv, char **envp)
     set_memory_options(&ram_slots, &maxram_size, machine_class);
 
     os_daemonize();
+    rcu_disable_atfork();
 
     if (qemu_init_main_loop(&main_loop_err)) {
         error_report_err(main_loop_err);
