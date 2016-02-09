@@ -1169,6 +1169,11 @@ static void do_xsave_sse(CPUX86State *env, target_ulong ptr, uintptr_t retaddr)
     }
 }
 
+static void do_xsave_pkru(CPUX86State *env, target_ulong ptr, uintptr_t retaddr)
+{
+    cpu_stq_data_ra(env, ptr + 0xA80, env->pkru, retaddr); /* pkru */
+}
+
 void helper_fxsave(CPUX86State *env, target_ulong ptr)
 {
     /* The operand must be 16 byte aligned */
@@ -1191,9 +1196,32 @@ void helper_fxsave(CPUX86State *env, target_ulong ptr)
 
 static uint64_t get_xinuse(CPUX86State *env)
 {
-    /* We don't track XINUSE.  We could calculate it here, but it's
-       probably less work to simply indicate all components in use.  */
-    return -1;
+    uint64_t inuse = -1;
+
+    /* For the most part, we don't track XINUSE.  We could calculate it
+     * here for all components, but it's probably less work to simply
+     * indicate in use.  That said, for state that is important
+     * enough to track in HFLAGS, we might as well use that here.
+     */
+    if ((env->hflags & HF_PKE_MASK) == 0) {
+       inuse &= ~XSTATE_PKRU;
+    }
+    return inuse;
+}
+
+static uint64_t get_xinuse_optimized(CPUX86State *env, uint64_t inuse)
+{
+    uint64_t opt = inuse;
+
+    /* For the most part, we don't track XINUSE.  We could calculate it
+     * here for all components, but it's probably less work to simply
+     * indicate in use.  That said, for state that is important
+     * enough to track in HFLAGS, we might as well use that here.
+     */
+    if ((inuse & XSTATE_PKRU) && env->pkru == 0) {
+       opt &= ~XSTATE_PKRU;
+    }
+    return opt;
 }
 
 static void do_xsave(CPUX86State *env, target_ulong ptr,
@@ -1220,6 +1248,9 @@ static void do_xsave(CPUX86State *env, target_ulong ptr,
     if (opt & XSTATE_SSE) {
         do_xsave_sse(env, ptr, retaddr);
     }
+    if (opt & XSTATE_PKRU) {
+        do_xsave_pkru(env, ptr, retaddr);
+    }
 
     /* Update the XSTATE_BV field.  */
     old_bv = cpu_ldq_data_ra(env, ptr + 512, retaddr);
@@ -1235,7 +1266,8 @@ void helper_xsave(CPUX86State *env, target_ulong ptr, uint64_t rfbm)
 void helper_xsaveopt(CPUX86State *env, target_ulong ptr, uint64_t rfbm)
 {
     uint64_t inuse = get_xinuse(env);
-    do_xsave(env, ptr, rfbm, inuse, inuse, GETPC());
+    uint64_t opt = get_xinuse_optimized(env, inuse);
+    do_xsave(env, ptr, rfbm, inuse, opt, GETPC());
 }
 
 static void do_xrstor_fpu(CPUX86State *env, target_ulong ptr, uintptr_t retaddr)
@@ -1282,6 +1314,16 @@ static void do_xrstor_sse(CPUX86State *env, target_ulong ptr, uintptr_t retaddr)
         env->xmm_regs[i].ZMM_Q(0) = cpu_ldq_data_ra(env, addr, retaddr);
         env->xmm_regs[i].ZMM_Q(1) = cpu_ldq_data_ra(env, addr + 8, retaddr);
         addr += 16;
+    }
+}
+
+static void do_xrstor_pkru(CPUX86State *env, target_ulong ptr, uintptr_t retaddr)
+{
+    uint64_t old_pkru = env->pkru;
+    env->pkru = cpu_ldq_data_ra(env, ptr + 0xA80, retaddr); /* pkru */
+    if (env->pkru != old_pkru) {
+        CPUState *cs = CPU(x86_env_get_cpu(env));
+        tlb_flush(cs, 1);
     }
 }
 
@@ -1356,6 +1398,10 @@ void helper_xrstor(CPUX86State *env, target_ulong ptr, uint64_t rfbm)
                selective in the clearing.  */
             memset(env->xmm_regs, 0, sizeof(env->xmm_regs));
         }
+    }
+
+    if (rfbm & XSTATE_PKRU) {
+        do_xrstor_pkru(env, ptr, GETPC());
     }
 }
 

@@ -157,6 +157,7 @@
 #define HF_SMAP_SHIFT       23 /* CR4.SMAP */
 #define HF_IOBPT_SHIFT      24 /* an io breakpoint enabled */
 #define HF_OSXSAVE_SHIFT    25 /* CR4.OSXSAVE */
+#define HF_PKE_SHIFT        26 /* CR4.PKE enabled */
 
 #define HF_CPL_MASK          (3 << HF_CPL_SHIFT)
 #define HF_SOFTMMU_MASK      (1 << HF_SOFTMMU_SHIFT)
@@ -182,6 +183,7 @@
 #define HF_SMAP_MASK         (1 << HF_SMAP_SHIFT)
 #define HF_IOBPT_MASK        (1 << HF_IOBPT_SHIFT)
 #define HF_OSXSAVE_MASK      (1 << HF_OSXSAVE_SHIFT)
+#define HF_PKE_MASK          (1 << HF_PKE_SHIFT)
 
 /* hflags2 */
 
@@ -229,6 +231,7 @@
 #define CR4_OSXSAVE_MASK (1U << 18)
 #define CR4_SMEP_MASK   (1U << 20)
 #define CR4_SMAP_MASK   (1U << 21)
+#define CR4_PKE_MASK   (1U << 22)
 
 #define DR6_BD          (1 << 13)
 #define DR6_BS          (1 << 14)
@@ -257,6 +260,7 @@
 #define PG_PSE_BIT      7
 #define PG_GLOBAL_BIT   8
 #define PG_PSE_PAT_BIT  12
+#define PG_PKRU_BIT     59
 #define PG_NX_BIT       63
 
 #define PG_PRESENT_MASK  (1 << PG_PRESENT_BIT)
@@ -272,7 +276,8 @@
 #define PG_ADDRESS_MASK  0x000ffffffffff000LL
 #define PG_HI_RSVD_MASK  (PG_ADDRESS_MASK & ~PHYS_ADDR_MASK)
 #define PG_HI_USER_MASK  0x7ff0000000000000LL
-#define PG_NX_MASK       (1LL << PG_NX_BIT)
+#define PG_PKRU_MASK     (15ULL << PG_PKRU_BIT)
+#define PG_NX_MASK       (1ULL << PG_NX_BIT)
 
 #define PG_ERROR_W_BIT     1
 
@@ -281,6 +286,7 @@
 #define PG_ERROR_U_MASK    0x04
 #define PG_ERROR_RSVD_MASK 0x08
 #define PG_ERROR_I_D_MASK  0x10
+#define PG_ERROR_PK_MASK   0x20
 
 #define MCG_CTL_P       (1ULL<<8)   /* MCG_CAP register available */
 #define MCG_SER_P       (1ULL<<24) /* MCA recovery/new status bits */

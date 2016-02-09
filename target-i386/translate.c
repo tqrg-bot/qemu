@@ -7262,6 +7262,12 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
 #endif
             gen_ldst_modrm(env, s, modrm, MO_16, OR_TMP0, 1);
             break;
+        case 0xee: /* rdpkru */
+            gen_helper_rdpkru(cpu_env);
+            break;
+        case 0xef: /* wrpkru */
+            gen_helper_wrpkru(cpu_env);
+            break;
         CASE_MEM_OP(6): /* lmsw */
             if (s->cpl != 0) {
                 gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);

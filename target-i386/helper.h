@@ -79,6 +79,8 @@ DEF_HELPER_1(rdtscp, void, env)
 DEF_HELPER_1(rdpmc, void, env)
 DEF_HELPER_1(rdmsr, void, env)
 DEF_HELPER_1(wrmsr, void, env)
+DEF_HELPER_1(rdpkru, void, env)
+DEF_HELPER_1(wrpkru, void, env)
 
 DEF_HELPER_2(check_iob, void, env, i32)
 DEF_HELPER_2(check_iow, void, env, i32)

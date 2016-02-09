@@ -600,3 +600,35 @@ void helper_debug(CPUX86State *env)
     cs->exception_index = EXCP_DEBUG;
     cpu_loop_exit(cs);
 }
+
+void helper_rdpkru(CPUX86State *env)
+{
+    if ((env->cr[4] & CR4_PKE_MASK) == 0) {
+        raise_exception_err(env, EXCP06_ILLOP, 0);
+        return;
+    }
+    if (env->regs[R_ECX] != 0) {
+        raise_exception_err(env, EXCP0D_GPF, 0);
+        return;
+    }
+
+    env->regs[R_EAX] = env->pkru;
+    env->regs[R_EDX] = 0;
+}
+
+void helper_wrpkru(CPUX86State *env)
+{
+    CPUState *cs = CPU(x86_env_get_cpu(env));
+
+    if ((env->cr[4] & CR4_PKE_MASK) == 0) {
+        raise_exception_err(env, EXCP06_ILLOP, 0);
+        return;
+    }
+    if (env->regs[R_ECX] != 0) {
+        raise_exception_err(env, EXCP0D_GPF, 0);
+        return;
+    }
+
+    env->pkru = env->regs[R_EAX];
+    tlb_flush(cs, 1);
+}
