@@ -48,6 +48,7 @@ typedef struct NFSClient {
 } NFSClient;
 
 typedef struct NFSRPC {
+    BlockDriverState *bs;
     int ret;
     int complete;
     QEMUIOVector *iov;
@@ -87,11 +88,12 @@ static void nfs_process_write(void *arg)
     nfs_set_events(client);
 }
 
-static void nfs_co_init_task(NFSClient *client, NFSRPC *task)
+static void nfs_co_init_task(BlockDriverState *bs, NFSRPC *task)
 {
     *task = (NFSRPC) {
         .co             = qemu_coroutine_self(),
-        .client         = client,
+        .bs             = bs,
+        .client         = bs->opaque,
     };
 }
 
@@ -109,6 +111,7 @@ nfs_co_generic_cb(int ret, struct nfs_context *nfs, void *data,
 {
     NFSRPC *task = private_data;
     task->ret = ret;
+    assert(!task->st);
     if (task->ret > 0 && task->iov) {
         if (task->ret <= task->iov->size) {
             qemu_iovec_from_buf(task->iov, 0, data, task->ret);
@@ -116,19 +119,12 @@ nfs_co_generic_cb(int ret, struct nfs_context *nfs, void *data,
             task->ret = -EIO;
         }
     }
-    if (task->ret == 0 && task->st) {
-        memcpy(task->st, data, sizeof(struct stat));
-    }
     if (task->ret < 0) {
         error_report("NFS Error: %s", nfs_get_error(nfs));
     }
-    if (task->co) {
-        task->bh = aio_bh_new(task->client->aio_context,
-                              nfs_co_generic_bh_cb, task);
-        qemu_bh_schedule(task->bh);
-    } else {
-        task->complete = 1;
-    }
+    task->bh = aio_bh_new(task->client->aio_context,
+                          nfs_co_generic_bh_cb, task);
+    qemu_bh_schedule(task->bh);
 }
 
 static int coroutine_fn nfs_co_readv(BlockDriverState *bs,
@@ -138,7 +134,7 @@ static int coroutine_fn nfs_co_readv(BlockDriverState *bs,
     NFSClient *client = bs->opaque;
     NFSRPC task;
 
-    nfs_co_init_task(client, &task);
+    nfs_co_init_task(bs, &task);
     task.iov = iov;
 
     if (nfs_pread_async(client->context, client->fh,
@@ -173,7 +169,7 @@ static int coroutine_fn nfs_co_writev(BlockDriverState *bs,
     NFSRPC task;
     char *buf = NULL;
 
-    nfs_co_init_task(client, &task);
+    nfs_co_init_task(bs, &task);
 
     buf = g_try_malloc(nb_sectors * BDRV_SECTOR_SIZE);
     if (nb_sectors && buf == NULL) {
@@ -209,7 +205,7 @@ static int coroutine_fn nfs_co_flush(BlockDriverState *bs)
     NFSClient *client = bs->opaque;
     NFSRPC task;
 
-    nfs_co_init_task(client, &task);
+    nfs_co_init_task(bs, &task);
 
     if (nfs_fsync_async(client->context, client->fh, nfs_co_generic_cb,
                         &task) != 0) {
@@ -469,6 +465,21 @@ static int nfs_has_zero_init(BlockDriverState *bs)
     return client->has_zero_init;
 }
 
+static void
+nfs_get_allocated_file_size_cb(int ret, struct nfs_context *nfs, void *data,
+                               void *private_data)
+{
+    NFSRPC *task = private_data;
+    task->ret = ret;
+    if (task->ret == 0) {
+        memcpy(task->st, data, sizeof(struct stat));
+    }
+    if (task->ret < 0) {
+        error_report("NFS Error: %s", nfs_get_error(nfs));
+    }
+    bdrv_dec_in_flight(task->bs);
+}
+
 static int64_t nfs_get_allocated_file_size(BlockDriverState *bs)
 {
     NFSClient *client = bs->opaque;
@@ -480,16 +491,15 @@ static int64_t nfs_get_allocated_file_size(BlockDriverState *bs)
         return client->st_blocks * 512;
     }
 
+    bdrv_inc_in_flight(bs);
+    task.bs = bs;
     task.st = &st;
-    if (nfs_fstat_async(client->context, client->fh, nfs_co_generic_cb,
+    if (nfs_fstat_async(client->context, client->fh, nfs_get_allocated_file_size_cb,
                         &task) != 0) {
         return -ENOMEM;
     }
 
-    while (!task.complete) {
-        nfs_set_events(client);
-        aio_poll(client->aio_context, true);
-    }
+    bdrv_drain(bs);
 
     return (task.ret < 0 ? task.ret : st.st_blocks * 512);
 }
