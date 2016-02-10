@@ -237,16 +237,25 @@ bool bdrv_requests_pending(BlockDriverState *bs)
     return false;
 }
 
-static void bdrv_drain_recurse(BlockDriverState *bs)
+static bool bdrv_drain_io_recurse(BlockDriverState *bs)
 {
     BdrvChild *child;
+    bool waited = false;
+
+    while (atomic_read(&bs->in_flight) > 0) {
+        aio_poll(bdrv_get_aio_context(bs), true);
+        waited = true;
+    }
 
     if (bs->drv && bs->drv->bdrv_drain) {
         bs->drv->bdrv_drain(bs);
     }
+
     QLIST_FOREACH(child, &bs->children, next) {
-        bdrv_drain_recurse(child->bs);
+        waited |= bdrv_drain_io_recurse(child->bs);
     }
+
+    return waited;
 }
 
 /*
@@ -264,11 +273,7 @@ void bdrv_drain(BlockDriverState *bs)
 {
     bdrv_no_throttling_begin(bs);
     bdrv_io_unplugged_begin(bs);
-    bdrv_drain_recurse(bs);
-    while (bdrv_requests_pending(bs)) {
-        /* Keep iterating */
-         aio_poll(bdrv_get_aio_context(bs), true);
-    }
+    bdrv_drain_io_recurse(bs);
     bdrv_io_unplugged_end(bs);
     bdrv_no_throttling_end(bs);
 }
@@ -295,7 +300,6 @@ void bdrv_drain_all(void)
         }
         bdrv_no_throttling_begin(bs);
         bdrv_io_unplugged_begin(bs);
-        bdrv_drain_recurse(bs);
         aio_context_release(aio_context);
 
         if (!g_slist_find(aio_ctxs, aio_context)) {
@@ -319,10 +323,7 @@ void bdrv_drain_all(void)
             aio_context_acquire(aio_context);
             while ((bs = bdrv_next(bs))) {
                 if (aio_context == bdrv_get_aio_context(bs)) {
-                    if (bdrv_requests_pending(bs)) {
-                        aio_poll(aio_context, true);
-                        waited = true;
-                    }
+                    waited |= bdrv_drain_io_recurse(bs);
                 }
             }
             aio_context_release(aio_context);
