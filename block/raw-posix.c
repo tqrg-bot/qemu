@@ -1343,17 +1343,7 @@ static void raw_aio_unplug(BlockDriverState *bs)
 #ifdef CONFIG_LINUX_AIO
     BDRVRawState *s = bs->opaque;
     if (s->use_aio) {
-        laio_io_unplug(bs, s->aio_ctx, true);
-    }
-#endif
-}
-
-static void raw_aio_flush_io_queue(BlockDriverState *bs)
-{
-#ifdef CONFIG_LINUX_AIO
-    BDRVRawState *s = bs->opaque;
-    if (s->use_aio) {
-        laio_io_unplug(bs, s->aio_ctx, false);
+        laio_io_unplug(bs, s->aio_ctx);
     }
 #endif
 }
@@ -1947,7 +1937,6 @@ BlockDriver bdrv_file = {
     .bdrv_refresh_limits = raw_refresh_limits,
     .bdrv_io_plug = raw_aio_plug,
     .bdrv_io_unplug = raw_aio_unplug,
-    .bdrv_flush_io_queue = raw_aio_flush_io_queue,
 
     .bdrv_truncate = raw_truncate,
     .bdrv_getlength = raw_getlength,
@@ -2310,7 +2299,6 @@ static BlockDriver bdrv_host_device = {
     .bdrv_refresh_limits = raw_refresh_limits,
     .bdrv_io_plug = raw_aio_plug,
     .bdrv_io_unplug = raw_aio_unplug,
-    .bdrv_flush_io_queue = raw_aio_flush_io_queue,
 
     .bdrv_truncate      = raw_truncate,
     .bdrv_getlength	= raw_getlength,
@@ -2440,7 +2428,6 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_refresh_limits = raw_refresh_limits,
     .bdrv_io_plug = raw_aio_plug,
     .bdrv_io_unplug = raw_aio_unplug,
-    .bdrv_flush_io_queue = raw_aio_flush_io_queue,
 
     .bdrv_truncate      = raw_truncate,
     .bdrv_getlength      = raw_getlength,
@@ -2576,7 +2563,6 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_refresh_limits = raw_refresh_limits,
     .bdrv_io_plug = raw_aio_plug,
     .bdrv_io_unplug = raw_aio_unplug,
-    .bdrv_flush_io_queue = raw_aio_flush_io_queue,
 
     .bdrv_truncate      = raw_truncate,
     .bdrv_getlength      = raw_getlength,
