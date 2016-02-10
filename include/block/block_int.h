@@ -412,10 +412,10 @@ struct BlockDriverState {
 
     /* I/O throttling.
      * throttle_state tells us if this BDS has I/O limits configured.
-     * io_limits_enabled tells us if they are currently being
-     * enforced, but it can be temporarily set to false */
+     * io_limits_disabled tells us if they are currently being enforced */
     CoQueue      throttled_reqs[2];
-    bool         io_limits_enabled;
+    unsigned int io_limits_disabled;
+
     /* The following fields are protected by the ThrottleGroup lock.
      * See the ThrottleGroup documentation for details. */
     ThrottleState *throttle_state;
