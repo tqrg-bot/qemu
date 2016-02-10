@@ -63,8 +63,6 @@
 enum BdrvTrackedRequestType {
     BDRV_TRACKED_READ,
     BDRV_TRACKED_WRITE,
-    BDRV_TRACKED_FLUSH,
-    BDRV_TRACKED_IOCTL,
     BDRV_TRACKED_DISCARD,
 };
 
@@ -406,7 +404,8 @@ struct BlockDriverState {
     /* Callback before write request is processed */
     NotifierWithReturnList before_write_notifiers;
 
-    /* number of in-flight serialising requests */
+    /* number of in-flight requests; overall and serialising */
+    unsigned int in_flight;
     unsigned int serialising_in_flight;
 
     /* I/O throttling.
@@ -712,6 +711,9 @@ bool bdrv_requests_pending(BlockDriverState *bs);
 
 void bdrv_clear_dirty_bitmap(BdrvDirtyBitmap *bitmap, HBitmap **out);
 void bdrv_undo_clear_dirty_bitmap(BdrvDirtyBitmap *bitmap, HBitmap *in);
+
+void bdrv_inc_in_flight(BlockDriverState *bs);
+void bdrv_dec_in_flight(BlockDriverState *bs);
 
 void blockdev_close_all_bdrv_states(void);
 

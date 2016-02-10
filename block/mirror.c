@@ -95,6 +95,7 @@ static void mirror_bh_cb(void *opaque)
 
     qemu_bh_delete(op->co_enter_bh);
     g_free(op);
+    bdrv_dec_in_flight(s->common.bs);
     if (s->waiting_for_io) {
         qemu_coroutine_enter(s->common.co, NULL);
     }
@@ -135,6 +136,7 @@ static void mirror_iteration_done(MirrorOp *op, int ret)
      * If we call qemu_coroutine_enter here, there is the possibility
      * of a deadlock when the coroutine calls bdrv_drained_begin.
      */
+    bdrv_inc_in_flight(s->common.bs);
     op->co_enter_bh = aio_bh_new(bdrv_get_aio_context(s->target),
                                  mirror_bh_cb, op);
     qemu_bh_schedule(op->co_enter_bh);
