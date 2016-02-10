@@ -105,7 +105,9 @@ discard 65536/65536 bytes at offset 0
 64 KiB, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
 qcow2: Marking image as corrupt: Preventing invalid write on metadata (overlaps with active L2 table); further corruption events will be suppressed
 blkdebug: Suspended request '0'
-write failed: Input/output error
+blkdebug: Suspended request '1'
+blkdebug: Resuming request '1'
+aio_write failed: Input/output error
 blkdebug: Resuming request '0'
 aio_write failed: No medium found
 

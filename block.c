@@ -2148,7 +2148,6 @@ static void bdrv_close(BlockDriverState *bs)
 
     bdrv_drained_begin(bs); /* complete I/O */
     bdrv_flush(bs);
-    bdrv_drain(bs); /* in case flush left pending I/O */
 
     bdrv_release_named_dirty_bitmaps(bs);
     assert(QLIST_EMPTY(&bs->dirty_bitmaps));

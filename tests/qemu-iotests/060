@@ -164,8 +164,12 @@ echo "open -o file.driver=blkdebug $TEST_IMG
 break cow_read 0
 aio_write 0k 1k
 wait_break 0
-write 64k 64k
-resume 0" | $QEMU_IO | _filter_qemu_io
+break pwritev_done 1
+aio_write 64k 64k
+wait_break 1
+resume 1
+resume 0
+aio_flush" | $QEMU_IO | _filter_qemu_io
 
 echo
 echo "=== Testing unallocated image header ==="
