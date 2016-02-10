@@ -363,6 +363,7 @@ struct SheepdogAIOCB {
 typedef struct BDRVSheepdogState {
     BlockDriverState *bs;
     AioContext *aio_context;
+    Error *blocker;
 
     SheepdogInode inode;
 
@@ -1422,6 +1423,21 @@ static int sd_open(BlockDriverState *bs, QDict *options, int flags,
     Error *local_err = NULL;
     const char *filename;
 
+    /* sd_snapshot_goto does blocking operations that call aio_poll
+     * (through do_req).  This can cause races with iothread:
+     *
+     *       main thread                       I/O thread
+     *       -----------------                 ------------------
+     *       while(srco.finished == false)
+     *                                         aio_poll(..., true)
+     *                                            srco.finished = true
+     *         aio_poll(..., true)
+     *
+     * Now aio_poll potentially blocks forever.
+     */
+    error_setg(&s->blocker, "sheepdog does not support iothreads");
+    bdrv_op_block(bs, BLOCK_OP_TYPE_DATAPLANE, s->blocker);
+
     s->bs = bs;
     s->aio_context = bdrv_get_aio_context(bs);
 
@@ -1956,6 +1972,9 @@ static void sd_close(BlockDriverState *bs)
                        false, NULL, NULL, NULL);
     closesocket(s->fd);
     g_free(s->host_spec);
+
+    bdrv_op_unblock(bs, BLOCK_OP_TYPE_DATAPLANE, s->blocker);
+    error_free(s->blocker);
 }
 
 static int64_t sd_getlength(BlockDriverState *bs)
