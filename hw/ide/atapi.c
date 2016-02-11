@@ -1324,25 +1324,20 @@ void ide_atapi_cmd(IDEState *s)
      * GET_EVENT_STATUS_NOTIFICATION to detect such tray open/close
      * states rely on this behavior.
      */
-    if (!(cmd->flags & ALLOW_UA) &&
-        !s->tray_open && blk_is_inserted(s->blk) && s->cdrom_changed) {
-
-        if (s->cdrom_changed == 1) {
-            ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
-            s->cdrom_changed = 2;
-        } else {
-            ide_atapi_cmd_error(s, UNIT_ATTENTION, ASC_MEDIUM_MAY_HAVE_CHANGED);
-            s->cdrom_changed = 0;
-        }
-
+    if ((cmd->flags & CHECK_READY) &&
+        (!blk_is_inserted(s->blk)
+         || !media_present(s)
+         || (!s->tray_open && s->cdrom_changed == 1))) {
+        ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
+        s->cdrom_changed = 2;
         return;
     }
 
-    /* Report a Not Ready condition if appropriate for the command */
-    if ((cmd->flags & CHECK_READY) &&
-        (!media_present(s) || !blk_is_inserted(s->blk)))
-    {
-        ide_atapi_cmd_error(s, NOT_READY, ASC_MEDIUM_NOT_PRESENT);
+    if (!(cmd->flags & ALLOW_UA) &&
+        blk_is_inserted(s->blk) && !s->tray_open && s->cdrom_changed == 2) {
+
+        ide_atapi_cmd_error(s, UNIT_ATTENTION, ASC_MEDIUM_MAY_HAVE_CHANGED);
+        s->cdrom_changed = 0;
         return;
     }
 
