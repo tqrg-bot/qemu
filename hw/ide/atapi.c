@@ -1309,8 +1309,6 @@ void ide_cd_change_cb(void *opaque, bool load)
     uint64_t nb_sectors;
 
     s->tray_open = !load;
-    blk_get_geometry(s->blk, &nb_sectors);
-    s->nb_sectors = nb_sectors;
 
     /*
      * First indicate to the guest that a CD has been removed.  That's
@@ -1389,6 +1387,8 @@ void ide_atapi_cmd(IDEState *s)
         s->cdrom_changed = 0;
         return;
     }
+
+    blk_get_geometry(s->blk, &s->nb_sectors);
 
     /* Nondata commands permit the byte_count_limit to be 0.
      * If this is a data-transferring PIO command and BCL is 0,

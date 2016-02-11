@@ -612,6 +612,11 @@ static int refresh_total_sectors(BlockDriverState *bs, int64_t hint)
 {
     BlockDriver *drv = bs->drv;
 
+    if (!drv) {
+        bs->total_sectors = 0;
+        return 0;
+    }
+
     /* Do not attempt drv->bdrv_getlength() on scsi-generic devices */
     if (bdrv_is_sg(bs))
         return 0;
@@ -2736,15 +2741,10 @@ int64_t bdrv_nb_sectors(BlockDriverState *bs)
 {
     BlockDriver *drv = bs->drv;
 
-    if (!drv)
+    if (!drv) {
         return -ENOMEDIUM;
-
-    if (drv->has_variable_length) {
-        int ret = refresh_total_sectors(bs, bs->total_sectors);
-        if (ret < 0) {
-            return ret;
-        }
     }
+
     return bs->total_sectors;
 }
 
@@ -2754,18 +2754,26 @@ int64_t bdrv_nb_sectors(BlockDriverState *bs)
  */
 int64_t bdrv_getlength(BlockDriverState *bs)
 {
-    int64_t ret = bdrv_nb_sectors(bs);
+    int ret = refresh_total_sectors(bs, bs->total_sectors);
+    if (ret < 0) {
+        return ret;
+    }
 
-    ret = ret > INT64_MAX / BDRV_SECTOR_SIZE ? -EFBIG : ret;
-    return ret < 0 ? ret : ret * BDRV_SECTOR_SIZE;
+    if (bs->total_sectors > INT64_MAX / BDRV_SECTOR_SIZE) {
+        return -EFBIG;
+    }
+    return bs->total_sectors * BDRV_SECTOR_SIZE;
 }
 
 /* return 0 as number of sectors if no device present or error */
 void bdrv_get_geometry(BlockDriverState *bs, uint64_t *nb_sectors_ptr)
 {
-    int64_t nb_sectors = bdrv_nb_sectors(bs);
+    int ret = refresh_total_sectors(bs, bs->total_sectors);
+    if (ret < 0) {
+        return ret;
+    }
 
-    *nb_sectors_ptr = nb_sectors < 0 ? 0 : nb_sectors;
+    *nb_sectors_ptr = bs->total_sectors;
 }
 
 int bdrv_is_read_only(BlockDriverState *bs)
