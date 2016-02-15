@@ -380,15 +380,14 @@ struct BdrvChild {
  * copied as well.
  */
 struct BlockDriverState {
-    int64_t total_sectors; /* if we are reading a disk image, give its
-                              size in sectors */
+    /* Protected by big QEMU lock or read-only after opening.  No special
+     * locking needed during I/O...
+     */
     int read_only; /* if true, the media is read only */
     int open_flags; /* flags used to open the file, re-used for re-open */
     int encrypted; /* if true, the media is encrypted */
     int valid_key; /* if true, a valid encryption key has been set */
     int sg;        /* if true, the device is a /dev/sg* */
-    int copy_on_read; /* if true, copy read backing sectors into image
-                         note this is a reference count */
     bool probed;
 
     BlockDriver *drv; /* NULL means no media */
@@ -413,32 +412,6 @@ struct BlockDriverState {
     BdrvChild *backing;
     BdrvChild *file;
 
-    /* Callback before write request is processed */
-    NotifierWithReturnList before_write_notifiers;
-
-    /* number of in-flight requests; overall and serialising.
-     * in_flight_event is set when in_flight becomes 0.
-     */
-    unsigned int in_flight;
-    unsigned int serialising_in_flight;
-    QemuEvent in_flight_event;
-
-    /* I/O throttling.
-     * throttle_state tells us if this BDS has I/O limits configured.
-     * io_limits_disabled tells us if they are currently being enforced */
-    CoQueue      throttled_reqs[2];
-    unsigned int io_limits_disabled;
-
-    /* The following fields are protected by the ThrottleGroup lock.
-     * See the ThrottleGroup documentation for details. */
-    ThrottleState *throttle_state;
-    ThrottleTimers throttle_timers;
-    unsigned       pending_reqs[2];
-    QLIST_ENTRY(BlockDriverState) round_robin;
-
-    /* Offset after the highest byte written to */
-    uint64_t wr_highest_offset;
-
     /* I/O Limits */
     BlockLimits bl;
 
@@ -456,10 +429,7 @@ struct BlockDriverState {
     QTAILQ_ENTRY(BlockDriverState) bs_list;
     /* element of the list of monitor-owned BDS */
     QTAILQ_ENTRY(BlockDriverState) monitor_list;
-    QLIST_HEAD(, BdrvDirtyBitmap) dirty_bitmaps;
     int refcnt;
-
-    QLIST_HEAD(, BdrvTrackedRequest) tracked_requests;
 
     /* operation blockers */
     QLIST_HEAD(, BdrvOpBlocker) op_blockers[BLOCK_OP_TYPE_MAX];
@@ -481,6 +451,32 @@ struct BlockDriverState {
     /* The error object in use for blocking operations on backing_hd */
     Error *backing_blocker;
 
+    /* Protected by AioContext lock */
+
+    /* If true, copy read backing sectors into image.  Can be >1 if more
+     * than one client has requested copy-on-read.
+     */
+    int copy_on_read;
+
+    /* If we are reading a disk image, give its size in sectors.
+     * Generally read-only; it is written to by load_vmstate and save_vmstate,
+     * but the block layer is quiescent during those.
+     */
+    int64_t total_sectors;
+
+    /* Callback before write request is processed */
+    NotifierWithReturnList before_write_notifiers;
+
+    /* number of in-flight requests; overall and serialising.
+     * in_flight_event is set when in_flight becomes 0.
+     */
+    unsigned int in_flight;
+    unsigned int serialising_in_flight;
+    QemuEvent in_flight_event;
+
+    /* Offset after the highest byte written to */
+    uint64_t wr_highest_offset;
+
     /* threshold limit for writes, in bytes. "High water mark". */
     uint64_t write_threshold_offset;
     NotifierWithReturn write_threshold_notifier;
@@ -489,7 +485,34 @@ struct BlockDriverState {
     unsigned io_plugged;
     unsigned io_plug_disabled;
 
+    QLIST_HEAD(, BdrvTrackedRequest) tracked_requests;
+
+    QLIST_HEAD(, BdrvDirtyBitmap) dirty_bitmaps;
+
+    /* do we need to tell the quest if we have a volatile write cache? */
+    int enable_write_cache;
+
     int quiesce_counter;
+
+
+    /* I/O throttling has its own locking, but also some fields are
+     * protected by the AioContext lock.
+     */
+
+    /* Protected by AioContext lock.  */
+    CoQueue      throttled_reqs[2];
+
+    /* Nonzero if the I/O limits are currently being ignored; generally
+     * it is zero.  */
+    unsigned int io_limits_disabled;
+
+    /* The following fields are protected by the ThrottleGroup lock.
+     * See the ThrottleGroup documentation for details.
+     * throttle_state tells us if I/O limits are configured. */
+    ThrottleState *throttle_state;
+    ThrottleTimers throttle_timers;
+    unsigned       pending_reqs[2];
+    QLIST_ENTRY(BlockDriverState) round_robin;
 };
 
 struct BlockBackendRootState {
