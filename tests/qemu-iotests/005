@@ -47,6 +47,11 @@ _supported_os Linux
 _unsupported_imgopts "subformat=twoGbMaxExtentFlat" \
                      "subformat=twoGbMaxExtentSparse"
 
+# the length of raw files depends on the filesystem
+if [ "$IMGFMT" = "raw" ]; then
+    _notrun "image format $IMGFMT may not support large image sizes"
+fi
+
 # vpc is limited to 127GB, so we can't test it here
 if [ "$IMGFMT" = "vpc" ]; then
     _notrun "image format $IMGFMT does not support large image sizes"
