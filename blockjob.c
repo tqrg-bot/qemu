@@ -289,16 +289,26 @@ static int block_job_finish_sync(BlockJob *job,
     assert(bs->job == job);
 
     block_job_ref(job);
+
+    /* finish will call block_job_enter (see e.g. block_job_cancel,
+     * or mirror_complete in block/mirror.c).  Barring bugs in the
+     * job coroutine, bdrv_drain should be enough to induce progress
+     * until the job completes or moves to the main thread.
+    */
     finish(job, &local_err);
     if (local_err) {
         error_propagate(errp, local_err);
         block_job_unref(job);
         return -EBUSY;
     }
+    while (!job->deferred_to_main_loop && !job->completed) {
+        bdrv_drain(bs);
+        if (job->driver->drain) {
+            job->driver->drain(job);
+        }
+    }
     while (!job->completed) {
-        aio_poll(job->deferred_to_main_loop ? qemu_get_aio_context() :
-                                              bdrv_get_aio_context(bs),
-                 true);
+        aio_poll(qemu_get_aio_context(), true);
     }
     ret = (job->cancelled && job->ret == 0) ? -ECANCELED : job->ret;
     block_job_unref(job);
