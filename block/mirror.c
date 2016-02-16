@@ -416,7 +416,7 @@ static void mirror_free_init(MirrorBlockJob *s)
     }
 }
 
-static void mirror_drain(MirrorBlockJob *s)
+static void mirror_wait_for_completion(MirrorBlockJob *s)
 {
     while (s->in_flight > 0) {
         mirror_wait_for_io(s);
@@ -682,7 +682,7 @@ immediate_exit:
          * the target is a copy of the source.
          */
         assert(ret < 0 || (!s->synced && block_job_is_cancelled(&s->common)));
-        mirror_drain(s);
+        mirror_wait_for_completion(s);
     }
 
     assert(s->in_flight == 0);
@@ -763,12 +763,19 @@ static void mirror_complete(BlockJob *job, Error **errp)
     block_job_enter(&s->common);
 }
 
+static void mirror_drain(BlockJob *job)
+{
+    MirrorBlockJob *s = container_of(job, MirrorBlockJob, common);
+    bdrv_drain(s->target);
+}
+
 static const BlockJobDriver mirror_job_driver = {
     .instance_size = sizeof(MirrorBlockJob),
     .job_type      = BLOCK_JOB_TYPE_MIRROR,
     .set_speed     = mirror_set_speed,
     .iostatus_reset= mirror_iostatus_reset,
     .complete      = mirror_complete,
+    .drain         = mirror_drain,
 };
 
 static const BlockJobDriver commit_active_job_driver = {
@@ -778,6 +785,7 @@ static const BlockJobDriver commit_active_job_driver = {
     .iostatus_reset
                    = mirror_iostatus_reset,
     .complete      = mirror_complete,
+    .drain         = mirror_drain,
 };
 
 static void mirror_start_job(BlockDriverState *bs, BlockDriverState *target,

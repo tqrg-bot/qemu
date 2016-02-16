@@ -259,6 +259,12 @@ static void backup_abort(BlockJob *job)
     }
 }
 
+static void backup_drain(BlockJob *job)
+{
+    BackupBlockJob *s = container_of(job, BackupBlockJob, common);
+    bdrv_drain(s->target);
+}
+
 static const BlockJobDriver backup_job_driver = {
     .instance_size  = sizeof(BackupBlockJob),
     .job_type       = BLOCK_JOB_TYPE_BACKUP,
@@ -266,6 +272,7 @@ static const BlockJobDriver backup_job_driver = {
     .iostatus_reset = backup_iostatus_reset,
     .commit         = backup_commit,
     .abort          = backup_abort,
+    .drain          = backup_drain,
 };
 
 static BlockErrorAction backup_error_action(BackupBlockJob *job,

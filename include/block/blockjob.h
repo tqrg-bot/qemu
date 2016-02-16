@@ -70,6 +70,13 @@ typedef struct BlockJobDriver {
      * never both.
      */
     void (*abort)(BlockJob *job);
+
+    /**
+     * If the callback is not NULL, it will be invoked when the job has to be
+     * synchronously cancelled or completed; it should drain BlockDriverStates
+     * as required to ensure progress.
+     */
+    void (*drain)(BlockJob *job);
 } BlockJobDriver;
 
 /**
