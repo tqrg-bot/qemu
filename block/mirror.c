@@ -72,6 +72,7 @@ typedef struct MirrorOp {
     QEMUIOVector qiov;
     int64_t sector_num;
     int nb_sectors;
+    QEMUBH *co_enter_bh;
 } MirrorOp;
 
 static BlockErrorAction mirror_error_action(MirrorBlockJob *s, bool read,
@@ -84,6 +85,18 @@ static BlockErrorAction mirror_error_action(MirrorBlockJob *s, bool read,
     } else {
         return block_job_error_action(&s->common, s->target,
                                       s->on_target_error, false, error);
+    }
+}
+
+static void mirror_bh_cb(void *opaque)
+{
+    MirrorOp *op = opaque;
+    MirrorBlockJob *s = op->s;
+
+    qemu_bh_delete(op->co_enter_bh);
+    g_free(op);
+    if (s->waiting_for_io) {
+        qemu_coroutine_enter(s->common.co, NULL);
     }
 }
 
@@ -117,11 +130,14 @@ static void mirror_iteration_done(MirrorOp *op, int ret)
     }
 
     qemu_iovec_destroy(&op->qiov);
-    g_free(op);
 
-    if (s->waiting_for_io) {
-        qemu_coroutine_enter(s->common.co, NULL);
-    }
+    /* The I/O operation is not finished until the callback returns.
+     * If we call qemu_coroutine_enter here, there is the possibility
+     * of a deadlock when the coroutine calls bdrv_drained_begin.
+     */
+    op->co_enter_bh = aio_bh_new(bdrv_get_aio_context(s->target),
+                                 mirror_bh_cb, op);
+    qemu_bh_schedule(op->co_enter_bh);
 }
 
 static void mirror_write_complete(void *opaque, int ret)
