@@ -28,6 +28,7 @@
 #include "block/thread-pool.h"
 #include "qemu/main-loop.h"
 #include "qemu/atomic.h"
+#include "block/raw-aio.h"
 
 /***********************************************************/
 /* bottom halves (can be seen as timers which expire ASAP) */
@@ -240,6 +241,14 @@ aio_ctx_finalize(GSource     *source)
 
     thread_pool_free(ctx->thread_pool);
 
+#ifdef CONFIG_LINUX_AIO
+    if (ctx->linux_aio) {
+        laio_detach_aio_context(ctx->linux_aio, ctx);
+        laio_cleanup(ctx->linux_aio);
+        ctx->linux_aio = NULL;
+    }
+#endif
+
     qemu_mutex_lock(&ctx->bh_lock);
     while (ctx->first_bh) {
         QEMUBH *next = ctx->first_bh->next;
@@ -279,6 +288,17 @@ ThreadPool *aio_get_thread_pool(AioContext *ctx)
     }
     return ctx->thread_pool;
 }
+
+#ifdef CONFIG_LINUX_AIO
+LinuxAioState *aio_get_linux_aio(AioContext *ctx)
+{
+    if (!ctx->linux_aio) {
+        ctx->linux_aio = laio_init();
+        laio_attach_aio_context(ctx->linux_aio, ctx);
+    }
+    return ctx->linux_aio;
+}
+#endif
 
 void aio_notify(AioContext *ctx)
 {
@@ -330,6 +350,9 @@ AioContext *aio_context_new(Error **errp)
                            false,
                            (EventNotifierHandler *)
                            event_notifier_dummy_cb);
+#ifdef CONFIG_LINUX_AIO
+    ctx->linux_aio = NULL;
+#endif
     ctx->thread_pool = NULL;
     qemu_mutex_init(&ctx->bh_lock);
     qemu_rec_mutex_init(&ctx->lock);
