@@ -257,11 +257,6 @@ static int hpet_post_load(void *opaque, int version_id)
     s->capability |= (s->num_timers - 1) << HPET_ID_NUM_TIM_SHIFT;
     hpet_cfg.hpet[s->hpet_id].event_timer_block_id = (uint32_t)s->capability;
 
-    /* Derive HPET_MSI_SUPPORT from the capability of the first timer. */
-    s->flags &= ~(1 << HPET_MSI_SUPPORT);
-    if (s->timer[0].config & HPET_TN_FSB_CAP) {
-        s->flags |= 1 << HPET_MSI_SUPPORT;
-    }
     return 0;
 }
 
