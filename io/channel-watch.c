@@ -135,7 +135,13 @@ qio_channel_socket_source_check(GSource *source)
 
     /* WSAEnumNetworkEvents is edge-triggered, so we need a separate
      * call to select to find which events are actually available.
+     * However, if there were no reported events at the time of the last
+     * call, and no new events since then, we know that the socket is
+     * quiescent.
      */
+    if (!ssource->revents && !ev.lNetworkEvents) {
+        return 0;
+    }
 
     FD_ZERO(&rfds);
     FD_ZERO(&wfds);
