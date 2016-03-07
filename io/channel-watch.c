@@ -30,6 +30,20 @@ struct QIOChannelFDSource {
 };
 
 
+#ifdef CONFIG_WIN32
+typedef struct QIOChannelSocketSource QIOChannelSocketSource;
+struct QIOChannelSocketSource {
+    GSource parent;
+    QIOChannel *ioc;
+    SOCKET socket;
+    int revents;
+    GIOCondition condition;
+};
+
+static GPollFD socket_event_pfd;
+#endif
+
+
 typedef struct QIOChannelFDPairSource QIOChannelFDPairSource;
 struct QIOChannelFDPairSource {
     GSource parent;
@@ -80,6 +94,109 @@ qio_channel_fd_source_finalize(GSource *source)
 
     object_unref(OBJECT(ssource->ioc));
 }
+
+
+#ifdef CONFIG_WIN32
+static void *create_socket_event(void *unused)
+{
+    /* Auto-reset, initially unset.  */
+    socket_event_pfd.fd = (guint64) CreateEvent(NULL, FALSE, FALSE, NULL);
+    socket_event_pfd.events = G_IO_IN;
+    g_main_context_add_poll(NULL, &socket_event_pfd, 0);
+
+    return (HANDLE) socket_event_pfd.fd;
+}
+
+
+static gboolean
+qio_channel_socket_source_prepare(GSource *source G_GNUC_UNUSED,
+                                  gint *timeout)
+{
+    *timeout = -1;
+
+    return FALSE;
+}
+
+
+static gboolean
+qio_channel_socket_source_check(GSource *source)
+{
+    static struct timeval tv0;
+
+    QIOChannelSocketSource *ssource = (QIOChannelSocketSource *)source;
+    WSANETWORKEVENTS ev;
+    fd_set rfds, wfds, xfds;
+
+    if (!ssource->condition) {
+        return 0;
+    }
+
+    WSAEnumNetworkEvents(ssource->socket, (HANDLE) socket_event_pfd.fd, &ev);
+
+    /* WSAEnumNetworkEvents is edge-triggered, so we need a separate
+     * call to select to find which events are actually available.
+     */
+
+    FD_ZERO(&rfds);
+    FD_ZERO(&wfds);
+    FD_ZERO(&xfds);
+    if (ssource->condition & G_IO_IN) {
+        FD_SET((SOCKET)ssource->socket, &rfds);
+    }
+    if (ssource->condition & G_IO_OUT) {
+        FD_SET((SOCKET)ssource->socket, &wfds);
+    }
+    if (ssource->condition & G_IO_PRI) {
+        FD_SET((SOCKET)ssource->socket, &xfds);
+    }
+    ssource->revents = 0;
+    if (select(0, &rfds, &wfds, &xfds, &tv0) == 0) {
+        return 0;
+    }
+
+    if (FD_ISSET(ssource->socket, &rfds)) {
+        ssource->revents |= G_IO_IN;
+    }
+    if (FD_ISSET(ssource->socket, &wfds)) {
+        ssource->revents |= G_IO_OUT;
+    }
+    if (FD_ISSET(ssource->socket, &xfds)) {
+        ssource->revents |= G_IO_PRI;
+    }
+
+    return ssource->revents;
+}
+
+
+static gboolean
+qio_channel_socket_source_dispatch(GSource *source,
+                                   GSourceFunc callback,
+                                   gpointer user_data)
+{
+    QIOChannelFunc func = (QIOChannelFunc)callback;
+    QIOChannelSocketSource *ssource = (QIOChannelSocketSource *)source;
+
+    return (*func)(ssource->ioc, ssource->revents, user_data);
+}
+
+
+static void
+qio_channel_socket_source_finalize(GSource *source)
+{
+    QIOChannelSocketSource *ssource = (QIOChannelSocketSource *)source;
+
+    WSAEventSelect(ssource->socket, NULL, 0);
+    object_unref(OBJECT(ssource->ioc));
+}
+
+
+GSourceFuncs qio_channel_socket_source_funcs = {
+    qio_channel_socket_source_prepare,
+    qio_channel_socket_source_check,
+    qio_channel_socket_source_dispatch,
+    qio_channel_socket_source_finalize
+};
+#endif
 
 
 static gboolean
@@ -177,7 +294,28 @@ GSource *qio_channel_create_socket_watch(QIOChannel *ioc,
                                          int socket,
                                          GIOCondition condition)
 {
-    abort();
+    static GOnce socket_event_once = G_ONCE_INIT;
+
+    GSource *source;
+    QIOChannelSocketSource *ssource;
+
+    source = g_source_new(&qio_channel_socket_source_funcs,
+                          sizeof(QIOChannelSocketSource));
+    ssource = (QIOChannelSocketSource *)source;
+
+    ssource->ioc = ioc;
+    object_ref(OBJECT(ioc));
+
+    ssource->condition = condition;
+    ssource->socket = socket;
+    ssource->revents = 0;
+
+    g_once(&socket_event_once, create_socket_event, NULL);
+    WSAEventSelect(ssource->socket, socket_event_once.retval,
+                   FD_READ | FD_ACCEPT | FD_CLOSE |
+                   FD_CONNECT | FD_WRITE | FD_OOB);
+
+    return source;
 }
 #else
 GSource *qio_channel_create_socket_watch(QIOChannel *ioc,
