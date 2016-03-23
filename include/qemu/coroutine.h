@@ -119,7 +119,14 @@ void qemu_co_queue_init(CoQueue *queue);
 void coroutine_fn qemu_co_queue_wait(CoQueue *queue);
 
 /**
- * Restarts the next coroutine in the CoQueue and removes it from the queue.
+ * Remove @next from the queue and restart it as soon as the current
+ * coroutine yields.
+ */
+void qemu_co_queue_restart(CoQueue *queue, Coroutine *next);
+
+/**
+ * Remove the next coroutine in the CoQueue, restarting it
+ * as soon as the current coroutine yields.
  *
  * Returns true if a coroutine was restarted, false if the queue is empty.
  */
@@ -127,8 +134,15 @@ bool coroutine_fn qemu_co_queue_next(CoQueue *queue);
 
 /**
  * Restarts all coroutines in the CoQueue and leaves the queue empty.
+ * The first coroutine to be restarted will execute as soon as the
+ * current coroutine yields.
  */
 void coroutine_fn qemu_co_queue_restart_all(CoQueue *queue);
+
+/**
+ * Remove @next from the queue and enter it
+ */
+void qemu_co_queue_enter(CoQueue *queue, Coroutine *next);
 
 /**
  * Enter the next coroutine in the queue
