@@ -2265,7 +2265,9 @@ void qemu_aio_unref(void *p)
 /* Coroutine block device emulation */
 
 typedef struct CoroutineIOCompletion {
+    Notifier notifier;
     Coroutine *coroutine;
+    BlockAIOCB *acb;
     int ret;
 } CoroutineIOCompletion;
 
@@ -2275,6 +2277,30 @@ static void bdrv_co_io_em_complete(void *opaque, int ret)
 
     co->ret = ret;
     qemu_coroutine_enter(co->coroutine, NULL);
+}
+
+static void bdrv_co_io_em_cancel_notify(Notifier *notifier, void *opaque)
+{
+    CoroutineIOCompletion *co =
+        container_of(notifier, CoroutineIOCompletion, notifier);
+
+    bdrv_aio_cancel_async(co->acb);
+}
+
+static int bdrv_co_io_em_yield(CoroutineIOCompletion *co, BlockAIOCB *acb)
+{
+    if (!acb) {
+        return -EIO;
+    }
+
+    co->notifier.notify = bdrv_co_io_em_cancel_notify;
+    co->acb = acb;
+
+    qemu_coroutine_add_cancel_notifier(&co->notifier);
+    qemu_coroutine_yield();
+    qemu_coroutine_remove_cancel_notifier(&co->notifier);
+
+    return co->ret;
 }
 
 static int coroutine_fn bdrv_co_io_em(BlockDriverState *bs, int64_t sector_num,
@@ -2295,12 +2321,7 @@ static int coroutine_fn bdrv_co_io_em(BlockDriverState *bs, int64_t sector_num,
     }
 
     trace_bdrv_co_io_em(bs, sector_num, nb_sectors, is_write, acb);
-    if (!acb) {
-        return -EIO;
-    }
-    qemu_coroutine_yield();
-
-    return co.ret;
+    return bdrv_co_io_em_yield(&co, acb);
 }
 
 static int coroutine_fn bdrv_co_readv_em(BlockDriverState *bs,
@@ -2359,12 +2380,7 @@ int coroutine_fn bdrv_co_flush(BlockDriverState *bs)
         };
 
         acb = bs->drv->bdrv_aio_flush(bs, bdrv_co_io_em_complete, &co);
-        if (acb == NULL) {
-            ret = -EIO;
-        } else {
-            qemu_coroutine_yield();
-            ret = co.ret;
-        }
+        ret = bdrv_co_io_em_yield(&co, acb);
     } else {
         /*
          * Some block drivers always operate in either writethrough or unsafe
@@ -2491,13 +2507,7 @@ int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
 
             acb = bs->drv->bdrv_aio_discard(bs, sector_num, nb_sectors,
                                             bdrv_co_io_em_complete, &co);
-            if (acb == NULL) {
-                ret = -EIO;
-                goto out;
-            } else {
-                qemu_coroutine_yield();
-                ret = co.ret;
-            }
+            ret = bdrv_co_io_em_yield(&co, acb);
         }
         if (ret && ret != -ENOTSUP) {
             goto out;
@@ -2559,10 +2569,11 @@ static int bdrv_co_do_ioctl(BlockDriverState *bs, int req, void *buf)
         .coroutine = qemu_coroutine_self(),
     };
     BlockAIOCB *acb;
+    int ret;
 
     tracked_request_begin(&tracked_req, bs, 0, 0, BDRV_TRACKED_IOCTL);
     if (!drv || !drv->bdrv_aio_ioctl) {
-        co.ret = -ENOTSUP;
+        ret = -ENOTSUP;
         goto out;
     }
 
@@ -2574,10 +2585,10 @@ static int bdrv_co_do_ioctl(BlockDriverState *bs, int req, void *buf)
         data->co = &co;
         qemu_bh_schedule(data->bh);
     }
-    qemu_coroutine_yield();
+    ret = bdrv_co_io_em_yield(&co, acb);
 out:
     tracked_request_end(&tracked_req);
-    return co.ret;
+    return ret;
 }
 
 typedef struct {
