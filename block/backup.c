@@ -55,9 +55,9 @@ static inline int64_t cluster_size_sectors(BackupBlockJob *job)
 }
 
 /* See if in-flight requests overlap and wait for them to complete */
-static void coroutine_fn wait_for_overlapping_requests(BackupBlockJob *job,
-                                                       int64_t start,
-                                                       int64_t end)
+static int coroutine_fn wait_for_overlapping_requests(BackupBlockJob *job,
+                                                      int64_t start,
+                                                      int64_t end)
 {
     CowRequest *req;
     bool retry;
@@ -66,12 +66,16 @@ static void coroutine_fn wait_for_overlapping_requests(BackupBlockJob *job,
         retry = false;
         QLIST_FOREACH(req, &job->inflight_reqs, list) {
             if (end > req->start && start < req->end) {
-                qemu_co_queue_wait(&req->wait_queue);
+                qemu_co_queue_cancelable_wait(&req->wait_queue);
+                if (qemu_coroutine_canceled()) {
+                    return -ECANCELED;
+                }
                 retry = true;
                 break;
             }
         }
     } while (retry);
+    return 0;
 }
 
 /* Keep track of an in-flight request */
@@ -113,7 +117,11 @@ static int coroutine_fn backup_do_cow(BlockDriverState *bs,
 
     trace_backup_do_cow_enter(job, start, sector_num, nb_sectors);
 
-    wait_for_overlapping_requests(job, start, end);
+    ret = wait_for_overlapping_requests(job, start, end);
+    if (ret < 0) {
+        return ret;
+    }
+
     cow_request_begin(&cow_request, job, start, end);
 
     for (; start < end; start++) {
