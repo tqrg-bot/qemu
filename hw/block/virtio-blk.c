@@ -207,7 +207,6 @@ static int virtio_blk_handle_scsi_req(VirtIOBlockReq *req)
 #ifdef __linux__
     int i;
     VirtIOBlockIoctlReq *ioctl_req;
-    BlockAIOCB *acb;
 #endif
 
     /*
@@ -285,9 +284,9 @@ static int virtio_blk_handle_scsi_req(VirtIOBlockReq *req)
     ioctl_req->hdr.sbp = elem->in_sg[elem->in_num - 3].iov_base;
     ioctl_req->hdr.mx_sb_len = elem->in_sg[elem->in_num - 3].iov_len;
 
-    acb = blk_aio_ioctl(blk->blk, SG_IO, &ioctl_req->hdr,
-                        virtio_blk_ioctl_complete, ioctl_req);
-    if (!acb) {
+    req->acb = blk_aio_ioctl(blk->blk, SG_IO, &ioctl_req->hdr,
+                             virtio_blk_ioctl_complete, ioctl_req);
+    if (!req->acb) {
         g_free(ioctl_req);
         status = VIRTIO_BLK_S_UNSUPP;
         goto fail;
@@ -319,9 +318,10 @@ static void virtio_blk_handle_scsi(VirtIOBlockReq *req)
 static inline void submit_requests(BlockBackend *blk, MultiReqBuffer *mrb,
                                    int start, int num_reqs, int niov)
 {
-    QEMUIOVector *qiov = &mrb->reqs[start]->qiov;
-    int64_t sector_num = mrb->reqs[start]->sector_num;
-    int nb_sectors = mrb->reqs[start]->qiov.size / BDRV_SECTOR_SIZE;
+    VirtIOBlockReq *req = mrb->reqs[start];
+    QEMUIOVector *qiov = &req->qiov;
+    int64_t sector_num = req->sector_num;
+    int nb_sectors = req->qiov.size / BDRV_SECTOR_SIZE;
     bool is_write = mrb->is_write;
 
     if (num_reqs > 1) {
@@ -329,7 +329,7 @@ static inline void submit_requests(BlockBackend *blk, MultiReqBuffer *mrb,
         struct iovec *tmp_iov = qiov->iov;
         int tmp_niov = qiov->niov;
 
-        /* mrb->reqs[start]->qiov was initialized from external so we can't
+        /* req->qiov was initialized from external so we can't
          * modifiy it here. We need to initialize it locally and then add the
          * external iovecs. */
         qemu_iovec_init(qiov, niov);
@@ -354,11 +354,11 @@ static inline void submit_requests(BlockBackend *blk, MultiReqBuffer *mrb,
     }
 
     if (is_write) {
-        blk_aio_writev(blk, sector_num, qiov, nb_sectors,
-                       virtio_blk_rw_complete, mrb->reqs[start]);
+        req->acb = blk_aio_writev(blk, sector_num, qiov, nb_sectors,
+                                  virtio_blk_rw_complete, req);
     } else {
-        blk_aio_readv(blk, sector_num, qiov, nb_sectors,
-                      virtio_blk_rw_complete, mrb->reqs[start]);
+        req->acb = blk_aio_readv(blk, sector_num, qiov, nb_sectors,
+                                 virtio_blk_rw_complete, req);
     }
 }
 
@@ -604,6 +604,17 @@ static void virtio_blk_handle_output(VirtIODevice *vdev, VirtQueue *vq)
     blk_io_unplug(s->blk);
 }
 
+static void virtio_blk_cancel_requests(VirtIOBlock *s)
+{
+    VirtIOBlockReq *req = s->rq;
+
+    while (req) {
+        VirtIOBlockReq *next = req->next;
+        blk_aio_cancel_async(req->acb);
+        req = next;
+    }
+}
+
 static void virtio_blk_dma_restart_bh(void *opaque)
 {
     VirtIOBlock *s = opaque;
@@ -653,6 +664,7 @@ static void virtio_blk_reset(VirtIODevice *vdev)
      */
     ctx = blk_get_aio_context(s->blk);
     aio_context_acquire(ctx);
+    virtio_blk_cancel_requests(s);
     blk_drain(s->blk);
 
     if (s->dataplane) {
