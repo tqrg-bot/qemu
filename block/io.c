@@ -950,7 +950,10 @@ int coroutine_fn bdrv_co_do_preadv(BlockDriverState *bs,
 
     /* throttling disk I/O */
     if (bs->io_limits_enabled) {
-        throttle_group_co_io_limits_intercept(bs, bytes, false);
+        ret = throttle_group_co_io_limits_intercept(bs, bytes, false);
+        if (ret < 0) {
+            return ret;
+        }
     }
 
     /* Align read if necessary by padding qiov */
@@ -1292,7 +1295,10 @@ int coroutine_fn bdrv_co_do_pwritev(BlockDriverState *bs,
 
     /* throttling disk I/O */
     if (bs->io_limits_enabled) {
-        throttle_group_co_io_limits_intercept(bs, bytes, true);
+        ret = throttle_group_co_io_limits_intercept(bs, bytes, true);
+        if (ret < 0) {
+            return ret;
+        }
     }
 
     /*

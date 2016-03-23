@@ -273,6 +273,16 @@ static void schedule_next_request(BlockDriverState *bs, bool is_write)
     }
 }
 
+static int throttle_wait(ThrottleGroup *tg, CoQueue *queue)
+{
+    if (!qemu_coroutine_canceled()) {
+        qemu_mutex_unlock(&tg->lock);
+        qemu_co_queue_wait(queue);
+        qemu_mutex_lock(&tg->lock);
+    }
+    return qemu_coroutine_canceled() ? -ECANCELED : 0;
+}
+
 /* Check if an I/O request needs to be throttled, wait and set a timer
  * if necessary, and schedule the next request using a round robin
  * algorithm.
@@ -281,12 +291,13 @@ static void schedule_next_request(BlockDriverState *bs, bool is_write)
  * @bytes:     the number of bytes for this I/O
  * @is_write:  the type of operation (read/write)
  */
-void coroutine_fn throttle_group_co_io_limits_intercept(BlockDriverState *bs,
-                                                        unsigned int bytes,
-                                                        bool is_write)
+int coroutine_fn throttle_group_co_io_limits_intercept(BlockDriverState *bs,
+                                                       unsigned int bytes,
+                                                       bool is_write)
 {
     bool must_wait;
     BlockDriverState *token;
+    int r = 0;
 
     ThrottleGroup *tg = container_of(bs->throttle_state, ThrottleGroup, ts);
     qemu_mutex_lock(&tg->lock);
@@ -298,19 +309,20 @@ void coroutine_fn throttle_group_co_io_limits_intercept(BlockDriverState *bs,
     /* Wait if there's a timer set or queued requests of this type */
     if (must_wait || bs->pending_reqs[is_write]) {
         bs->pending_reqs[is_write]++;
-        qemu_mutex_unlock(&tg->lock);
-        qemu_co_queue_wait(&bs->throttled_reqs[is_write]);
-        qemu_mutex_lock(&tg->lock);
+        r = throttle_wait(tg, &bs->throttled_reqs[is_write]);
         bs->pending_reqs[is_write]--;
     }
 
-    /* The I/O will be executed, so do the accounting */
-    throttle_account(bs->throttle_state, is_write, bytes);
+    if (r == 0) {
+        /* The I/O will be executed, so do the accounting */
+        throttle_account(bs->throttle_state, is_write, bytes);
+    }
 
     /* Schedule the next request */
     schedule_next_request(bs, is_write);
 
     qemu_mutex_unlock(&tg->lock);
+    return r;
 }
 
 /* Update the throttle configuration for a particular group. Similar
