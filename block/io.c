@@ -855,9 +855,10 @@ static int coroutine_fn bdrv_aligned_preadv(BlockDriverState *bs,
 
     if (!(flags & BDRV_REQ_NO_SERIALISING)) {
         wait_serialising_requests(req);
-        if (qemu_coroutine_canceled()) {
-            return -ECANCELED;
-        }
+    }
+
+    if (qemu_coroutine_canceled()) {
+        return -ECANCELED;
     }
 
     if (flags & BDRV_REQ_COPY_ON_READ) {
@@ -941,6 +942,10 @@ int coroutine_fn bdrv_co_do_preadv(BlockDriverState *bs,
         return -ENOMEDIUM;
     }
 
+    if (qemu_coroutine_canceled()) {
+        return -ECANCELED;
+    }
+
     ret = bdrv_check_byte_request(bs, offset, bytes);
     if (ret < 0) {
         return ret;
@@ -957,6 +962,9 @@ int coroutine_fn bdrv_co_do_preadv(BlockDriverState *bs,
         if (ret < 0) {
             return ret;
         }
+    }
+    if (qemu_coroutine_canceled()) {
+        return -ECANCELED;
     }
 
     /* Align read if necessary by padding qiov */
@@ -1073,6 +1081,10 @@ static int coroutine_fn bdrv_co_do_write_zeroes(BlockDriverState *bs,
         /* limit request size */
         if (num > max_write_zeroes) {
             num = max_write_zeroes;
+        }
+
+        if (qemu_coroutine_canceled()) {
+            return -ECANCELED;
         }
 
         ret = -ENOTSUP;
@@ -1318,6 +1330,9 @@ int coroutine_fn bdrv_co_do_pwritev(BlockDriverState *bs,
             return ret;
         }
     }
+    if (qemu_coroutine_canceled()) {
+        return -ECANCELED;
+    }
 
     /*
      * Align write if necessary by performing a read-modify-write cycle.
@@ -1494,6 +1509,10 @@ static int64_t coroutine_fn bdrv_co_get_block_status(BlockDriverState *bs,
     int64_t total_sectors;
     int64_t n;
     int64_t ret, ret2;
+
+    if (qemu_coroutine_canceled()) {
+        return -ECANCELED;
+    }
 
     total_sectors = bdrv_nb_sectors(bs);
     if (total_sectors < 0) {
@@ -2387,6 +2406,10 @@ int coroutine_fn bdrv_co_flush(BlockDriverState *bs)
         return 0;
     }
 
+    if (qemu_coroutine_canceled()) {
+        return -ECANCELED;
+    }
+
     tracked_request_begin(&req, bs, 0, 0, BDRV_TRACKED_FLUSH);
     /* Write back cached data to the OS even with cache=unsafe */
     BLKDBG_EVENT(bs->file, BLKDBG_FLUSH_TO_OS);
@@ -2486,6 +2509,10 @@ int coroutine_fn bdrv_co_discard(BlockDriverState *bs, int64_t sector_num,
 
     if (!bs->drv) {
         return -ENOMEDIUM;
+    }
+
+    if (qemu_coroutine_canceled()) {
+        return -ECANCELED;
     }
 
     ret = bdrv_check_request(bs, sector_num, nb_sectors);
@@ -2633,7 +2660,12 @@ typedef struct {
 static void coroutine_fn bdrv_co_ioctl_entry(void *opaque)
 {
     BdrvIoctlCoData *data = opaque;
-    data->ret = bdrv_co_do_ioctl(data->bs, data->req, data->buf);
+
+    if (qemu_coroutine_canceled()) {
+        data->ret = -ECANCELED;
+    } else {
+        data->ret = bdrv_co_do_ioctl(data->bs, data->req, data->buf);
+    }
 }
 
 /* needed for generic scsi interface */
