@@ -927,9 +927,9 @@ static int handle_dependencies(BlockDriverState *bs, uint64_t guest_offset,
                 /* Wait for the dependency to complete. We need to recheck
                  * the free/allocated clusters when we continue. */
                 qemu_co_mutex_unlock(&s->lock);
-                qemu_co_queue_wait(&old_alloc->dependent_requests);
+                qemu_co_queue_cancelable_wait(&old_alloc->dependent_requests);
                 qemu_co_mutex_lock(&s->lock);
-                return -EAGAIN;
+                return qemu_coroutine_canceled() ? -ECANCELED : -EAGAIN;
             }
         }
     }
