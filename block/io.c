@@ -478,7 +478,7 @@ static bool coroutine_fn wait_serialising_requests(BdrvTrackedRequest *self)
                  * (instead of producing a deadlock in the former case). */
                 if (!req->waiting_for) {
                     self->waiting_for = req;
-                    qemu_co_queue_wait(&req->wait_queue);
+                    qemu_co_queue_cancelable_wait(&req->wait_queue);
                     self->waiting_for = NULL;
                     retry = true;
                     waited = true;
@@ -855,6 +855,9 @@ static int coroutine_fn bdrv_aligned_preadv(BlockDriverState *bs,
 
     if (!(flags & BDRV_REQ_NO_SERIALISING)) {
         wait_serialising_requests(req);
+        if (qemu_coroutine_canceled()) {
+            return -ECANCELED;
+        }
     }
 
     if (flags & BDRV_REQ_COPY_ON_READ) {
@@ -1134,6 +1137,11 @@ static int coroutine_fn bdrv_aligned_pwritev(BlockDriverState *bs,
 
     waited = wait_serialising_requests(req);
     assert(!waited || !req->serialising);
+
+    if (qemu_coroutine_canceled()) {
+        return -ECANCELED;
+    }
+
     assert(req->overlap_offset <= offset);
     assert(offset + bytes <= req->overlap_offset + req->overlap_bytes);
 
@@ -1208,6 +1216,11 @@ static int coroutine_fn bdrv_co_do_zero_pwritev(BlockDriverState *bs,
         /* RMW the unaligned part before head. */
         mark_request_serialising(req, align);
         wait_serialising_requests(req);
+        if (qemu_coroutine_canceled()) {
+            ret = -ECANCELED;
+            goto fail;
+        }
+
         bdrv_debug_event(bs, BLKDBG_PWRITEV_RMW_HEAD);
         ret = bdrv_aligned_preadv(bs, req, offset & ~(align - 1), align,
                                   align, &local_qiov, 0);
@@ -1246,6 +1259,11 @@ static int coroutine_fn bdrv_co_do_zero_pwritev(BlockDriverState *bs,
         /* RMW the unaligned part after tail. */
         mark_request_serialising(req, align);
         wait_serialising_requests(req);
+        if (qemu_coroutine_canceled()) {
+            ret = -ECANCELED;
+            goto fail;
+        }
+
         bdrv_debug_event(bs, BLKDBG_PWRITEV_RMW_TAIL);
         ret = bdrv_aligned_preadv(bs, req, offset, align,
                                   align, &local_qiov, 0);
@@ -1319,6 +1337,10 @@ int coroutine_fn bdrv_co_do_pwritev(BlockDriverState *bs,
 
         mark_request_serialising(&req, align);
         wait_serialising_requests(&req);
+        if (qemu_coroutine_canceled()) {
+            ret = -ECANCELED;
+            goto fail;
+        }
 
         head_buf = qemu_blockalign(bs, align);
         head_iov = (struct iovec) {
@@ -1353,6 +1375,10 @@ int coroutine_fn bdrv_co_do_pwritev(BlockDriverState *bs,
         mark_request_serialising(&req, align);
         waited = wait_serialising_requests(&req);
         assert(!waited || !use_local_qiov);
+        if (qemu_coroutine_canceled()) {
+            ret = -ECANCELED;
+            goto fail;
+        }
 
         tail_buf = qemu_blockalign(bs, align);
         tail_iov = (struct iovec) {
