@@ -647,23 +647,8 @@ void ide_cancel_dma_sync(IDEState *s)
         req->orphaned = true;
     }
 
-    /*
-     * We can't cancel Scatter Gather DMA in the middle of the
-     * operation or a partial (not full) DMA transfer would reach
-     * the storage so we wait for completion instead (we beahve
-     * like if the DMA was completed by the time the guest trying
-     * to cancel dma with bmdma_cmd_writeb with BM_CMD_START not
-     * set).
-     *
-     * In the future we'll be able to safely cancel the I/O if the
-     * whole DMA operation will be submitted to disk with a single
-     * aio operation with preadv/pwritev.
-     */
     if (s->bus->dma->aiocb) {
-#ifdef DEBUG_IDE
-        printf("%s: draining all remaining requests", __func__);
-#endif
-        blk_drain(s->blk);
+        blk_aio_cancel(s->bus->dma->aiocb);
         assert(s->bus->dma->aiocb == NULL);
     }
 }
