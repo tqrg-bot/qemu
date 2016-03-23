@@ -119,6 +119,13 @@ void qemu_co_queue_init(CoQueue *queue);
 void coroutine_fn qemu_co_queue_wait(CoQueue *queue);
 
 /**
+ * Adds the current coroutine to the CoQueue and transfers control to the
+ * caller of the coroutine.  The coroutine is reentered immediately if
+ * canceled.
+ */
+void coroutine_fn qemu_co_queue_cancelable_wait(CoQueue *queue);
+
+/**
  * Remove @next from the queue and restart it as soon as the current
  * coroutine yields.
  */

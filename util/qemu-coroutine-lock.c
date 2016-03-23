@@ -42,6 +42,36 @@ void coroutine_fn qemu_co_queue_wait(CoQueue *queue)
     assert(qemu_in_coroutine());
 }
 
+typedef struct CancellationNotifierData {
+    Notifier notifier;
+    CoQueue *queue;
+} CancellationNotifierData;
+
+static void co_queue_cancel_notify(Notifier *notifier, void *data)
+{
+    CancellationNotifierData *n =
+        container_of(notifier, CancellationNotifierData, notifier);
+    Coroutine *co = data;
+    CoQueue *queue = n->queue;
+
+    if (queue) {
+        n->queue = NULL;
+        qemu_co_queue_enter(queue, co);
+    }
+}
+
+void coroutine_fn qemu_co_queue_cancelable_wait(CoQueue *queue)
+{
+    CancellationNotifierData n = {
+        .notifier.notify = co_queue_cancel_notify,
+        .queue = queue,
+    };
+
+    qemu_coroutine_add_cancel_notifier(&n.notifier);
+    qemu_co_queue_wait(queue);
+    qemu_coroutine_remove_cancel_notifier(&n.notifier);
+}
+
 /**
  * qemu_co_queue_run_restart:
  *

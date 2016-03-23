@@ -2747,7 +2747,6 @@ void bdrv_flush_io_queue(BlockDriverState *bs)
     } else if (bs->file) {
         bdrv_flush_io_queue(bs->file->bs);
     }
-    bdrv_start_throttled_reqs(bs);
 }
 
 void bdrv_drained_begin(BlockDriverState *bs)

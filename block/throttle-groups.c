@@ -277,7 +277,7 @@ static int throttle_wait(ThrottleGroup *tg, CoQueue *queue)
 {
     if (!qemu_coroutine_canceled()) {
         qemu_mutex_unlock(&tg->lock);
-        qemu_co_queue_wait(queue);
+        qemu_co_queue_cancelable_wait(queue);
         qemu_mutex_lock(&tg->lock);
     }
     return qemu_coroutine_canceled() ? -ECANCELED : 0;
