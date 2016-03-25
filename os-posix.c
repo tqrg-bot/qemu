@@ -34,7 +34,6 @@
 #include "sysemu/sysemu.h"
 #include "net/slirp.h"
 #include "qemu-options.h"
-#include "qemu/rcu.h"
 #include "qemu/error-report.h"
 #include "qemu/log.h"
 #include "qemu/cutils.h"
@@ -248,7 +247,6 @@ void os_daemonize(void)
         signal(SIGTSTP, SIG_IGN);
         signal(SIGTTOU, SIG_IGN);
         signal(SIGTTIN, SIG_IGN);
-        rcu_after_fork();
     }
 }
 
