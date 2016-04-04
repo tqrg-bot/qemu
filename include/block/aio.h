@@ -46,6 +46,7 @@ typedef struct AioHandler AioHandler;
 typedef void QEMUBHFunc(void *opaque);
 typedef void IOHandler(void *opaque);
 
+struct Coroutine;
 struct ThreadPool;
 struct LinuxAioState;
 
@@ -106,6 +107,9 @@ struct AioContext {
      */
     bool notified;
     EventNotifier notifier;
+
+    QSLIST_HEAD(, Coroutine) scheduled_coroutines;
+    QEMUBH *schedule_bh;
 
     /* Thread pool for performing work and receiving completion callbacks.
      * Has its own locking.
@@ -439,6 +443,11 @@ static inline bool aio_node_check(AioContext *ctx, bool is_external)
 {
     return !is_external || !atomic_read(&ctx->external_disable_cnt);
 }
+
+/**
+ * aio_co_schedule
+ */
+void aio_co_schedule(AioContext *ctx, struct Coroutine *co);
 
 /**
  * @ctx: the aio context

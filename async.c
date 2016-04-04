@@ -30,6 +30,7 @@
 #include "qemu/main-loop.h"
 #include "qemu/atomic.h"
 #include "block/raw-aio.h"
+#include "qemu/coroutine_int.h"
 
 /***********************************************************/
 /* bottom halves (can be seen as timers which expire ASAP) */
@@ -335,6 +336,27 @@ static void event_notifier_dummy_cb(EventNotifier *e)
 {
 }
 
+static void schedule_bh_cb(void *opaque)
+{
+    AioContext *ctx = opaque;
+    QSLIST_HEAD(, Coroutine) straight, reversed;
+
+    QSLIST_MOVE_ATOMIC(&reversed, &ctx->scheduled_coroutines);
+    QSLIST_INIT(&straight);
+
+    while (!QSLIST_EMPTY(&reversed)) {
+        Coroutine *co = QSLIST_FIRST(&reversed);
+        QSLIST_REMOVE_HEAD(&reversed, co_scheduled_next);
+        QSLIST_INSERT_HEAD(&straight, co, co_scheduled_next);
+    }
+
+    while (!QSLIST_EMPTY(&straight)) {
+        Coroutine *co = QSLIST_FIRST(&straight);
+        QSLIST_REMOVE_HEAD(&reversed, co_scheduled_next);
+        qemu_coroutine_enter(co, NULL);
+    }
+}
+
 AioContext *aio_context_new(Error **errp)
 {
     int ret;
@@ -354,6 +376,10 @@ AioContext *aio_context_new(Error **errp)
     }
     g_source_set_can_recurse(&ctx->source, true);
     qemu_lockcnt_init(&ctx->list_lock);
+
+    ctx->schedule_bh = aio_bh_new(ctx, schedule_bh_cb, ctx);
+    QSLIST_INIT(&ctx->scheduled_coroutines);
+
     aio_set_event_notifier(ctx, &ctx->notifier,
                            false,
                            (EventNotifierHandler *)
@@ -369,6 +395,13 @@ AioContext *aio_context_new(Error **errp)
 fail:
     g_source_destroy(&ctx->source);
     return NULL;
+}
+
+void aio_co_schedule(AioContext *ctx, Coroutine *co)
+{
+    QSLIST_INSERT_HEAD_ATOMIC(&ctx->scheduled_coroutines,
+                              co, co_scheduled_next);
+    qemu_bh_schedule(ctx->schedule_bh);
 }
 
 void aio_context_ref(AioContext *ctx)
