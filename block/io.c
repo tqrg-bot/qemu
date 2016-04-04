@@ -67,7 +67,7 @@ void bdrv_set_io_limits(BlockDriverState *bs,
 
 void bdrv_no_throttling_begin(BlockDriverState *bs)
 {
-    if (bs->io_limits_disabled++ == 0) {
+    if (atomic_fetch_inc(&bs->io_limits_disabled) == 0) {
         throttle_group_restart_bs(bs);
     }
 }
@@ -75,7 +75,7 @@ void bdrv_no_throttling_begin(BlockDriverState *bs)
 void bdrv_no_throttling_end(BlockDriverState *bs)
 {
     assert(bs->io_limits_disabled);
-    --bs->io_limits_disabled;
+    atomic_dec(&bs->io_limits_disabled);
 }
 
 void bdrv_io_limits_disable(BlockDriverState *bs)
@@ -195,13 +195,13 @@ void bdrv_refresh_limits(BlockDriverState *bs, Error **errp)
  */
 void bdrv_enable_copy_on_read(BlockDriverState *bs)
 {
-    bs->copy_on_read++;
+    atomic_inc(&bs->copy_on_read);
 }
 
 void bdrv_disable_copy_on_read(BlockDriverState *bs)
 {
-    assert(bs->copy_on_read > 0);
-    bs->copy_on_read--;
+    assert(atomic_read(&bs->copy_on_read) > 0);
+    atomic_dec(&bs->copy_on_read);
 }
 
 /* Check if any requests are in-flight (including throttled requests) */
@@ -412,7 +412,7 @@ void bdrv_drain_all(void)
 static void tracked_request_end(BdrvTrackedRequest *req)
 {
     if (req->serialising) {
-        req->bs->serialising_in_flight--;
+        atomic_dec(&req->bs->serialising_in_flight);
     }
 
     QLIST_REMOVE(req, list);
@@ -451,7 +451,7 @@ static void mark_request_serialising(BdrvTrackedRequest *req, uint64_t align)
                                - overlap_offset;
 
     if (!req->serialising) {
-        req->bs->serialising_in_flight++;
+        atomic_inc(&req->bs->serialising_in_flight);
         req->serialising = true;
     }
 
@@ -525,7 +525,7 @@ static bool coroutine_fn wait_serialising_requests(BdrvTrackedRequest *self)
     bool retry;
     bool waited = false;
 
-    if (!bs->serialising_in_flight) {
+    if (!atomic_read(&bs->serialising_in_flight)) {
         return false;
     }
 
@@ -1003,7 +1003,7 @@ int coroutine_fn bdrv_co_do_preadv(BlockDriverState *bs,
     bdrv_inc_in_flight(bs);
 
     /* Don't do copy-on-read if we read data before write operation */
-    if (bs->copy_on_read && !(flags & BDRV_REQ_NO_SERIALISING)) {
+    if (atomic_read(&bs->copy_on_read) && !(flags & BDRV_REQ_NO_SERIALISING)) {
         flags |= BDRV_REQ_COPY_ON_READ;
     }
 
@@ -2796,7 +2796,8 @@ void bdrv_io_plug(BlockDriverState *bs)
         bdrv_io_plug(child->bs);
     }
 
-    if (bs->io_plugged++ == 0 && bs->io_plug_disabled == 0) {
+    if (atomic_fetch_inc(&bs->io_plugged) == 0 &&
+        atomic_mb_read(&bs->io_plug_disabled) == 0) {
         BlockDriver *drv = bs->drv;
         if (drv && drv->bdrv_io_plug) {
             drv->bdrv_io_plug(bs);
@@ -2809,7 +2810,8 @@ void bdrv_io_unplug(BlockDriverState *bs)
     BdrvChild *child;
 
     assert(bs->io_plugged);
-    if (--bs->io_plugged == 0 && bs->io_plug_disabled == 0) {
+    if (atomic_fetch_dec(&bs->io_plugged) == 1 &&
+        atomic_mb_read(&bs->io_plug_disabled) == 0) {
         BlockDriver *drv = bs->drv;
         if (drv && drv->bdrv_io_unplug) {
             drv->bdrv_io_unplug(bs);
@@ -2825,7 +2827,8 @@ void bdrv_io_unplugged_begin(BlockDriverState *bs)
 {
     BdrvChild *child;
 
-    if (bs->io_plug_disabled++ == 0 && bs->io_plugged > 0) {
+    if (atomic_fetch_inc(&bs->io_plug_disabled) == 0 &&
+        atomic_mb_read(&bs->io_plugged) > 0) {
         BlockDriver *drv = bs->drv;
         if (drv && drv->bdrv_io_unplug) {
             drv->bdrv_io_unplug(bs);
@@ -2845,8 +2848,8 @@ void bdrv_io_unplugged_end(BlockDriverState *bs)
     QLIST_FOREACH(child, &bs->children, next) {
         bdrv_io_unplugged_end(child->bs);
     }
-
-    if (--bs->io_plug_disabled == 0 && bs->io_plugged > 0) {
+    if (atomic_fetch_dec(&bs->io_plug_disabled) == 1
+        && atomic_mb_read(&bs->io_plugged) > 0) {
         BlockDriver *drv = bs->drv;
         if (drv && drv->bdrv_io_plug) {
             drv->bdrv_io_plug(bs);
@@ -2856,7 +2859,7 @@ void bdrv_io_unplugged_end(BlockDriverState *bs)
 
 void bdrv_drained_begin(BlockDriverState *bs)
 {
-    if (!bs->quiesce_counter++) {
+    if (atomic_fetch_inc(&bs->quiesce_counter) == 0) {
         aio_disable_external(bdrv_get_aio_context(bs));
     }
     bdrv_drain(bs);
@@ -2865,8 +2868,7 @@ void bdrv_drained_begin(BlockDriverState *bs)
 void bdrv_drained_end(BlockDriverState *bs)
 {
     assert(bs->quiesce_counter > 0);
-    if (--bs->quiesce_counter > 0) {
-        return;
+    if (atomic_fetch_dec(&bs->quiesce_counter) == 1) {
+        aio_enable_external(bdrv_get_aio_context(bs));
     }
-    aio_enable_external(bdrv_get_aio_context(bs));
 }

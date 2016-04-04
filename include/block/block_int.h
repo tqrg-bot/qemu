@@ -453,11 +453,6 @@ struct BlockDriverState {
 
     /* Protected by AioContext lock */
 
-    /* If true, copy read backing sectors into image.  Can be >1 if more
-     * than one client has requested copy-on-read.
-     */
-    int copy_on_read;
-
     /* If we are reading a disk image, give its size in sectors.
      * Generally read-only; it is written to by load_vmstate and save_vmstate,
      * but the block layer is quiescent during those.
@@ -467,13 +462,6 @@ struct BlockDriverState {
     /* Callback before write request is processed */
     NotifierWithReturnList before_write_notifiers;
 
-    /* number of in-flight requests; overall and serialising.
-     * in_flight_event is set when in_flight becomes 0.
-     */
-    unsigned int in_flight;
-    unsigned int serialising_in_flight;
-    QemuEvent in_flight_event;
-
     /* Offset after the highest byte written to */
     uint64_t wr_highest_offset;
 
@@ -481,17 +469,34 @@ struct BlockDriverState {
     uint64_t write_threshold_offset;
     NotifierWithReturn write_threshold_notifier;
 
-    /* counters for nested bdrv_io_plug and bdrv_io_unplugged_begin */
-    unsigned io_plugged;
-    unsigned io_plug_disabled;
-
     QLIST_HEAD(, BdrvTrackedRequest) tracked_requests;
 
     QLIST_HEAD(, BdrvDirtyBitmap) dirty_bitmaps;
 
+    /* If true, copy read backing sectors into image.  Can be >1 if more
+     * than one client has requested copy-on-read.  Accessed with atomic
+     * ops.
+     */
+    int copy_on_read;
+
+    /* number of in-flight requests; overall and serialising.
+     * in_flight_event is set when in_flight becomes 0.
+     * Accessed with atomic ops.
+     */
+    unsigned int in_flight;
+    unsigned int serialising_in_flight;
+    QemuEvent in_flight_event;
+
+    /* counters for nested bdrv_io_plug and bdrv_io_unplugged_begin.
+     * Accessed with atomic ops.
+    */
+    unsigned io_plugged;
+    unsigned io_plug_disabled;
+
     /* do we need to tell the quest if we have a volatile write cache? */
     int enable_write_cache;
 
+    /* Accessed with atomic ops.  */
     int quiesce_counter;
 
 
@@ -503,7 +508,7 @@ struct BlockDriverState {
     CoQueue      throttled_reqs[2];
 
     /* Nonzero if the I/O limits are currently being ignored; generally
-     * it is zero.  */
+     * it is zero.  Accessed with atomic ops.  */
     unsigned int io_limits_disabled;
 
     /* The following fields are protected by the ThrottleGroup lock.

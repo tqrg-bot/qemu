@@ -219,7 +219,7 @@ static bool throttle_group_schedule_timer(BlockDriverState *bs,
     ThrottleGroup *tg = container_of(ts, ThrottleGroup, ts);
     bool must_wait;
 
-    if (bs->io_limits_disabled) {
+    if (atomic_read(&bs->io_limits_disabled)) {
         return false;
     }
 
