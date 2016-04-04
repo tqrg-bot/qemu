@@ -253,6 +253,7 @@ static void schedule_next_request(BlockDriverState *bs, bool is_write)
     BlockDriverState *token;
 
     /* Check if there's any pending request to schedule next */
+retry:
     token = next_throttle_token(bs, is_write);
     if (!token->pending_reqs[is_write]) {
         return;
@@ -262,19 +263,30 @@ static void schedule_next_request(BlockDriverState *bs, bool is_write)
     must_wait = throttle_group_schedule_timer(token, is_write);
 
     /* If it doesn't have to wait, queue it for immediate execution */
-    if (!must_wait) {
-        /* Give preference to requests from the current bs */
-        if (qemu_in_coroutine() &&
-            qemu_co_queue_next(&bs->throttled_reqs[is_write])) {
-            token = bs;
-        } else {
-            ThrottleTimers *tt = &token->throttle_timers;
-            int64_t now = qemu_clock_get_ns(tt->clock_type);
-            timer_mod(tt->timers[is_write], now + 1);
-            tg->any_timer_armed[is_write] = true;
-        }
-        tg->tokens[is_write] = token;
+    if (must_wait) {
+        return;
+
     }
+    /* Give preference to requests from the current bs */
+    if (qemu_in_coroutine() &&
+        !qemu_co_queue_empty(&bs->throttled_reqs[is_write])) {
+        qemu_co_mutex_lock(&bs->reqs_lock);
+        if (!qemu_co_queue_next(&bs->throttled_reqs[is_write])) {
+            qemu_co_mutex_unlock(&bs->reqs_lock);
+            goto retry;
+        }
+
+        qemu_co_mutex_unlock(&bs->reqs_lock);
+        token = bs;
+    }
+
+    if (token != bs) {
+        ThrottleTimers *tt = &token->throttle_timers;
+        int64_t now = qemu_clock_get_ns(tt->clock_type);
+        timer_mod(tt->timers[is_write], now + 1);
+        tg->any_timer_armed[is_write] = true;
+    }
+    tg->tokens[is_write] = token;
 }
 
 /* Check if an I/O request needs to be throttled, wait and set a timer
@@ -303,7 +315,9 @@ void coroutine_fn throttle_group_co_io_limits_intercept(BlockDriverState *bs,
     if (must_wait || bs->pending_reqs[is_write]) {
         bs->pending_reqs[is_write]++;
         qemu_mutex_unlock(&tg->lock);
-        qemu_co_queue_wait(&bs->throttled_reqs[is_write], NULL);
+        qemu_co_mutex_lock(&bs->reqs_lock);
+        qemu_co_queue_wait(&bs->throttled_reqs[is_write], &bs->reqs_lock);
+        qemu_co_mutex_unlock(&bs->reqs_lock);
         qemu_mutex_lock(&tg->lock);
         bs->pending_reqs[is_write]--;
     }
@@ -333,12 +347,14 @@ static void throttle_group_restart_queue_entry(void *opaque)
     unsigned count = 0;
 
     g_free(data);
+    qemu_co_mutex_lock(&bs->reqs_lock);
     while (qemu_co_queue_next(&bs->throttled_reqs[is_write])) {
         count++;
         if (single) {
             break;
         }
     }
+    qemu_co_mutex_unlock(&bs->reqs_lock);
 
     if (count == 0) {
         ThrottleGroup *tg = container_of(bs->throttle_state, ThrottleGroup, ts);
