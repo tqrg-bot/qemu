@@ -303,7 +303,7 @@ void coroutine_fn throttle_group_co_io_limits_intercept(BlockDriverState *bs,
     if (must_wait || bs->pending_reqs[is_write]) {
         bs->pending_reqs[is_write]++;
         qemu_mutex_unlock(&tg->lock);
-        qemu_co_queue_wait(&bs->throttled_reqs[is_write]);
+        qemu_co_queue_wait(&bs->throttled_reqs[is_write], NULL);
         qemu_mutex_lock(&tg->lock);
         bs->pending_reqs[is_write]--;
     }

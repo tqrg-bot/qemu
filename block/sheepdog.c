@@ -2165,7 +2165,7 @@ static void wait_for_overlapping_aiocb(BDRVSheepdogState *s, SheepdogAIOCB *aioc
 retry:
     QLIST_FOREACH(cb, &s->inflight_aiocb_head, aiocb_siblings) {
         if (AIOCBOverlapping(aiocb, cb)) {
-            qemu_co_queue_wait(&s->overlapping_queue);
+            qemu_co_queue_wait(&s->overlapping_queue, NULL);
             goto retry;
         }
     }

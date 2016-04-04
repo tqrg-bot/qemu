@@ -549,7 +549,7 @@ static bool coroutine_fn wait_serialising_requests(BdrvTrackedRequest *self)
                  * (instead of producing a deadlock in the former case). */
                 if (!req->waiting_for) {
                     self->waiting_for = req;
-                    qemu_co_queue_wait(&req->wait_queue);
+                    qemu_co_queue_wait(&req->wait_queue, NULL);
                     self->waiting_for = NULL;
                     retry = true;
                     waited = true;

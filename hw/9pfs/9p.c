@@ -2282,7 +2282,7 @@ static void v9fs_flush(void *opaque)
         /*
          * Wait for pdu to complete.
          */
-        qemu_co_queue_wait(&cancel_pdu->complete);
+        qemu_co_queue_wait(&cancel_pdu->complete, NULL);
         cancel_pdu->cancelled = 0;
         pdu_free(cancel_pdu);
     }

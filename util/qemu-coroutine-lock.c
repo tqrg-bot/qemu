@@ -51,13 +51,26 @@ void qemu_co_queue_init(CoQueue *queue)
     QSIMPLEQ_INIT(&queue->entries);
 }
 
-void coroutine_fn qemu_co_queue_wait(CoQueue *queue)
+void coroutine_fn qemu_co_queue_wait(CoQueue *queue, CoMutex *mutex)
 {
     Coroutine *self = qemu_coroutine_self();
     self->ctx = qemu_get_current_aio_context();
     QSIMPLEQ_INSERT_TAIL(&queue->entries, self, co_queue_next);
+
+    if (mutex) {
+        qemu_co_mutex_unlock(mutex);
+    }
+
     qemu_coroutine_yield();
     assert(qemu_in_coroutine());
+
+    /* TODO: OSv implements wait morphing here, where the wakeup
+     * primitive automatically places the woken coroutine on the
+     * mutex's queue.  This avoids the thundering herd effect.
+     */
+    if (mutex) {
+        qemu_co_mutex_lock(mutex);
+    }
 }
 
 /**
@@ -283,7 +296,7 @@ void qemu_co_rwlock_init(CoRwlock *lock)
 void qemu_co_rwlock_rdlock(CoRwlock *lock)
 {
     while (lock->writer) {
-        qemu_co_queue_wait(&lock->queue);
+        qemu_co_queue_wait(&lock->queue, NULL);
     }
     lock->reader++;
 }
@@ -307,7 +320,7 @@ void qemu_co_rwlock_unlock(CoRwlock *lock)
 void qemu_co_rwlock_wrlock(CoRwlock *lock)
 {
     while (lock->writer || lock->reader) {
-        qemu_co_queue_wait(&lock->queue);
+        qemu_co_queue_wait(&lock->queue, NULL);
     }
     lock->writer = true;
 }
