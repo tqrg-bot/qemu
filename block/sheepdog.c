@@ -387,6 +387,7 @@ typedef struct BDRVSheepdogState {
     QLIST_HEAD(inflight_aio_head, AIOReq) inflight_aio_head;
     QLIST_HEAD(failed_aio_head, AIOReq) failed_aio_head;
 
+    CoMutex queue_lock;
     CoQueue overlapping_queue;
     QLIST_HEAD(inflight_aiocb_head, SheepdogAIOCB) inflight_aiocb_head;
 } BDRVSheepdogState;
@@ -484,7 +485,9 @@ static inline void free_aio_req(BDRVSheepdogState *s, AIOReq *aio_req)
     SheepdogAIOCB *acb = aio_req->aiocb;
 
     acb->cancelable = false;
+    qemu_co_mutex_lock(&s->queue_lock);
     QLIST_REMOVE(aio_req, aio_siblings);
+    qemu_co_mutex_unlock(&s->queue_lock);
     g_free(aio_req);
 
     acb->nr_pending--;
@@ -785,6 +788,7 @@ static coroutine_fn void reconnect_to_sdog(void *opaque)
      * have to move all the inflight requests to the failed queue before
      * resend_aioreq() is called.
      */
+    qemu_co_mutex_lock(&s->queue_lock);
     QLIST_FOREACH_SAFE(aio_req, &s->inflight_aio_head, aio_siblings, next) {
         QLIST_REMOVE(aio_req, aio_siblings);
         QLIST_INSERT_HEAD(&s->failed_aio_head, aio_req, aio_siblings);
@@ -797,6 +801,7 @@ static coroutine_fn void reconnect_to_sdog(void *opaque)
         QLIST_INSERT_HEAD(&s->inflight_aio_head, aio_req, aio_siblings);
         resend_aioreq(s, aio_req);
     }
+    qemu_co_mutex_unlock(&s->queue_lock);
 }
 
 /*
@@ -1515,6 +1520,7 @@ static int sd_open(BlockDriverState *bs, QDict *options, int flags,
     bs->total_sectors = s->inode.vdi_size / BDRV_SECTOR_SIZE;
     pstrcpy(s->name, sizeof(s->name), vdi);
     qemu_co_mutex_init(&s->lock);
+    qemu_co_mutex_lock(&s->queue_lock);
     qemu_co_queue_init(&s->overlapping_queue);
     qemu_opts_del(opts);
     g_free(buf);
@@ -2162,6 +2168,7 @@ static void wait_for_overlapping_aiocb(BDRVSheepdogState *s, SheepdogAIOCB *aioc
 {
     SheepdogAIOCB *cb;
 
+    qemu_co_mutex_lock(&s->queue_lock);
 retry:
     QLIST_FOREACH(cb, &s->inflight_aiocb_head, aiocb_siblings) {
         if (AIOCBOverlapping(aiocb, cb)) {
@@ -2171,6 +2178,7 @@ retry:
     }
 
     QLIST_INSERT_HEAD(&s->inflight_aiocb_head, aiocb, aiocb_siblings);
+    qemu_co_mutex_unlock(&s->queue_lock);
 }
 
 /*
@@ -2285,14 +2293,18 @@ static int coroutine_fn sd_co_rw_vector(void *p)
 out:
     if (!--acb->nr_pending) {
         ret = acb->ret;
+        qemu_co_mutex_lock(&s->queue_lock);
         QLIST_REMOVE(acb, aiocb_siblings);
         qemu_co_queue_restart_all(&s->overlapping_queue);
+        qemu_co_mutex_unlock(&s->queue_lock);
         qemu_aio_unref(acb);
     } else {
         qemu_coroutine_yield();
         ret = acb->ret;
+        qemu_co_mutex_lock(&s->queue_lock);
         QLIST_REMOVE(acb, aiocb_siblings);
         qemu_co_queue_restart_all(&s->overlapping_queue);
+        qemu_co_mutex_unlock(&s->queue_lock);
     }
 
     return ret;
