@@ -450,6 +450,11 @@ static inline bool aio_node_check(AioContext *ctx, bool is_external)
 void aio_co_schedule(AioContext *ctx, struct Coroutine *co);
 
 /**
+ * Return the AioContext whose event loop runs in the current I/O thread.
+ */
+AioContext *qemu_get_current_aio_context(void);
+
+/**
  * @ctx: the aio context
  *
  * Return whether we are running in the I/O thread that manages @ctx.

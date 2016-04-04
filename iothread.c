@@ -31,6 +31,11 @@ typedef ObjectClass IOThreadClass;
 
 static __thread IOThread *my_iothread;
 
+void qemu_get_current_aio_context(void)
+{
+    return my_iothread ? my_iothread->ctx : qemu_get_aio_context();
+}
+
 bool aio_context_in_iothread(AioContext *ctx)
 {
     return ctx == (my_iothread ? my_iothread->ctx : qemu_get_aio_context());

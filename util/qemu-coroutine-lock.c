@@ -27,7 +27,20 @@
 #include "qemu/coroutine.h"
 #include "qemu/coroutine_int.h"
 #include "qemu/queue.h"
+#include "block/aio.h"
 #include "trace.h"
+
+static void qemu_coroutine_wake(Coroutine *co)
+{
+    AioContext *ctx = qemu_get_current_aio_context();
+
+    if (co->ctx == ctx) {
+        Coroutine *self = qemu_coroutine_self();
+        QSIMPLEQ_INSERT_TAIL(&self->co_queue_wakeup, co, co_queue_next);
+    } else {
+        aio_co_schedule(co->ctx, co);
+    }
+}
 
 void qemu_co_queue_init(CoQueue *queue)
 {
@@ -37,6 +50,7 @@ void qemu_co_queue_init(CoQueue *queue)
 void coroutine_fn qemu_co_queue_wait(CoQueue *queue)
 {
     Coroutine *self = qemu_coroutine_self();
+    self->ctx = qemu_get_current_aio_context();
     QSIMPLEQ_INSERT_TAIL(&queue->entries, self, co_queue_next);
     qemu_coroutine_yield();
     assert(qemu_in_coroutine());
@@ -63,7 +77,6 @@ void qemu_co_queue_run_restart(Coroutine *co)
 
 static bool qemu_co_queue_do_restart(CoQueue *queue, bool single)
 {
-    Coroutine *self = qemu_coroutine_self();
     Coroutine *next;
 
     if (QSIMPLEQ_EMPTY(&queue->entries)) {
@@ -72,7 +85,7 @@ static bool qemu_co_queue_do_restart(CoQueue *queue, bool single)
 
     while ((next = QSIMPLEQ_FIRST(&queue->entries)) != NULL) {
         QSIMPLEQ_REMOVE_HEAD(&queue->entries, co_queue_next);
-        QSIMPLEQ_INSERT_TAIL(&self->co_queue_wakeup, next, co_queue_next);
+        qemu_coroutine_wake(next);
         trace_qemu_co_queue_next(next);
         if (single) {
             break;
