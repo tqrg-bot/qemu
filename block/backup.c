@@ -48,6 +48,7 @@ typedef struct BackupBlockJob {
     unsigned long *done_bitmap;
     int64_t cluster_size;
     QLIST_HEAD(, CowRequest) inflight_reqs;
+    CoMutex reqs_lock;
 } BackupBlockJob;
 
 /* Size of a cluster in sectors, instead of bytes. */
@@ -64,16 +65,18 @@ static void coroutine_fn wait_for_overlapping_requests(BackupBlockJob *job,
     CowRequest *req;
     bool retry;
 
+    qemu_co_mutex_lock(&job->reqs_lock);
     do {
         retry = false;
         QLIST_FOREACH(req, &job->inflight_reqs, list) {
             if (end > req->start && start < req->end) {
-                qemu_co_queue_wait(&req->wait_queue, NULL);
+                qemu_co_queue_wait(&req->wait_queue, &job->reqs_lock);
                 retry = true;
                 break;
             }
         }
     } while (retry);
+    qemu_co_mutex_unlock(&req->wait_queue_lock);
 }
 
 /* Keep track of an in-flight request */
@@ -83,14 +86,18 @@ static void cow_request_begin(CowRequest *req, BackupBlockJob *job,
     req->start = start;
     req->end = end;
     qemu_co_queue_init(&req->wait_queue);
+    qemu_co_mutex_lock(&job->reqs_lock);
     QLIST_INSERT_HEAD(&job->inflight_reqs, req, list);
+    qemu_co_mutex_unlock(&job->reqs_lock);
 }
 
 /* Forget about a completed request */
 static void cow_request_end(CowRequest *req)
 {
+    qemu_co_mutex_lock(&job->reqs_lock);
     QLIST_REMOVE(req, list);
     qemu_co_queue_restart_all(&req->wait_queue);
+    qemu_co_mutex_unlock(&job->reqs_lock);
 }
 
 static int coroutine_fn backup_do_cow(BlockDriverState *bs,
@@ -581,6 +588,7 @@ void backup_start(BlockDriverState *bs, BlockDriverState *target,
         goto error;
     }
 
+    qemu_co_queue_init(&job->reqs_lock);
     job->on_source_error = on_source_error;
     job->on_target_error = on_target_error;
     job->target = target;
