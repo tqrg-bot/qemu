@@ -31,7 +31,7 @@ void backup_wait_for_overlapping_requests(BlockJob *job, int64_t offset,
                                           uint64_t bytes);
 void backup_cow_request_begin(CowRequest *req, BlockJob *job,
                               int64_t offset, uint64_t bytes);
-void backup_cow_request_end(CowRequest *req);
+void backup_cow_request_end(CowRequest *req, BlockJob *job);
 
 void backup_do_checkpoint(BlockJob *job, Error **errp);
 
