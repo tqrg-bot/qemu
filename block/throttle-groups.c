@@ -317,15 +317,54 @@ void coroutine_fn throttle_group_co_io_limits_intercept(BlockDriverState *bs,
     qemu_mutex_unlock(&tg->lock);
 }
 
-void throttle_group_restart_bs(BlockDriverState *bs)
-{
-    int i;
+typedef struct RestartData RestartData;
+struct RestartData {
+    BlockDriverState *bs;
+    bool single;
+    bool is_write;
+};
 
-    for (i = 0; i < 2; i++) {
-        while (qemu_co_enter_next(&bs->throttled_reqs[i])) {
-            ;
+static void throttle_group_restart_queue_entry(void *opaque)
+{
+    RestartData *data = opaque;
+    BlockDriverState *bs = data->bs;
+    bool single = data->single;
+    bool is_write = data->is_write;
+    unsigned count = 0;
+
+    g_free(data);
+    while (qemu_co_queue_next(&bs->throttled_reqs[is_write])) {
+        count++;
+        if (single) {
+            break;
         }
     }
+
+    if (count == 0) {
+        ThrottleGroup *tg = container_of(bs->throttle_state, ThrottleGroup, ts);
+
+        qemu_mutex_lock(&tg->lock);
+        schedule_next_request(bs, is_write);
+        qemu_mutex_unlock(&tg->lock);
+    }
+}
+
+static void throttle_group_restart_queue(BlockDriverState *bs, bool single,
+                                         bool is_write)
+{
+    RestartData *data = g_new(RestartData, 1);
+
+    data->bs = bs;
+    data->single = single;
+    data->is_write = is_write;
+    qemu_coroutine_enter(qemu_coroutine_create(throttle_group_restart_queue_entry),
+                         &data);
+}
+
+void throttle_group_restart_bs(BlockDriverState *bs)
+{
+    throttle_group_restart_queue(bs, false, 0);
+    throttle_group_restart_queue(bs, false, 1);
 }
 
 /* Update the throttle configuration for a particular group. Similar
@@ -351,8 +390,8 @@ void throttle_group_config(BlockDriverState *bs, ThrottleConfig *cfg)
     throttle_config(ts, tt, cfg);
     qemu_mutex_unlock(&tg->lock);
 
-    qemu_co_enter_next(&bs->throttled_reqs[0]);
-    qemu_co_enter_next(&bs->throttled_reqs[1]);
+    throttle_group_restart_queue(bs, true, 0);
+    throttle_group_restart_queue(bs, true, 1);
 }
 
 /* Get the throttle configuration from a particular group. Similar to
@@ -381,7 +420,6 @@ static void timer_cb(BlockDriverState *bs, bool is_write)
 {
     ThrottleState *ts = bs->throttle_state;
     ThrottleGroup *tg = container_of(ts, ThrottleGroup, ts);
-    bool empty_queue;
 
     /* The timer has just been fired, so we can update the flag */
     qemu_mutex_lock(&tg->lock);
@@ -390,16 +428,8 @@ static void timer_cb(BlockDriverState *bs, bool is_write)
 
     /* Run the request that was waiting for this timer */
     aio_context_acquire(bdrv_get_aio_context(bs));
-    empty_queue = !qemu_co_enter_next(&bs->throttled_reqs[is_write]);
+    throttle_group_restart_queue(bs, true, is_write);
     aio_context_release(bdrv_get_aio_context(bs));
-
-    /* If the request queue was empty then we have to take care of
-     * scheduling the next one */
-    if (empty_queue) {
-        qemu_mutex_lock(&tg->lock);
-        schedule_next_request(bs, is_write);
-        qemu_mutex_unlock(&tg->lock);
-    }
 }
 
 static void read_timer_cb(void *opaque)
