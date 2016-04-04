@@ -198,11 +198,6 @@ bool coroutine_fn qemu_co_queue_next(CoQueue *queue);
 void coroutine_fn qemu_co_queue_restart_all(CoQueue *queue);
 
 /**
- * Enter the next coroutine in the queue
- */
-bool qemu_co_enter_next(CoQueue *queue);
-
-/**
  * Checks if the CoQueue is empty.
  */
 bool qemu_co_queue_empty(CoQueue *queue);

@@ -130,20 +130,6 @@ void coroutine_fn qemu_co_queue_restart_all(CoQueue *queue)
     qemu_co_queue_do_restart(queue, false);
 }
 
-bool qemu_co_enter_next(CoQueue *queue)
-{
-    Coroutine *next;
-
-    next = QSIMPLEQ_FIRST(&queue->entries);
-    if (!next) {
-        return false;
-    }
-
-    QSIMPLEQ_REMOVE_HEAD(&queue->entries, co_queue_next);
-    qemu_coroutine_enter(next);
-    return true;
-}
-
 bool qemu_co_queue_empty(CoQueue *queue)
 {
     return QSIMPLEQ_FIRST(&queue->entries) == NULL;
