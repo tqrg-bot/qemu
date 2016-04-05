@@ -2158,6 +2158,21 @@ out:
     return ret;
 }
 
+static void wait_for_overlapping_aiocb(BDRVSheepdogState *s, SheepdogAIOCB *aiocb)
+{
+    SheepdogAIOCB *cb;
+
+retry:
+    QLIST_FOREACH(cb, &s->inflight_aiocb_head, aiocb_siblings) {
+        if (AIOCBOverlapping(aiocb, cb)) {
+            qemu_co_queue_wait(&s->overlapping_queue);
+            goto retry;
+        }
+    }
+
+    QLIST_INSERT_HEAD(&s->inflight_aiocb_head, aiocb, aiocb_siblings);
+}
+
 /*
  * Send I/O requests to the server.
  *
@@ -2182,6 +2197,8 @@ static int coroutine_fn sd_co_rw_vector(void *p)
     BDRVSheepdogState *s = acb->common.bs->opaque;
     SheepdogInode *inode = &s->inode;
     AIOReq *aio_req;
+
+    wait_for_overlapping_aiocb(s, acb);
 
     if (acb->aiocb_type == AIOCB_WRITE_UDATA && s->is_snapshot) {
         /*
@@ -2267,23 +2284,18 @@ static int coroutine_fn sd_co_rw_vector(void *p)
     }
 out:
     if (!--acb->nr_pending) {
-        return acb->ret;
-    }
-    return 1;
-}
-
-static bool check_overlapping_aiocb(BDRVSheepdogState *s, SheepdogAIOCB *aiocb)
-{
-    SheepdogAIOCB *cb;
-
-    QLIST_FOREACH(cb, &s->inflight_aiocb_head, aiocb_siblings) {
-        if (AIOCBOverlapping(aiocb, cb)) {
-            return true;
-        }
+        ret = acb->ret;
+        QLIST_REMOVE(acb, aiocb_siblings);
+        qemu_co_queue_restart_all(&s->overlapping_queue);
+        qemu_aio_unref(acb);
+    } else {
+        qemu_coroutine_yield();
+        ret = acb->ret;
+        QLIST_REMOVE(acb, aiocb_siblings);
+        qemu_co_queue_restart_all(&s->overlapping_queue);
     }
 
-    QLIST_INSERT_HEAD(&s->inflight_aiocb_head, aiocb, aiocb_siblings);
-    return false;
+    return ret;
 }
 
 static coroutine_fn int sd_co_writev(BlockDriverState *bs, int64_t sector_num,
@@ -2305,26 +2317,7 @@ static coroutine_fn int sd_co_writev(BlockDriverState *bs, int64_t sector_num,
     acb->aio_done_func = sd_write_done;
     acb->aiocb_type = AIOCB_WRITE_UDATA;
 
-retry:
-    if (check_overlapping_aiocb(s, acb)) {
-        qemu_co_queue_wait(&s->overlapping_queue);
-        goto retry;
-    }
-
-    ret = sd_co_rw_vector(acb);
-    if (ret <= 0) {
-        QLIST_REMOVE(acb, aiocb_siblings);
-        qemu_co_queue_restart_all(&s->overlapping_queue);
-        qemu_aio_unref(acb);
-        return ret;
-    }
-
-    qemu_coroutine_yield();
-
-    QLIST_REMOVE(acb, aiocb_siblings);
-    qemu_co_queue_restart_all(&s->overlapping_queue);
-
-    return acb->ret;
+    return sd_co_rw_vector(acb);
 }
 
 static coroutine_fn int sd_co_readv(BlockDriverState *bs, int64_t sector_num,
@@ -2338,25 +2331,7 @@ static coroutine_fn int sd_co_readv(BlockDriverState *bs, int64_t sector_num,
     acb->aiocb_type = AIOCB_READ_UDATA;
     acb->aio_done_func = sd_finish_aiocb;
 
-retry:
-    if (check_overlapping_aiocb(s, acb)) {
-        qemu_co_queue_wait(&s->overlapping_queue);
-        goto retry;
-    }
-
-    ret = sd_co_rw_vector(acb);
-    if (ret <= 0) {
-        QLIST_REMOVE(acb, aiocb_siblings);
-        qemu_co_queue_restart_all(&s->overlapping_queue);
-        qemu_aio_unref(acb);
-        return ret;
-    }
-
-    qemu_coroutine_yield();
-
-    QLIST_REMOVE(acb, aiocb_siblings);
-    qemu_co_queue_restart_all(&s->overlapping_queue);
-    return acb->ret;
+    return sd_co_rw_vector(acb);
 }
 
 static int coroutine_fn sd_co_flush_to_disk(BlockDriverState *bs)
@@ -2828,26 +2803,7 @@ static coroutine_fn int sd_co_discard(BlockDriverState *bs, int64_t sector_num,
     acb->aiocb_type = AIOCB_DISCARD_OBJ;
     acb->aio_done_func = sd_finish_aiocb;
 
-retry:
-    if (check_overlapping_aiocb(s, acb)) {
-        qemu_co_queue_wait(&s->overlapping_queue);
-        goto retry;
-    }
-
-    ret = sd_co_rw_vector(acb);
-    if (ret <= 0) {
-        QLIST_REMOVE(acb, aiocb_siblings);
-        qemu_co_queue_restart_all(&s->overlapping_queue);
-        qemu_aio_unref(acb);
-        return ret;
-    }
-
-    qemu_coroutine_yield();
-
-    QLIST_REMOVE(acb, aiocb_siblings);
-    qemu_co_queue_restart_all(&s->overlapping_queue);
-
-    return acb->ret;
+    return sd_co_rw_vector(acb);
 }
 
 static coroutine_fn int64_t
