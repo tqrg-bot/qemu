@@ -291,36 +291,49 @@ void qemu_co_rwlock_init(CoRwlock *lock)
 {
     memset(lock, 0, sizeof(*lock));
     qemu_co_queue_init(&lock->queue);
+    qemu_co_mutex_init(&lock->mutex);
 }
 
 void qemu_co_rwlock_rdlock(CoRwlock *lock)
 {
-    while (lock->writer) {
-        qemu_co_queue_wait(&lock->queue, NULL);
+    qemu_co_mutex_lock(&lock->mutex);
+    /* For fairness, wait if a writer is in line.  */
+    while (lock->pending_writer) {
+        qemu_co_queue_wait(&lock->queue, &lock->mutex);
     }
     lock->reader++;
+    qemu_co_mutex_unlock(&lock->mutex);
+
+    /* The rest of the read-side critical section is run without the mutex.  */
 }
 
 void qemu_co_rwlock_unlock(CoRwlock *lock)
 {
     assert(qemu_in_coroutine());
-    if (lock->writer) {
-        lock->writer = false;
+    if (!lock->reader) {
+        /* The critical section started in qemu_co_rwlock_wrlock.  */
         qemu_co_queue_restart_all(&lock->queue);
     } else {
+        qemu_co_mutex_lock(&lock->mutex);
         lock->reader--;
-        assert(lock->reader >= 0);
         /* Wakeup only one waiting writer */
         if (!lock->reader) {
             qemu_co_queue_next(&lock->queue);
         }
     }
+    qemu_co_mutex_unlock(&lock->mutex);
 }
 
 void qemu_co_rwlock_wrlock(CoRwlock *lock)
 {
-    while (lock->writer || lock->reader) {
-        qemu_co_queue_wait(&lock->queue, NULL);
+    qemu_co_mutex_lock(&lock->mutex);
+    lock->pending_writer++;
+    while (lock->reader) {
+        qemu_co_queue_wait(&lock->queue, &lock->mutex);
     }
-    lock->writer = true;
+    lock->pending_writer--;
+
+    /* The rest of the write-side critical section is run with
+     * the mutex taken, so lock->reader remains zero.
+     */
 }
