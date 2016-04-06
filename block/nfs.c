@@ -150,8 +150,8 @@ static int coroutine_fn nfs_co_readv(BlockDriverState *bs,
         return -ENOMEM;
     }
 
+    nfs_set_events(client);
     while (!task.complete) {
-        nfs_set_events(client);
         qemu_coroutine_yield();
     }
 
@@ -192,8 +192,8 @@ static int coroutine_fn nfs_co_writev(BlockDriverState *bs,
         return -ENOMEM;
     }
 
+    nfs_set_events(client);
     while (!task.complete) {
-        nfs_set_events(client);
         qemu_coroutine_yield();
     }
 
@@ -218,8 +218,8 @@ static int coroutine_fn nfs_co_flush(BlockDriverState *bs)
         return -ENOMEM;
     }
 
+    nfs_set_events(client);
     while (!task.complete) {
-        nfs_set_events(client);
         qemu_coroutine_yield();
     }
 
@@ -488,8 +488,8 @@ static int64_t nfs_get_allocated_file_size(BlockDriverState *bs)
         return -ENOMEM;
     }
 
+    nfs_set_events(client);
     while (!task.complete) {
-        nfs_set_events(client);
         aio_poll(client->aio_context, true);
     }
 
