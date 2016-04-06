@@ -705,13 +705,13 @@ out:
  *
  * Return 0 on success, -errno in case of error.
  */
-static int do_req(int sockfd, AioContext *aio_context, SheepdogReq *hdr,
+static int do_req(int sockfd, BlockDriverState *bs, SheepdogReq *hdr,
                   void *data, unsigned int *wlen, unsigned int *rlen)
 {
     Coroutine *co;
     SheepdogReqCo srco = {
         .sockfd = sockfd,
-        .aio_context = aio_context,
+        .aio_context = bs ? bdrv_get_aio_context(bs) : qemu_get_aio_context(),
         .hdr = hdr,
         .data = data,
         .wlen = wlen,
@@ -724,9 +724,15 @@ static int do_req(int sockfd, AioContext *aio_context, SheepdogReq *hdr,
         do_co_req(&srco);
     } else {
         co = qemu_coroutine_create(do_co_req);
+        if (bs) {
+            bdrv_inc_in_flight(bs);
+        }
         qemu_coroutine_enter(co, &srco);
         while (!srco.finished) {
-            aio_poll(aio_context, true);
+            aio_poll(srco.aio_context, true);
+        }
+        if (bs) {
+            bdrv_dec_in_flight(bs);
         }
     }
 
@@ -1122,7 +1128,7 @@ static int find_vdi_name(BDRVSheepdogState *s, const char *filename,
     hdr.snapid = snapid;
     hdr.flags = SD_FLAG_CMD_WRITE;
 
-    ret = do_req(fd, s->aio_context, (SheepdogReq *)&hdr, buf, &wlen, &rlen);
+    ret = do_req(fd, s->bs, (SheepdogReq *)&hdr, buf, &wlen, &rlen);
     if (ret) {
         error_setg_errno(errp, -ret, "cannot get vdi info");
         goto out;
@@ -1237,7 +1243,7 @@ out:
     qemu_co_mutex_unlock(&s->lock);
 }
 
-static int read_write_object(int fd, AioContext *aio_context, char *buf,
+static int read_write_object(int fd, BlockDriverState *bs, char *buf,
                              uint64_t oid, uint8_t copies,
                              unsigned int datalen, uint64_t offset,
                              bool write, bool create, uint32_t cache_flags)
@@ -1271,7 +1277,7 @@ static int read_write_object(int fd, AioContext *aio_context, char *buf,
     hdr.offset = offset;
     hdr.copies = copies;
 
-    ret = do_req(fd, aio_context, (SheepdogReq *)&hdr, buf, &wlen, &rlen);
+    ret = do_req(fd, bs, (SheepdogReq *)&hdr, buf, &wlen, &rlen);
     if (ret) {
         error_report("failed to send a request to the sheep");
         return ret;
@@ -1286,22 +1292,22 @@ static int read_write_object(int fd, AioContext *aio_context, char *buf,
     }
 }
 
-static int read_object(int fd, AioContext *aio_context, char *buf,
+static int read_object(int fd, BlockDriverState *bs, char *buf,
                        uint64_t oid, uint8_t copies,
                        unsigned int datalen, uint64_t offset,
                        uint32_t cache_flags)
 {
-    return read_write_object(fd, aio_context, buf, oid, copies,
+    return read_write_object(fd, bs, buf, oid, copies,
                              datalen, offset, false,
                              false, cache_flags);
 }
 
-static int write_object(int fd, AioContext *aio_context, char *buf,
+static int write_object(int fd, BlockDriverState *bs, char *buf,
                         uint64_t oid, uint8_t copies,
                         unsigned int datalen, uint64_t offset, bool create,
                         uint32_t cache_flags)
 {
-    return read_write_object(fd, aio_context, buf, oid, copies,
+    return read_write_object(fd, bs, buf, oid, copies,
                              datalen, offset, true,
                              create, cache_flags);
 }
@@ -1328,7 +1334,7 @@ static int reload_inode(BDRVSheepdogState *s, uint32_t snapid, const char *tag)
         goto out;
     }
 
-    ret = read_object(fd, s->aio_context, (char *)inode, vid_to_vdi_oid(vid),
+    ret = read_object(fd, s->bs, (char *)inode, vid_to_vdi_oid(vid),
                       s->inode.nr_copies, SD_INODE_HEADER_SIZE, 0,
                       s->cache_flags);
     if (ret < 0) {
@@ -1486,7 +1492,7 @@ static int sd_open(BlockDriverState *bs, QDict *options, int flags,
     }
 
     buf = g_malloc(SD_INODE_SIZE);
-    ret = read_object(fd, s->aio_context, buf, vid_to_vdi_oid(vid),
+    ret = read_object(fd, s->bs, buf, vid_to_vdi_oid(vid),
                       0, SD_INODE_SIZE, 0, s->cache_flags);
 
     closesocket(fd);
@@ -1615,7 +1621,7 @@ static int do_sd_create(BDRVSheepdogState *s, uint32_t *vdi_id, int snapshot,
     hdr.copies = s->inode.nr_copies;
     hdr.block_size_shift = s->inode.block_size_shift;
 
-    ret = do_req(fd, s->aio_context, (SheepdogReq *)&hdr, buf, &wlen, &rlen);
+    ret = do_req(fd, NULL, (SheepdogReq *)&hdr, buf, &wlen, &rlen);
 
     closesocket(fd);
 
@@ -1883,7 +1889,7 @@ static int sd_create(const char *filename, QemuOpts *opts,
         hdr.opcode = SD_OP_GET_CLUSTER_DEFAULT;
         hdr.proto_ver = SD_PROTO_VER;
 
-        ret = do_req(fd, s->aio_context, (SheepdogReq *)&hdr,
+        ret = do_req(fd, NULL, (SheepdogReq *)&hdr,
                      NULL, &wlen, &rlen);
         closesocket(fd);
         if (ret) {
@@ -1948,7 +1954,7 @@ static void sd_close(BlockDriverState *bs)
     hdr.data_length = wlen;
     hdr.flags = SD_FLAG_CMD_WRITE;
 
-    ret = do_req(fd, s->aio_context, (SheepdogReq *)&hdr,
+    ret = do_req(fd, s->bs, (SheepdogReq *)&hdr,
                  s->name, &wlen, &rlen);
 
     closesocket(fd);
@@ -1997,7 +2003,7 @@ static int sd_truncate(BlockDriverState *bs, int64_t offset)
     /* we don't need to update entire object */
     datalen = SD_INODE_SIZE - sizeof(s->inode.data_vdi_id);
     s->inode.vdi_size = offset;
-    ret = write_object(fd, s->aio_context, (char *)&s->inode,
+    ret = write_object(fd, s->bs, (char *)&s->inode,
                        vid_to_vdi_oid(s->inode.vdi_id), s->inode.nr_copies,
                        datalen, 0, false, s->cache_flags);
     close(fd);
@@ -2067,7 +2073,7 @@ static bool sd_delete(BDRVSheepdogState *s)
         return false;
     }
 
-    ret = do_req(fd, s->aio_context, (SheepdogReq *)&hdr,
+    ret = do_req(fd, s->bs, (SheepdogReq *)&hdr,
                  s->name, &wlen, &rlen);
     closesocket(fd);
     if (ret) {
@@ -2123,7 +2129,7 @@ static int sd_create_branch(BDRVSheepdogState *s)
         goto out;
     }
 
-    ret = read_object(fd, s->aio_context, buf, vid_to_vdi_oid(vid),
+    ret = read_object(fd, s->bs, buf, vid_to_vdi_oid(vid),
                       s->inode.nr_copies, SD_INODE_SIZE, 0, s->cache_flags);
 
     closesocket(fd);
@@ -2408,7 +2414,7 @@ static int sd_snapshot_create(BlockDriverState *bs, QEMUSnapshotInfo *sn_info)
         goto cleanup;
     }
 
-    ret = write_object(fd, s->aio_context, (char *)&s->inode,
+    ret = write_object(fd, s->bs, (char *)&s->inode,
                        vid_to_vdi_oid(s->inode.vdi_id), s->inode.nr_copies,
                        datalen, 0, false, s->cache_flags);
     if (ret < 0) {
@@ -2423,7 +2429,7 @@ static int sd_snapshot_create(BlockDriverState *bs, QEMUSnapshotInfo *sn_info)
         goto cleanup;
     }
 
-    ret = read_object(fd, s->aio_context, (char *)inode,
+    ret = read_object(fd, s->bs, (char *)inode,
                       vid_to_vdi_oid(new_vid), s->inode.nr_copies, datalen, 0,
                       s->cache_flags);
 
@@ -2525,7 +2531,7 @@ static bool remove_objects(BDRVSheepdogState *s)
             i++;
         }
 
-        ret = write_object(fd, s->aio_context,
+        ret = write_object(fd, s->bs,
                            (char *)&inode->data_vdi_id[start_idx],
                            vid_to_vdi_oid(s->inode.vdi_id), inode->nr_copies,
                            (i - start_idx) * sizeof(uint32_t),
@@ -2597,7 +2603,7 @@ static int sd_snapshot_delete(BlockDriverState *bs,
         return -1;
     }
 
-    ret = do_req(fd, s->aio_context, (SheepdogReq *)&hdr,
+    ret = do_req(fd, s->bs, (SheepdogReq *)&hdr,
                  buf, &wlen, &rlen);
     closesocket(fd);
     if (ret) {
@@ -2649,7 +2655,7 @@ static int sd_snapshot_list(BlockDriverState *bs, QEMUSnapshotInfo **psn_tab)
     req.opcode = SD_OP_READ_VDIS;
     req.data_length = max;
 
-    ret = do_req(fd, s->aio_context, (SheepdogReq *)&req,
+    ret = do_req(fd, s->bs, (SheepdogReq *)&req,
                  vdi_inuse, &wlen, &rlen);
 
     closesocket(fd);
@@ -2676,7 +2682,7 @@ static int sd_snapshot_list(BlockDriverState *bs, QEMUSnapshotInfo **psn_tab)
         }
 
         /* we don't need to read entire object */
-        ret = read_object(fd, s->aio_context, (char *)&inode,
+        ret = read_object(fd, s->bs, (char *)&inode,
                           vid_to_vdi_oid(vid),
                           0, SD_INODE_SIZE - sizeof(inode.data_vdi_id), 0,
                           s->cache_flags);
@@ -2742,11 +2748,11 @@ static int do_load_save_vmstate(BDRVSheepdogState *s, uint8_t *data,
 
         create = (offset == 0);
         if (load) {
-            ret = read_object(fd, s->aio_context, (char *)data, vmstate_oid,
+            ret = read_object(fd, s->bs, (char *)data, vmstate_oid,
                               s->inode.nr_copies, data_len, offset,
                               s->cache_flags);
         } else {
-            ret = write_object(fd, s->aio_context, (char *)data, vmstate_oid,
+            ret = write_object(fd, s->bs, (char *)data, vmstate_oid,
                                s->inode.nr_copies, data_len, offset, create,
                                s->cache_flags);
         }
