@@ -278,6 +278,11 @@ class TestInitiallyFilled(GeneralChangeTestsBaseClass):
     was_empty = False
 
     def setUp(self, media, interface):
+        try:
+            os.remove(old_img)
+            os.remove(new_img)
+	except OSError:
+            pass
         qemu_img('create', '-f', iotests.imgfmt, old_img, '1440k')
         qemu_img('create', '-f', iotests.imgfmt, new_img, '1440k')
         self.vm = iotests.VM().add_drive(old_img, 'media=%s' % media, interface)
