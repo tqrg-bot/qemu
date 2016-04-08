@@ -222,23 +222,12 @@ bool bdrv_requests_pending(BlockDriverState *bs)
     return false;
 }
 
-static bool bdrv_drain_poll(BlockDriverState *bs)
-{
-    bool waited = false;
-
-    while (atomic_read(&bs->in_flight) > 0) {
-        aio_poll(bdrv_get_aio_context(bs), true);
-        waited = true;
-    }
-    return waited;
-}
-
 static bool bdrv_drain_io_recurse(BlockDriverState *bs)
 {
     BdrvChild *child;
     bool waited;
 
-    waited = bdrv_drain_poll(bs);
+    waited = bdrv_poll_while(bs, atomic_read(&bs->in_flight) > 0);
 
     if (bs->drv && bs->drv->bdrv_drain) {
         bs->drv->bdrv_drain(bs);
@@ -262,10 +251,11 @@ static void bdrv_co_drain_bh_cb(void *opaque)
 {
     BdrvCoDrainData *data = opaque;
     Coroutine *co = data->co;
+    BlockDriverState *bs = data->bs;
 
     qemu_bh_delete(data->bh);
     bdrv_dec_in_flight(data->bs);
-    bdrv_drain_poll(data->bs);
+    bdrv_poll_while(bs, atomic_read(&bs->in_flight) > 0);
     data->done = true;
     qemu_coroutine_enter(co, NULL);
 }
@@ -645,13 +635,9 @@ static int bdrv_prwv_co(BlockDriverState *bs, int64_t offset,
         /* Fast-path if already in coroutine context */
         bdrv_rw_co_entry(&rwco);
     } else {
-        AioContext *aio_context = bdrv_get_aio_context(bs);
-
         co = qemu_coroutine_create(bdrv_rw_co_entry);
         qemu_coroutine_enter(co, &rwco);
-        while (rwco.ret == NOT_DONE) {
-            aio_poll(aio_context, true);
-        }
+        bdrv_poll_while(bs, rwco.ret == NOT_DONE);
     }
     return rwco.ret;
 }
@@ -1693,13 +1679,9 @@ int64_t bdrv_get_block_status_above(BlockDriverState *bs,
         /* Fast-path if already in coroutine context */
         bdrv_get_block_status_above_co_entry(&data);
     } else {
-        AioContext *aio_context = bdrv_get_aio_context(bs);
-
         co = qemu_coroutine_create(bdrv_get_block_status_above_co_entry);
         qemu_coroutine_enter(co, &data);
-        while (!data.done) {
-            aio_poll(aio_context, true);
-        }
+        bdrv_poll_while(bs, !data.done);
     }
     return data.ret;
 }
@@ -2506,13 +2488,9 @@ int bdrv_flush(BlockDriverState *bs)
         /* Fast-path if already in coroutine context */
         bdrv_flush_co_entry(&rwco);
     } else {
-        AioContext *aio_context = bdrv_get_aio_context(bs);
-
         co = qemu_coroutine_create(bdrv_flush_co_entry);
         qemu_coroutine_enter(co, &rwco);
-        while (rwco.ret == NOT_DONE) {
-            aio_poll(aio_context, true);
-        }
+        bdrv_poll_while(bs, rwco.ret == NOT_DONE);
     }
 
     return rwco.ret;
@@ -2629,13 +2607,9 @@ int bdrv_discard(BlockDriverState *bs, int64_t sector_num, int nb_sectors)
         /* Fast-path if already in coroutine context */
         bdrv_discard_co_entry(&rwco);
     } else {
-        AioContext *aio_context = bdrv_get_aio_context(bs);
-
         co = qemu_coroutine_create(bdrv_discard_co_entry);
         qemu_coroutine_enter(co, &rwco);
-        while (rwco.ret == NOT_DONE) {
-            aio_poll(aio_context, true);
-        }
+        bdrv_poll_while(bs, rwco.ret == NOT_DONE);
     }
 
     return rwco.ret;
@@ -2710,11 +2684,8 @@ int bdrv_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
         bdrv_co_ioctl_entry(&data);
     } else {
         Coroutine *co = qemu_coroutine_create(bdrv_co_ioctl_entry);
-
         qemu_coroutine_enter(co, &data);
-        while (data.ret == -EINPROGRESS) {
-            aio_poll(bdrv_get_aio_context(bs), true);
-        }
+        bdrv_poll_while(bs, data.ret == -EINPROGRESS);
     }
     return data.ret;
 }

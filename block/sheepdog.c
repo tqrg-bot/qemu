@@ -726,13 +726,14 @@ static int do_req(int sockfd, BlockDriverState *bs, SheepdogReq *hdr,
         co = qemu_coroutine_create(do_co_req);
         if (bs) {
             bdrv_inc_in_flight(bs);
-        }
-        qemu_coroutine_enter(co, &srco);
-        while (!srco.finished) {
-            aio_poll(srco.aio_context, true);
-        }
-        if (bs) {
+            qemu_coroutine_enter(co, &srco);
+            bdrv_poll_while(bs, !srco.finished);
             bdrv_dec_in_flight(bs);
+        } else {
+            qemu_coroutine_enter(co, &srco);
+            while (!srco.finished) {
+                aio_poll(srco.aio_context, true);
+            }
         }
     }
 
