@@ -378,8 +378,18 @@ void bdrv_drain_all(void);
 #define bdrv_poll_while(bs, cond) ({                       \
     bool waited_ = false;                                  \
     BlockDriverState *bs_ = (bs);                          \
+    AioContext *ctx_ = bdrv_get_aio_context(bs_);          \
     while (cond) {                                         \
-        aio_poll(bdrv_get_aio_context(bs_), true);         \
+        if (aio_context_in_iothread(ctx_)) {               \
+            aio_poll(ctx_, true);                          \
+        } else {                                           \
+            qemu_event_reset(&bs_->in_flight_event);       \
+            if (!(cond)) {                                 \
+                aio_context_release(ctx_);                 \
+                qemu_event_wait(&bs_->in_flight_event);    \
+                aio_context_acquire(ctx_);                 \
+            }                                              \
+        }                                                  \
         waited_ = true;                                    \
     }                                                      \
     waited_; })

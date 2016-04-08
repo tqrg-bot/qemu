@@ -515,6 +515,7 @@ void bdrv_inc_in_flight(BlockDriverState *bs)
 void bdrv_dec_in_flight(BlockDriverState *bs)
 {
     atomic_dec(&bs->in_flight);
+    qemu_event_set(&bs->in_flight_event);
 }
 
 static bool coroutine_fn wait_serialising_requests(BdrvTrackedRequest *self)
