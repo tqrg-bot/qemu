@@ -238,6 +238,7 @@ fortify_source=""
 strip_opt="yes"
 tcg_interpreter="no"
 bigendian="no"
+compiler_m16="no"
 mingw32="no"
 gcov="no"
 gcov_tool="gcov"
@@ -1519,6 +1520,21 @@ if test "$static" = "yes" ; then
     error_exit "static and pie are mutually incompatible"
   else
     pie="no"
+  fi
+fi
+
+# Check if the compiler supports -m16 to generate i8086 binaries.
+#
+# GCC < 4.9 didn't, so we have to work around that when building the
+# linuxboot_dma option ROM.  When GCC < 4.9 is considered sufficiently
+# old that we no longer care about it, we can remove this section and
+# CONFIG_COMPILER_M16 which will simplify the build.
+if [ "$cpu" = "i386" -o "$cpu" = "x86_64" ] ; then
+  cat > $TMPC << EOF
+int main(void) { return 0; }
+EOF
+  if compile_prog "-m16" "" ; then
+    compiler_m16=yes
   fi
 fi
 
@@ -4776,6 +4792,7 @@ fi
 echo "module support    $modules"
 echo "host CPU          $cpu"
 echo "host big endian   $bigendian"
+echo "compiler has -m16 $compiler_m16"
 echo "target list       $target_list"
 echo "tcg debug enabled $debug_tcg"
 echo "gprof enabled     $gprof"
@@ -4922,6 +4939,9 @@ if test "$strip_opt" = "yes" ; then
 fi
 if test "$bigendian" = "yes" ; then
   echo "HOST_WORDS_BIGENDIAN=y" >> $config_host_mak
+fi
+if test "$compiler_m16" = "yes" ; then
+  echo "CONFIG_COMPILER_M16=y" >> $config_host_mak
 fi
 if test "$mingw32" = "yes" ; then
   echo "CONFIG_WIN32=y" >> $config_host_mak
