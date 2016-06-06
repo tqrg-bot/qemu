@@ -22,7 +22,6 @@
 #include <libusb.h>
 #include <stdio.h>
 #include <sys/types.h>
-#include <sys/mman.h>
 #include <sys/time.h>
 
 #include "qemu/osdep.h"
