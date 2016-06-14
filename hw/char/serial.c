@@ -252,10 +252,13 @@ static gboolean serial_xmit(GIOChannel *chan, GIOCondition cond, void *opaque)
             /* in loopback mode, say that we just received a char */
             serial_receive1(s, &s->tsr, 1);
         } else if (qemu_chr_fe_write(s->chr, &s->tsr, 1) != 1 &&
-                   s->tsr_retry < MAX_XMIT_RETRY &&
-                   qemu_chr_fe_add_watch(s->chr, G_IO_OUT|G_IO_HUP, serial_xmit, s) > 0) {
-            s->tsr_retry++;
-            return FALSE;
+                   s->tsr_retry < MAX_XMIT_RETRY) {
+            assert(s->watch_tag == 0);
+            s->watch_tag = qemu_chr_fe_add_watch(s->chr, G_IO_OUT|G_IO_HUP, serial_xmit, s);
+            if (s->watch_tag > 0) {
+                s->tsr_retry++;
+                return FALSE;
+            }
         }
         s->tsr_retry = 0;
 
@@ -826,6 +829,11 @@ const VMStateDescription vmstate_serial = {
 static void serial_reset(void *opaque)
 {
     SerialState *s = opaque;
+
+    if (s->watch_tag > 0) {
+        g_source_remove(s->watch_tag);
+        s->watch_tag = 0;
+    }
 
     s->rbr = 0;
     s->ier = 0;
