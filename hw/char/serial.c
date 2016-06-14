@@ -251,17 +251,13 @@ static gboolean serial_xmit(GIOChannel *chan, GIOCondition cond, void *opaque)
         if (s->mcr & UART_MCR_LOOP) {
             /* in loopback mode, say that we just received a char */
             serial_receive1(s, &s->tsr, 1);
-        } else if (qemu_chr_fe_write(s->chr, &s->tsr, 1) != 1) {
-            if (s->tsr_retry < MAX_XMIT_RETRY &&
-                qemu_chr_fe_add_watch(s->chr, G_IO_OUT|G_IO_HUP,
-                                      serial_xmit, s) > 0) {
-                s->tsr_retry++;
-                return FALSE;
-            }
-            s->tsr_retry = 0;
-        } else {
-            s->tsr_retry = 0;
+        } else if (qemu_chr_fe_write(s->chr, &s->tsr, 1) != 1 &&
+                   s->tsr_retry < MAX_XMIT_RETRY &&
+                   qemu_chr_fe_add_watch(s->chr, G_IO_OUT|G_IO_HUP, serial_xmit, s) > 0) {
+            s->tsr_retry++;
+            return FALSE;
         }
+        s->tsr_retry = 0;
 
         /* Transmit another byte if it is already available. It is only
            possible when FIFO is enabled and not empty. */
