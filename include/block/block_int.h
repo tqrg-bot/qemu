@@ -78,9 +78,10 @@ typedef struct BdrvTrackedRequest {
 
     QLIST_ENTRY(BdrvTrackedRequest) list;
     Coroutine *co; /* owner, used for deadlock detection */
-    CoQueue wait_queue; /* coroutines blocked on this request */
-
     struct BdrvTrackedRequest *waiting_for;
+
+    /* Protected by BlockDriverState's reqs_lock.  */
+    CoQueue wait_queue; /* coroutines blocked on this request */
 } BdrvTrackedRequest;
 
 struct BlockDriver {
@@ -728,8 +729,11 @@ struct BlockDriverState {
     int quiesce_counter;
     unsigned int write_gen;               /* Current data generation */
 
-    /* Protected by reqs_lock.  */
+    /* Writes are protected by reqs_list_write_lock.  Reads take
+     * reqs_lock so that removals can easily synchronize with walks.
+     */
     CoMutex reqs_lock;
+    QemuSpin reqs_list_write_lock;
     QLIST_HEAD(, BdrvTrackedRequest) tracked_requests;
     CoQueue flush_queue;                  /* Serializing flush queue */
     bool active_flush_req;                /* Flush request in flight? */
