@@ -23,6 +23,8 @@ typedef struct CPUListState {
     FILE *file;
 } CPUListState;
 
+void qemu_init_cpu_list(void);
+
 #if !defined(CONFIG_USER_ONLY)
 
 enum device_endian {

@@ -187,6 +187,10 @@ void address_space_stq(AddressSpace *as, hwaddr addr, uint64_t val,
                             MemTxAttrs attrs, MemTxResult *result);
 #endif
 
+/* The CPU list lock nests outside tb_lock/tb_unlock.  */
+void cpu_list_lock(void);
+void cpu_list_unlock(void);
+
 /* page related stuff */
 
 #define TARGET_PAGE_SIZE (1 << TARGET_PAGE_BITS)
