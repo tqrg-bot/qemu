@@ -122,29 +122,177 @@ static bool select_accel_fn(const void *buf, size_t len)
     return buffer_zero_int(buf, len);
 }
 
-#elif defined(CONFIG_AVX2_OPT)
+#elif defined(CONFIG_AVX2_OPT) || defined(__SSE2__)
 #include <cpuid.h>
 #include <x86intrin.h>
 
+/* Note that we're going to check for LEN >= 64 for all of these.  */
+
+#ifdef CONFIG_AVX2_OPT
 #pragma GCC push_options
 #pragma GCC target("avx2")
-#define AVX2_NONZERO(X)  !_mm256_testz_si256((X), (X))
-ACCEL_BUFFER_ZERO(buffer_zero_avx2, 128, __m256i, AVX2_NONZERO)
-#pragma GCC pop_options
 
+static bool
+buffer_zero_avx2(const void *buf, size_t len)
+{
+    /* Begin with an unaligned head of 32 bytes.  */
+    __m256i t = _mm256_loadu_si256(buf);
+    __m256i *p = (__m256i *)(((uintptr_t)buf + 5 * 32) & -32);
+    __m256i *e = (__m256i *)(((uintptr_t)buf + len) & -32);
+
+    if (likely(p <= e)) {
+        /* Loop over 32-byte aligned blocks of 128.  */
+        do {
+            __builtin_prefetch(p);
+            if (unlikely(!_mm256_testz_si256(t, t))) {
+                return false;
+            }
+            t = p[-4] | p[-3] | p[-2] | p[-1];
+            p += 4;
+        } while (p <= e);
+    } else {
+        t |= _mm256_loadu_si256(buf + 32);
+        if (len <= 128) {
+            goto last2;
+        }
+    }
+
+    /* Finish the last block of 128 unaligned.  */
+    t |= _mm256_loadu_si256(buf + len - 4 * 32);
+    t |= _mm256_loadu_si256(buf + len - 3 * 32);
+ last2:
+    t |= _mm256_loadu_si256(buf + len - 2 * 32);
+    t |= _mm256_loadu_si256(buf + len - 1 * 32);
+
+    return _mm256_testz_si256(t, t);
+}
+
+#pragma GCC pop_options
+#pragma GCC push_options
+#pragma GCC target("avx")
+
+static bool
+buffer_zero_avx(const void *buf, size_t len)
+{
+    __m128i t = _mm_loadu_si128(buf);
+    __m128i *p = (__m128i *)(((uintptr_t)buf + 5 * 16) & -16);
+    __m128i *e = (__m128i *)(((uintptr_t)buf + len) & -16);
+
+    /* Loop over 16-byte aligned blocks of 64.  */
+    while (likely(p <= e)) {
+        __builtin_prefetch(p);
+        if (unlikely(!_mm_testz_si128(t, t))) {
+            return false;
+        }
+        t = p[-4] | p[-3] | p[-2] | p[-1];
+        p += 4;
+    }
+
+    /* Finish the last block of 64 unaligned.  */
+    t |= _mm_loadu_si128(buf + len - 4 * 16);
+    t |= _mm_loadu_si128(buf + len - 3 * 16);
+    t |= _mm_loadu_si128(buf + len - 2 * 16);
+    t |= _mm_loadu_si128(buf + len - 1 * 16);
+
+    return _mm_testz_si128(t, t);
+}
+
+#pragma GCC pop_options
+#pragma GCC push_options
+#pragma GCC target("sse4")
+
+static bool
+buffer_zero_sse4(const void *buf, size_t len)
+{
+    __m128i t = _mm_loadu_si128(buf);
+    __m128i *p = (__m128i *)(((uintptr_t)buf + 5 * 16) & -16);
+    __m128i *e = (__m128i *)(((uintptr_t)buf + len) & -16);
+
+    /* Loop over 16-byte aligned blocks of 64.  */
+    while (likely(p <= e)) {
+        __builtin_prefetch(p);
+        if (unlikely(!_mm_testz_si128(t, t))) {
+            return false;
+        }
+        t = p[-4] | p[-3] | p[-2] | p[-1];
+        p += 4;
+    }
+
+    /* Finish the aligned tail.  */
+    t |= e[-3];
+    t |= e[-2];
+    t |= e[-1];
+
+    /* Finish the unaligned tail.  */
+    t |= _mm_loadu_si128(buf + len - 16);
+
+    return _mm_testz_si128(t, t);
+}
+
+#pragma GCC pop_options
 #pragma GCC push_options
 #pragma GCC target("sse2")
-#define SSE2_NONZERO(X) \
-    (_mm_movemask_epi8(_mm_cmpeq_epi8((X), _mm_setzero_si128())) != 0xFFFF)
-ACCEL_BUFFER_ZERO(buffer_zero_sse2, 64, __m128i, SSE2_NONZERO)
+#endif /* CONFIG_AVX2_OPT */
+
+static bool
+buffer_zero_sse2(const void *buf, size_t len)
+{
+    __m128i t = _mm_loadu_si128(buf);
+    __m128i *p = (__m128i *)(((uintptr_t)buf + 5 * 16) & -16);
+    __m128i *e = (__m128i *)(((uintptr_t)buf + len) & -16);
+    __m128i zero = _mm_setzero_si128();
+
+    /* Loop over 16-byte aligned blocks of 64.  */
+    while (likely(p <= e)) {
+        __builtin_prefetch(p);
+        t = _mm_cmpeq_epi8(t, zero);
+        if (unlikely(_mm_movemask_epi8(t) != 0xFFFF)) {
+            return false;
+        }
+        t = p[-4] | p[-3] | p[-2] | p[-1];
+        p += 4;
+    }
+
+    /* Finish the aligned tail.  */
+    t |= e[-3];
+    t |= e[-2];
+    t |= e[-1];
+
+    /* Finish the unaligned tail.  */
+    t |= _mm_loadu_si128(buf + len - 16);
+
+    return _mm_movemask_epi8(_mm_cmpeq_epi8(t, zero)) == 0xFFFF;
+}
+
+#ifdef CONFIG_AVX2_OPT
 #pragma GCC pop_options
 
-#define CACHE_AVX2    2
-#define CACHE_AVX1    4
-#define CACHE_SSE4    8
-#define CACHE_SSE2    16
+/* These values must be most preferable alternative first.
+   See test_buffer_is_zero_next_accel.  */
+#define CACHE_AVX2    1
+#define CACHE_AVX1    2
+#define CACHE_SSE4    4
+#define CACHE_SSE2    8
 
 static unsigned cpuid_cache;
+static accel_zero_fn buffer_accel;
+
+static void init_accel(unsigned cache)
+{
+    accel_zero_fn fn;
+    if (cache & CACHE_AVX2) {
+        fn = buffer_zero_avx2;
+    } else if (cache & CACHE_AVX1) {
+        fn = buffer_zero_avx;
+    } else if (cache & CACHE_SSE4) {
+        fn = buffer_zero_sse4;
+    } else if (cache & CACHE_SSE2) {
+        fn = buffer_zero_sse2;
+    } else {
+        fn = buffer_zero_int;
+    }
+    buffer_accel = fn;
+}
 
 static void __attribute__((constructor)) init_cpuid_cache(void)
 {
@@ -163,8 +311,9 @@ static void __attribute__((constructor)) init_cpuid_cache(void)
 
         /* We must check that AVX is not just available, but usable.  */
         if ((c & bit_OSXSAVE) && (c & bit_AVX)) {
-            __asm("xgetbv" : "=a"(a), "=d"(d) : "c"(0));
-            if ((a & 6) == 6) {
+            int bv;
+            __asm("xgetbv" : "=a"(bv), "=d"(d) : "c"(0));
+            if ((bv & 6) == 6) {
                 cache |= CACHE_AVX1;
                 if (max >= 7) {
                     __cpuid_count(7, 0, a, b, c, d);
@@ -176,34 +325,34 @@ static void __attribute__((constructor)) init_cpuid_cache(void)
         }
     }
     cpuid_cache = cache;
+    init_accel(cache);
 }
+
+#define HAVE_NEXT_ACCEL
+bool test_buffer_is_zero_next_accel(void)
+{
+    /* If no bits set, we just tested buffer_zero_int, and there
+       are no more acceleration options to test.  */
+    if (cpuid_cache == 0) {
+        return false;
+    }
+    /* Disable the accelerator we used before and select a new one.  */
+    cpuid_cache &= cpuid_cache - 1;
+    init_accel(cpuid_cache);
+    return true;
+}
+#endif /* CONFIG_AVX2_OPT */
 
 static bool select_accel_fn(const void *buf, size_t len)
 {
-    uintptr_t ibuf = (uintptr_t)buf;
-    if (len % 128 == 0 && ibuf % 32 == 0 && (cpuid_cache & CACHE_AVX2)) {
-        return buffer_zero_avx2(buf, len);
-    }
-    if (len % 64 == 0 && ibuf % 16 == 0 && (cpuid_cache & CACHE_SSE2)) {
+    if (likely(len >= 64)) {
+#ifdef CONFIG_AVX2_OPT
+        return buffer_accel(buf, len);
+#else
         return buffer_zero_sse2(buf, len);
+#endif
     }
     return buffer_zero_int(buf, len);
-}
-
-#elif defined __SSE2__
-#include <emmintrin.h>
-
-#define SSE2_NONZERO(X) \
-    (_mm_movemask_epi8(_mm_cmpeq_epi8((X), _mm_setzero_si128())) != 0xFFFF)
-ACCEL_BUFFER_ZERO(buffer_zero_sse2, 64, __m128i, SSE2_NONZERO)
-
-static bool select_accel_fn(const void *buf, size_t len)
-{
-    uintptr_t ibuf = (uintptr_t)buf;
-    if (len % 64 == 0 && ibuf % sizeof(__m128i) == 0) {
-        return buffer_zero_sse2(buf, len);
-    }
-    return select_accel_int(buf, len);
 }
 
 #elif defined(__aarch64__)
