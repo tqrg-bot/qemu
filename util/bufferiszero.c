@@ -29,35 +29,6 @@
 
 /* vector definitions */
 
-extern void link_error(void);
-
-#define ACCEL_BUFFER_ZERO(NAME, SIZE, VECTYPE, NONZERO)         \
-static bool NAME(const void *buf, size_t len)                   \
-{                                                               \
-    const void *end = buf + len;                                \
-    do {                                                        \
-        const VECTYPE *p = buf;                                 \
-        VECTYPE t;                                              \
-        __builtin_prefetch(buf + SIZE);                         \
-        barrier();                                              \
-        if (SIZE == sizeof(VECTYPE) * 4) {                      \
-            t = (p[0] | p[1]) | (p[2] | p[3]);                  \
-        } else if (SIZE == sizeof(VECTYPE) * 8) {               \
-            t  = p[0] | p[1];                                   \
-            t |= p[2] | p[3];                                   \
-            t |= p[4] | p[5];                                   \
-            t |= p[6] | p[7];                                   \
-        } else {                                                \
-            link_error();                                       \
-        }                                                       \
-        if (unlikely(NONZERO(t))) {                             \
-            return false;                                       \
-        }                                                       \
-        buf += SIZE;                                            \
-    } while (buf < end);                                        \
-    return true;                                                \
-}
-
 typedef bool (*accel_zero_fn)(const void *, size_t);
 
 static bool
@@ -98,31 +69,7 @@ buffer_zero_int(const void *buf, size_t len)
     }
 }
 
-#ifdef __ALTIVEC__
-#include <altivec.h>
-/* The altivec.h header says we're allowed to undef these for
- * C++ compatibility.  Here we don't care about C++, but we
- * undef them anyway to avoid namespace pollution.
- * altivec.h may redefine the bool macro as vector type.
- * Reset it to POSIX semantics.
- */
-#undef vector
-#undef pixel
-#undef bool
-#define bool _Bool
-#define DO_NONZERO(X)  vec_any_ne(X, (__vector unsigned char){ 0 })
-ACCEL_BUFFER_ZERO(buffer_zero_ppc, 128, __vector unsigned char, DO_NONZERO)
-
-static bool select_accel_fn(const void *buf, size_t len)
-{
-    uintptr_t ibuf = (uintptr_t)buf;
-    if (len % 128 == 0 && ibuf % sizeof(__vector unsigned char) == 0) {
-        return buffer_zero_ppc(buf, len);
-    }
-    return buffer_zero_int(buf, len);
-}
-
-#elif defined(CONFIG_AVX2_OPT) || defined(__SSE2__)
+#if defined(CONFIG_AVX2_OPT) || defined(__SSE2__)
 #include <cpuid.h>
 #include <x86intrin.h>
 
