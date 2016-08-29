@@ -223,6 +223,13 @@ static bool select_accel_fn(const void *buf, size_t len)
 #define select_accel_fn  buffer_zero_int
 #endif
 
+#ifndef HAVE_NEXT_ACCEL
+bool test_buffer_is_zero_next_accel(void)
+{
+    return false;
+}
+#endif
+
 /*
  * Checks if a buffer is all zeroes
  */
