@@ -604,7 +604,7 @@ static void virtio_blk_handle_output(VirtIODevice *vdev, VirtQueue *vq)
         /* Some guests kick before setting VIRTIO_CONFIG_S_DRIVER_OK so start
          * dataplane here instead of waiting for .set_status().
          */
-        virtio_blk_data_plane_start(s->dataplane);
+        virtio_device_start_ioeventfd(vdev);
         if (!s->dataplane_disabled) {
             return;
         }
@@ -668,11 +668,9 @@ static void virtio_blk_reset(VirtIODevice *vdev)
         virtio_blk_free_request(req);
     }
 
-    if (s->dataplane) {
-        virtio_blk_data_plane_stop(s->dataplane);
-    }
     aio_context_release(ctx);
 
+    assert(!s->dataplane_started);
     blk_set_enable_write_cache(s->blk, s->original_wce);
 }
 
@@ -770,9 +768,8 @@ static void virtio_blk_set_status(VirtIODevice *vdev, uint8_t status)
 {
     VirtIOBlock *s = VIRTIO_BLK(vdev);
 
-    if (s->dataplane && !(status & (VIRTIO_CONFIG_S_DRIVER |
-                                    VIRTIO_CONFIG_S_DRIVER_OK))) {
-        virtio_blk_data_plane_stop(s->dataplane);
+    if (!(status & (VIRTIO_CONFIG_S_DRIVER | VIRTIO_CONFIG_S_DRIVER_OK))) {
+        assert(!s->dataplane_started);
     }
 
     if (!(status & VIRTIO_CONFIG_S_DRIVER_OK)) {
@@ -915,7 +912,7 @@ static void virtio_blk_device_realize(DeviceState *dev, Error **errp)
     s->sector_mask = (s->conf.conf.logical_block_size / BDRV_SECTOR_SIZE) - 1;
 
     for (i = 0; i < conf->num_queues; i++) {
-        virtio_add_queue_aio(vdev, 128, virtio_blk_handle_output);
+        virtio_add_queue(vdev, 128, virtio_blk_handle_output);
     }
     virtio_blk_data_plane_create(vdev, conf, &s->dataplane, &err);
     if (err != NULL) {
@@ -990,6 +987,8 @@ static void virtio_blk_class_init(ObjectClass *klass, void *data)
     vdc->reset = virtio_blk_reset;
     vdc->save = virtio_blk_save_device;
     vdc->load = virtio_blk_load_device;
+    vdc->start_ioeventfd = virtio_blk_data_plane_start;
+    vdc->stop_ioeventfd = virtio_blk_data_plane_stop;
 }
 
 static const TypeInfo virtio_blk_info = {
