@@ -2093,14 +2093,13 @@ static Property virtio_properties[] = {
 static int virtio_device_start_ioeventfd_impl(VirtIODevice *vdev)
 {
     VirtioBusState *qbus = VIRTIO_BUS(qdev_get_parent_bus(DEVICE(vdev)));
-    DeviceState *proxy = DEVICE(BUS(qbus)->parent);
     int n, r, err;
 
     for (n = 0; n < VIRTIO_QUEUE_MAX; n++) {
         if (!virtio_queue_get_num(vdev, n)) {
             continue;
         }
-        r = set_host_notifier_internal(proxy, qbus, n, true);
+        r = virtio_bus_set_host_notifier(qbus, n, true);
         if (r < 0) {
             err = r;
             goto assign_error;
@@ -2124,7 +2123,7 @@ assign_error:
             continue;
         }
 
-        r = set_host_notifier_internal(proxy, qbus, n, false);
+        r = virtio_bus_set_host_notifier(qbus, n, false);
         assert(r >= 0);
     }
     return err;
@@ -2141,14 +2140,13 @@ int virtio_device_start_ioeventfd(VirtIODevice *vdev)
 static void virtio_device_stop_ioeventfd_impl(VirtIODevice *vdev)
 {
     VirtioBusState *qbus = VIRTIO_BUS(qdev_get_parent_bus(DEVICE(vdev)));
-    DeviceState *proxy = DEVICE(BUS(qbus)->parent);
     int n, r;
 
     for (n = 0; n < VIRTIO_QUEUE_MAX; n++) {
         if (!virtio_queue_get_num(vdev, n)) {
             continue;
         }
-        r = set_host_notifier_internal(proxy, qbus, n, false);
+        r = virtio_bus_set_host_notifier(qbus, n, false);
         assert(r >= 0);
     }
 }
