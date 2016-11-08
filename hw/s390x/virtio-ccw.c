@@ -473,7 +473,7 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
                 if (vdev->status == 0) {
                     virtio_ccw_reset_virtio(dev, vdev);
                 }
-                if (status & VIRTIO_CONFIG_S_DRIVER_OK) {
+                if ((status & VIRTIO_CONFIG_S_DRIVER_OK) && vdev->vm_running) {
                     virtio_ccw_start_ioeventfd(dev);
                 }
                 sch->curr_status.scsw.count = ccw.count - sizeof(status);

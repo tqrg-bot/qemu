@@ -309,7 +309,7 @@ static void virtio_mmio_write(void *opaque, hwaddr offset, uint64_t value,
 
         virtio_set_status(vdev, value & 0xff);
 
-        if (value & VIRTIO_CONFIG_S_DRIVER_OK) {
+        if ((value & VIRTIO_CONFIG_S_DRIVER_OK) && vdev->vm_running) {
             virtio_mmio_start_ioeventfd(proxy);
         }
 

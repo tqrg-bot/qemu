@@ -382,7 +382,7 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 
         virtio_set_status(vdev, val & 0xFF);
 
-        if (val & VIRTIO_CONFIG_S_DRIVER_OK) {
+        if ((val & VIRTIO_CONFIG_S_DRIVER_OK) && vdev->vm_running) {
             virtio_pci_start_ioeventfd(proxy);
         }
 
