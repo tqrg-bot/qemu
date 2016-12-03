@@ -1577,7 +1577,8 @@ static int coroutine_fn raw_co_prw(BlockDriverState *bs, uint64_t offset,
             type |= QEMU_AIO_MISALIGNED;
 #ifdef CONFIG_LINUX_AIO
         } else if (s->use_linux_aio) {
-            LinuxAioState *aio = aio_get_linux_aio(bdrv_get_aio_context(bs));
+            AioContext *ctx = qemu_get_current_aio_context();
+            LinuxAioState *aio = aio_get_linux_aio(ctx);
             assert(qiov->size == bytes);
             return laio_co_submit(bs, aio, s->fd, offset, qiov, type);
 #endif
