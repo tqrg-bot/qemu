@@ -47,7 +47,6 @@ struct VirtIOBlockReq;
 typedef struct VirtIOBlock {
     VirtIODevice parent_obj;
     BlockBackend *blk;
-    void *rq;
     QEMUBH *bh;
     VirtIOBlkConf conf;
     unsigned short sector_mask;
@@ -56,6 +55,10 @@ typedef struct VirtIOBlock {
     bool dataplane_disabled;
     bool dataplane_started;
     struct VirtIOBlockDataPlane *dataplane;
+
+    /* While the VM is running, req_mutex protects rq.  */
+    QemuMutex req_mutex;
+    struct VirtIOBlockReq *rq;
 } VirtIOBlock;
 
 typedef struct VirtIOBlockReq {

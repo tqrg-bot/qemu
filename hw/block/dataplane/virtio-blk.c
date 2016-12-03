@@ -209,14 +209,12 @@ int virtio_blk_data_plane_start(VirtIODevice *vdev)
     }
 
     /* Get this show started by hooking up our callbacks */
-    aio_context_acquire(s->ctx);
     for (i = 0; i < nvqs; i++) {
         VirtQueue *vq = virtio_get_queue(s->vdev, i);
 
         virtio_queue_aio_set_host_notifier_handler(vq, s->ctx,
                 virtio_blk_data_plane_handle_output);
     }
-    aio_context_release(s->ctx);
     return 0;
 
   fail_guest_notifiers:
@@ -249,8 +247,6 @@ void virtio_blk_data_plane_stop(VirtIODevice *vdev)
     s->stopping = true;
     trace_virtio_blk_data_plane_stop(s);
 
-    aio_context_acquire(s->ctx);
-
     /* Stop notifications for new requests from guest */
     for (i = 0; i < nvqs; i++) {
         VirtQueue *vq = virtio_get_queue(s->vdev, i);
@@ -260,8 +256,6 @@ void virtio_blk_data_plane_stop(VirtIODevice *vdev)
 
     /* Drain and switch bs back to the QEMU main loop */
     blk_set_aio_context(s->conf->conf.blk, qemu_get_aio_context());
-
-    aio_context_release(s->ctx);
 
     for (i = 0; i < nvqs; i++) {
         virtio_bus_set_host_notifier(VIRTIO_BUS(qbus), i, false);
