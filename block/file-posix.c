@@ -1529,7 +1529,7 @@ static int paio_submit_co(BlockDriverState *bs, int fd,
     }
 
     trace_paio_submit_co(offset, bytes, type);
-    pool = aio_get_thread_pool(bdrv_get_aio_context(bs));
+    pool = aio_get_thread_pool(qemu_get_current_aio_context());
     return thread_pool_submit_co(pool, aio_worker, acb);
 }
 
@@ -1554,7 +1554,7 @@ static BlockAIOCB *paio_submit(BlockDriverState *bs, int fd,
     }
 
     trace_paio_submit(acb, opaque, offset, bytes, type);
-    pool = aio_get_thread_pool(bdrv_get_aio_context(bs));
+    pool = aio_get_thread_pool(qemu_get_current_aio_context());
     return thread_pool_submit_aio(pool, aio_worker, acb, cb, opaque);
 }
 
@@ -2635,7 +2635,7 @@ static BlockAIOCB *hdev_aio_ioctl(BlockDriverState *bs,
     acb->aio_offset = 0;
     acb->aio_ioctl_buf = buf;
     acb->aio_ioctl_cmd = req;
-    pool = aio_get_thread_pool(bdrv_get_aio_context(bs));
+    pool = aio_get_thread_pool(qemu_get_current_aio_context());
     return thread_pool_submit_aio(pool, aio_worker, acb, cb, opaque);
 }
 #endif /* linux */
