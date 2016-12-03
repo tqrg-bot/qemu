@@ -73,11 +73,6 @@ struct SCSIDevice
     QEMUBH *bh;
     uint32_t id;
     BlockConf conf;
-    SCSISense unit_attention;
-    bool sense_is_ua;
-    uint8_t sense[SCSI_SENSE_BUF_SIZE];
-    uint32_t sense_len;
-    QTAILQ_HEAD(, SCSIRequest) requests;
     uint32_t channel;
     uint32_t lun;
     int blocksize;
@@ -85,6 +80,13 @@ struct SCSIDevice
     uint64_t max_lba;
     uint64_t wwn;
     uint64_t port_wwn;
+
+    QemuMutex req_mutex;
+    SCSISense unit_attention;
+    bool sense_is_ua;
+    uint8_t sense[SCSI_SENSE_BUF_SIZE];
+    uint32_t sense_len;
+    QTAILQ_HEAD(, SCSIRequest) requests;
 };
 
 extern const VMStateDescription vmstate_scsi_device;
@@ -137,8 +139,10 @@ struct SCSIBus {
     BusState qbus;
     int busnr;
 
-    SCSISense unit_attention;
     const SCSIBusInfo *info;
+
+    QemuMutex lock;
+    SCSISense unit_attention;
 };
 
 void scsi_bus_new(SCSIBus *bus, size_t bus_size, DeviceState *host,

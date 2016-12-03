@@ -272,12 +272,14 @@ static int virtio_scsi_do_tmf(VirtIOSCSI *s, VirtIOSCSIReq *req)
         if (d->lun != virtio_scsi_get_lun(req->req.tmf.lun)) {
             goto incorrect_lun;
         }
+        qemu_mutex_lock(&d->req_mutex);
         QTAILQ_FOREACH_SAFE(r, &d->requests, next, next) {
             VirtIOSCSIReq *cmd_req = r->hba_private;
             if (cmd_req && cmd_req->req.cmd.tag == req->req.tmf.tag) {
                 break;
             }
         }
+        qemu_mutex_unlock(&d->req_mutex);
         if (r) {
             /*
              * Assert that the request has not been completed yet, we
@@ -330,6 +332,7 @@ static int virtio_scsi_do_tmf(VirtIOSCSI *s, VirtIOSCSIReq *req)
          * will not complete the TMF too early.
          */
         req->remaining = 1;
+        qemu_mutex_lock(&d->req_mutex);
         QTAILQ_FOREACH_SAFE(r, &d->requests, next, next) {
             if (r->hba_private) {
                 if (req->req.tmf.subtype == VIRTIO_SCSI_T_TMF_QUERY_TASK_SET) {
@@ -349,6 +352,7 @@ static int virtio_scsi_do_tmf(VirtIOSCSI *s, VirtIOSCSIReq *req)
                 }
             }
         }
+        qemu_mutex_unlock(&d->req_mutex);
         if (--req->remaining > 0) {
             ret = -EINPROGRESS;
         }

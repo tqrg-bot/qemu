@@ -823,6 +823,8 @@ void scsi_req_build_sense(SCSIRequest *req, SCSISense sense)
 
 static void scsi_req_enqueue_internal(SCSIRequest *req)
 {
+    SCSIDevice *sdev = req->dev;
+
     assert(!req->enqueued);
     scsi_req_ref(req);
     if (req->bus->info->get_sg_list) {
@@ -831,7 +833,9 @@ static void scsi_req_enqueue_internal(SCSIRequest *req)
         req->sg = NULL;
     }
     req->enqueued = true;
-    QTAILQ_INSERT_TAIL(&req->dev->requests, req, next);
+    qemu_mutex_lock(&sdev->req_mutex);
+    QTAILQ_INSERT_TAIL(&sdev->requests, req, next);
+    qemu_mutex_unlock(&sdev->req_mutex);
 }
 
 int32_t scsi_req_enqueue(SCSIRequest *req)
@@ -846,15 +850,29 @@ int32_t scsi_req_enqueue(SCSIRequest *req)
     return rc;
 }
 
+static void scsi_req_dequeue_locked(SCSIRequest *req)
+{
+    SCSIDevice *sdev = req->dev;
+
+    trace_scsi_req_dequeue(sdev->id, req->lun, req->tag);
+    req->retry = false;
+    QTAILQ_REMOVE(&sdev->requests, req, next);
+    req->enqueued = false;
+    scsi_req_unref(req);
+}
+
 static void scsi_req_dequeue(SCSIRequest *req)
 {
-    trace_scsi_req_dequeue(req->dev->id, req->lun, req->tag);
-    req->retry = false;
-    if (req->enqueued) {
-        QTAILQ_REMOVE(&req->dev->requests, req, next);
-        req->enqueued = false;
-        scsi_req_unref(req);
+    SCSIDevice *sdev = req->dev;
+
+    if (!req->enqueued) {
+        assert(req->retry);
+        return;
     }
+
+    qemu_mutex_lock(&sdev->req_mutex);
+    scsi_req_dequeue_locked(req);
+    qemu_mutex_unlock(&sdev->req_mutex);
 }
 
 static int scsi_get_performance_length(int num_desc, int type, int data_type)
@@ -1311,14 +1329,14 @@ void scsi_device_report_change(SCSIDevice *dev, SCSISense sense)
 SCSIRequest *scsi_req_ref(SCSIRequest *req)
 {
     assert(req->refcount > 0);
-    req->refcount++;
+    atomic_inc(&req->refcount);
     return req;
 }
 
 void scsi_req_unref(SCSIRequest *req)
 {
     assert(req->refcount > 0);
-    if (--req->refcount == 0) {
+    if (atomic_fetch_dec(&req->refcount) == 1) {
         BusState *qbus = req->dev->qdev.parent_bus;
         SCSIBus *bus = DO_UPCAST(SCSIBus, qbus, qbus);
 
@@ -1457,12 +1475,34 @@ void scsi_req_cancel_complete(SCSIRequest *req)
     scsi_req_unref(req);
 }
 
+/* Warning: this function *drops* the device's req_mutex.  */
+static void scsi_req_cancel_async_locked(SCSIRequest *req)
+{
+    SCSIDevice *sdev = req->dev;
+
+    assert(!req->io_canceled);
+
+    /* Dropped in scsi_req_cancel_complete.  */
+    scsi_req_ref(req);
+    scsi_req_dequeue_locked(req);
+    req->io_canceled = true;
+
+    qemu_mutex_unlock(&sdev->req_mutex);
+    if (req->aiocb) {
+        blk_aio_cancel_async(req->aiocb);
+    } else {
+        scsi_req_cancel_complete(req);
+    }
+}
+
 /* Cancel @req asynchronously. @notifier is added to @req's cancellation
  * notifier list, the bus will be notified the requests cancellation is
  * completed.
  * */
 void scsi_req_cancel_async(SCSIRequest *req, Notifier *notifier)
 {
+    SCSIDevice *sdev = req->dev;
+
     trace_scsi_req_cancel(req->dev->id, req->lun, req->tag);
     if (notifier) {
         notifier_list_add(&req->cancel_notifiers, notifier);
@@ -1475,28 +1515,29 @@ void scsi_req_cancel_async(SCSIRequest *req, Notifier *notifier)
         assert(req->aiocb);
         return;
     }
-    /* Dropped in scsi_req_cancel_complete.  */
-    scsi_req_ref(req);
-    scsi_req_dequeue(req);
-    req->io_canceled = true;
-    if (req->aiocb) {
-        blk_aio_cancel_async(req->aiocb);
-    } else {
-        scsi_req_cancel_complete(req);
-    }
+
+    qemu_mutex_lock(&sdev->req_mutex);
+    /* Drops lock.  */
+    scsi_req_cancel_async_locked(req);
 }
 
 void scsi_req_cancel(SCSIRequest *req)
 {
+    SCSIDevice *sdev = req->dev;
+
     trace_scsi_req_cancel(req->dev->id, req->lun, req->tag);
     if (!req->enqueued) {
         return;
     }
+
     assert(!req->io_canceled);
+
+    qemu_mutex_lock(&sdev->req_mutex);
     /* Dropped in scsi_req_cancel_complete.  */
     scsi_req_ref(req);
-    scsi_req_dequeue(req);
+    scsi_req_dequeue_locked(req);
     req->io_canceled = true;
+    qemu_mutex_unlock(&sdev->req_mutex);
     if (req->aiocb) {
         blk_aio_cancel(req->aiocb);
     } else {
@@ -1546,22 +1587,28 @@ void scsi_device_set_ua(SCSIDevice *sdev, SCSISense sense)
      * Override a pre-existing unit attention condition, except for a more
      * important reset condition.
     */
+    qemu_mutex_lock(&sdev->req_mutex);
     prec1 = scsi_ua_precedence(sdev->unit_attention);
     prec2 = scsi_ua_precedence(sense);
     if (prec2 < prec1) {
         sdev->unit_attention = sense;
     }
+    qemu_mutex_unlock(&sdev->req_mutex);
 }
 
 void scsi_device_purge_requests(SCSIDevice *sdev, SCSISense sense)
 {
     SCSIRequest *req;
 
-    aio_context_acquire(blk_get_aio_context(sdev->conf.blk));
+    qemu_mutex_lock(&sdev->req_mutex);
     while (!QTAILQ_EMPTY(&sdev->requests)) {
         req = QTAILQ_FIRST(&sdev->requests);
-        scsi_req_cancel_async(req, NULL);
+        /* Drops lock.  */
+        scsi_req_cancel_async_locked(req);
+        qemu_mutex_lock(&sdev->req_mutex);
     }
+    qemu_mutex_unlock(&sdev->req_mutex);
+    aio_context_acquire(blk_get_aio_context(sdev->conf.blk));
     blk_drain(sdev->conf.blk);
     aio_context_release(blk_get_aio_context(sdev->conf.blk));
     scsi_device_set_ua(sdev, sense);
@@ -1751,6 +1798,14 @@ static void scsi_dev_instance_init(Object *obj)
     device_add_bootindex_property(obj, &s->conf.bootindex,
                                   "bootindex", NULL,
                                   &s->qdev, NULL);
+    qemu_mutex_init(&s->req_mutex);
+}
+
+static void scsi_dev_instance_finalize(Object *obj)
+{
+    SCSIDevice *s = SCSI_DEVICE(obj);
+
+    qemu_mutex_destroy(&s->req_mutex);
 }
 
 static const TypeInfo scsi_device_type_info = {
@@ -1761,6 +1816,7 @@ static const TypeInfo scsi_device_type_info = {
     .class_size = sizeof(SCSIDeviceClass),
     .class_init = scsi_device_class_init,
     .instance_init = scsi_dev_instance_init,
+    .instance_finalize = scsi_dev_instance_finalize,
 };
 
 static void scsi_register_types(void)
