@@ -1371,6 +1371,77 @@ static void hmp_physical_memory_dump(Monitor *mon, const QDict *qdict)
     memory_dump(mon, count, format, size, addr, 1);
 }
 
+#ifdef CONFIG_LINUX
+static uint64_t vtop(void *ptr, Error **errp)
+{
+    uint64_t pinfo;
+    uint64_t ret = -1;
+    uintptr_t addr = (uintptr_t) ptr;
+    uintptr_t pagesize = getpagesize();
+    off_t offset = addr / pagesize * sizeof (pinfo);
+    char pagemapname[64];
+    int fd;
+
+    sprintf(pagemapname, "/proc/%d/pagemap", getpid());
+    fd = open(pagemapname, O_RDONLY);
+    if (fd == -1) {
+        error_setg_errno(errp, errno, "Cannot open %s", pagemapname);
+        return -1;
+    }
+
+    /* Force copy-on-write if necessary.  */
+    atomic_add((uint8_t *)ptr, 0);
+
+    if (pread(fd, &pinfo, sizeof(pinfo), offset) != sizeof(pinfo)) {
+        error_setg_errno(errp, errno, "Cannot read from %s", pagemapname);
+        goto out;
+    }
+    if ((pinfo & (1ull << 63)) == 0) {
+        error_setg(errp, "Page not present");
+        goto out;
+    }
+    ret = ((pinfo & 0x007fffffffffffffull) << 12) | (addr & (pagesize - 1));
+
+out:
+    close(fd);
+    return ret;
+}
+
+static void hmp_hostaddr(Monitor *mon, const QDict *qdict)
+{
+    hwaddr addr = qdict_get_int(qdict, "addr");
+    MemoryRegionSection mrs = memory_region_find(get_system_memory(),
+                                                 addr, 1);
+    Error *local_err = NULL;
+    void *ptr;
+    uint64_t physaddr;
+
+    if (!mrs.mr) {
+        error_report("No memory is mapped at address 0x%" HWADDR_PRIx, addr);
+        return;
+    }
+
+    if (!memory_region_is_ram(mrs.mr) && !memory_region_is_romd(mrs.mr)) {
+        error_report("Memory at address 0x%" HWADDR_PRIx "is not RAM", addr);
+        goto out;
+    }
+
+    ptr = qemu_map_ram_ptr(mrs.mr->ram_block, mrs.offset_within_region);
+    physaddr = vtop(ptr, &local_err);
+    if (local_err) {
+        error_report_err(local_err);
+        goto out;
+    }
+
+    monitor_printf(mon, "Host physical address for 0x%" HWADDR_PRIx
+                   " (%s) is 0x%" PRIx64 "\n",
+                   addr, mrs.mr->name, (uint64_t) physaddr);
+
+out:
+    memory_region_unref(mrs.mr);
+}
+#endif
+
 static void do_print(Monitor *mon, const QDict *qdict)
 {
     int format = qdict_get_int(qdict, "format");

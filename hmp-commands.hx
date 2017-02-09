@@ -525,6 +525,23 @@ Dump 80 16 bit values at the start of the video memory.
 @end itemize
 ETEXI
 
+#ifdef CONFIG_LINUX
+    {
+        .name       = "hostaddr",
+        .args_type  = "addr:l",
+        .params     = "addr",
+        .help       = "print the host physical address corresponding to an address",
+        .cmd        = hmp_hostaddr,
+    },
+#endif
+
+STEXI
+@item hostaddr @var{addr}
+@findex hostaddr
+Print the host physical address at which the guest's physical address @var{addr}
+is mapped.
+ETEXI
+
     {
         .name       = "p|print",
         .args_type  = "fmt:/,val:l",
