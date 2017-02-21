@@ -304,7 +304,7 @@ void commit_start(const char *job_id, BlockDriverState *bs,
     }
 
     if (reopen_queue) {
-        bdrv_reopen_multiple(bdrv_get_aio_context(bs), reopen_queue, &local_err);
+        bdrv_reopen_multiple(reopen_queue, &local_err);
         if (local_err != NULL) {
             error_propagate(errp, local_err);
             goto fail;
