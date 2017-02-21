@@ -83,37 +83,6 @@ void qemu_mutex_unlock(QemuMutex *mutex)
     ReleaseSRWLockExclusive(&mutex->lock);
 }
 
-void qemu_rec_mutex_init(QemuRecMutex *mutex)
-{
-    InitializeCriticalSection(&mutex->lock);
-    mutex->initialized = true;
-}
-
-void qemu_rec_mutex_destroy(QemuRecMutex *mutex)
-{
-    assert(mutex->initialized);
-    mutex->initialized = false;
-    DeleteCriticalSection(&mutex->lock);
-}
-
-void qemu_rec_mutex_lock(QemuRecMutex *mutex)
-{
-    assert(mutex->initialized);
-    EnterCriticalSection(&mutex->lock);
-}
-
-int qemu_rec_mutex_trylock(QemuRecMutex *mutex)
-{
-    assert(mutex->initialized);
-    return !TryEnterCriticalSection(&mutex->lock);
-}
-
-void qemu_rec_mutex_unlock(QemuRecMutex *mutex)
-{
-    assert(mutex->initialized);
-    LeaveCriticalSection(&mutex->lock);
-}
-
 void qemu_cond_init(QemuCond *cond)
 {
     memset(cond, 0, sizeof(*cond));

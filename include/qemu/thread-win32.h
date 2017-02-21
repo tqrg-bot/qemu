@@ -8,17 +8,6 @@ struct QemuMutex {
     bool initialized;
 };
 
-typedef struct QemuRecMutex QemuRecMutex;
-struct QemuRecMutex {
-    CRITICAL_SECTION lock;
-    bool initialized;
-};
-
-void qemu_rec_mutex_destroy(QemuRecMutex *mutex);
-void qemu_rec_mutex_lock(QemuRecMutex *mutex);
-int qemu_rec_mutex_trylock(QemuRecMutex *mutex);
-void qemu_rec_mutex_unlock(QemuRecMutex *mutex);
-
 struct QemuCond {
     CONDITION_VARIABLE var;
     bool initialized;
