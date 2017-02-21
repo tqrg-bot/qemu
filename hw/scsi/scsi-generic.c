@@ -109,14 +109,11 @@ done:
 static void scsi_command_complete(void *opaque, int ret)
 {
     SCSIGenericReq *r = (SCSIGenericReq *)opaque;
-    SCSIDevice *s = r->req.dev;
 
     assert(r->req.aiocb != NULL);
     r->req.aiocb = NULL;
 
-    aio_context_acquire(blk_get_aio_context(s->conf.blk));
     scsi_command_complete_noio(r, ret);
-    aio_context_release(blk_get_aio_context(s->conf.blk));
 }
 
 static int execute_command(BlockBackend *blk,
@@ -152,11 +149,9 @@ static void scsi_read_complete(void * opaque, int ret)
     assert(r->req.aiocb != NULL);
     r->req.aiocb = NULL;
 
-    aio_context_acquire(blk_get_aio_context(s->conf.blk));
-
     if (ret || r->req.io_canceled) {
         scsi_command_complete_noio(r, ret);
-        goto done;
+        return;
     }
 
     len = r->io_header.dxfer_len - r->io_header.resid;
@@ -165,7 +160,7 @@ static void scsi_read_complete(void * opaque, int ret)
     r->len = -1;
     if (len == 0) {
         scsi_command_complete_noio(r, 0);
-        goto done;
+        return;
     }
 
     /* Snoop READ CAPACITY output to set the blocksize.  */
@@ -208,9 +203,6 @@ static void scsi_read_complete(void * opaque, int ret)
     }
     scsi_req_data(&r->req, len);
     scsi_req_unref(&r->req);
-
-done:
-    aio_context_release(blk_get_aio_context(s->conf.blk));
 }
 
 /* Read more data from scsi device into buffer.  */
@@ -246,11 +238,9 @@ static void scsi_write_complete(void * opaque, int ret)
     assert(r->req.aiocb != NULL);
     r->req.aiocb = NULL;
 
-    aio_context_acquire(blk_get_aio_context(s->conf.blk));
-
     if (ret || r->req.io_canceled) {
         scsi_command_complete_noio(r, ret);
-        goto done;
+        return;
     }
 
     if (r->req.cmd.buf[0] == MODE_SELECT && r->req.cmd.buf[4] == 12 &&
@@ -260,9 +250,6 @@ static void scsi_write_complete(void * opaque, int ret)
     }
 
     scsi_command_complete_noio(r, ret);
-
-done:
-    aio_context_release(blk_get_aio_context(s->conf.blk));
 }
 
 /* Write data to a scsi device.  Returns nonzero on failure.

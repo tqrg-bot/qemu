@@ -105,7 +105,9 @@ static void scsi_dma_restart_bh(void *opaque)
     qemu_bh_delete(s->bh);
     s->bh = NULL;
 
-    aio_context_acquire(blk_get_aio_context(s->conf.blk));
+    /* Because the requests are quiescent, QTAILQ_FOREACH_SAFE is enough
+     * for thread-safety.
+     */
     QTAILQ_FOREACH_SAFE(req, &s->requests, next, next) {
         scsi_req_ref(req);
         if (req->retry) {
@@ -123,7 +125,6 @@ static void scsi_dma_restart_bh(void *opaque)
         }
         scsi_req_unref(req);
     }
-    aio_context_release(blk_get_aio_context(s->conf.blk));
 }
 
 void scsi_req_retry(SCSIRequest *req)
@@ -1608,9 +1609,7 @@ void scsi_device_purge_requests(SCSIDevice *sdev, SCSISense sense)
         qemu_mutex_lock(&sdev->req_mutex);
     }
     qemu_mutex_unlock(&sdev->req_mutex);
-    aio_context_acquire(blk_get_aio_context(sdev->conf.blk));
     blk_drain(sdev->conf.blk);
-    aio_context_release(blk_get_aio_context(sdev->conf.blk));
     scsi_device_set_ua(sdev, sense);
 }
 
