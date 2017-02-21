@@ -54,6 +54,12 @@ bool bdrv_snapshot_find_by_id_and_name(BlockDriverState *bs,
                                        QEMUSnapshotInfo *sn_info,
                                        Error **errp);
 int bdrv_can_snapshot(BlockDriverState *bs);
+int bdrv_snapshot_list(BlockDriverState *bs,
+                       QEMUSnapshotInfo **psn_info);
+
+/* All functions that modify images (creating, deleting or loading
+ * snapshots) must be called while no I/O requests are in flight.
+ */
 int bdrv_snapshot_create(BlockDriverState *bs,
                          QEMUSnapshotInfo *sn_info);
 int bdrv_snapshot_goto(BlockDriverState *bs,
@@ -66,8 +72,6 @@ int bdrv_snapshot_delete(BlockDriverState *bs,
 int bdrv_snapshot_delete_by_id_or_name(BlockDriverState *bs,
                                        const char *id_or_name,
                                        Error **errp);
-int bdrv_snapshot_list(BlockDriverState *bs,
-                       QEMUSnapshotInfo **psn_info);
 int bdrv_snapshot_load_tmp(BlockDriverState *bs,
                            const char *snapshot_id,
                            const char *name,
@@ -77,9 +81,9 @@ int bdrv_snapshot_load_tmp_by_id_or_name(BlockDriverState *bs,
                                          Error **errp);
 
 
-/* Group operations. All block drivers are involved.
- * These functions will properly handle dataplane (take aio_context_acquire
- * when appropriate for appropriate block drivers */
+/* Group operations. All block drivers are involved, and no I/O must be
+ * in flight.
+ */
 
 bool bdrv_all_can_snapshot(BlockDriverState **first_bad_bs);
 int bdrv_all_delete_snapshot(const char *name, BlockDriverState **first_bsd_bs,
