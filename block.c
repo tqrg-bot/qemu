@@ -4248,11 +4248,7 @@ void bdrv_invalidate_cache_all(Error **errp)
     BdrvNextIterator it;
 
     for (bs = bdrv_first(&it); bs; bs = bdrv_next(&it)) {
-        AioContext *aio_context = bdrv_get_aio_context(bs);
-
-        aio_context_acquire(aio_context);
         bdrv_invalidate_cache(bs, &local_err);
-        aio_context_release(aio_context);
         if (local_err) {
             error_propagate(errp, local_err);
             bdrv_next_cleanup(&it);
@@ -4319,10 +4315,6 @@ int bdrv_inactivate_all(void)
     int ret = 0;
     int pass;
 
-    for (bs = bdrv_first(&it); bs; bs = bdrv_next(&it)) {
-        aio_context_acquire(bdrv_get_aio_context(bs));
-    }
-
     /* We do two passes of inactivation. The first pass calls to drivers'
      * .bdrv_inactivate callbacks recursively so all cache is flushed to disk;
      * the second pass sets the BDRV_O_INACTIVE flag so that no further write
@@ -4338,10 +4330,6 @@ int bdrv_inactivate_all(void)
     }
 
 out:
-    for (bs = bdrv_first(&it); bs; bs = bdrv_next(&it)) {
-        aio_context_release(bdrv_get_aio_context(bs));
-    }
-
     return ret;
 }
 
@@ -4752,15 +4740,9 @@ void bdrv_set_aio_context(BlockDriverState *bs, AioContext *new_context)
     }
 
     bdrv_detach_aio_context(bs);
-
-    /* This function executes in the old AioContext so acquire the new one in
-     * case it runs in a different thread.
-     */
-    aio_context_acquire(new_context);
     bdrv_attach_aio_context(bs, new_context);
     bdrv_parent_drained_end(bs);
     aio_enable_external(ctx);
-    aio_context_release(new_context);
 }
 
 void bdrv_add_aio_context_notifier(BlockDriverState *bs,

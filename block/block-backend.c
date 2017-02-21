@@ -414,13 +414,9 @@ void blk_remove_all_bs(void)
     BlockBackend *blk = NULL;
 
     while ((blk = blk_all_next(blk)) != NULL) {
-        AioContext *ctx = blk_get_aio_context(blk);
-
-        aio_context_acquire(ctx);
         if (blk->root) {
             blk_remove_bs(blk);
         }
-        aio_context_release(ctx);
     }
 }
 

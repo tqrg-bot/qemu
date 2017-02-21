@@ -2311,7 +2311,6 @@ void hmp_qemu_io(Monitor *mon, const QDict *qdict)
 {
     BlockBackend *blk;
     BlockBackend *local_blk = NULL;
-    AioContext *aio_context;
     const char* device = qdict_get_str(qdict, "device");
     const char* command = qdict_get_str(qdict, "command");
     Error *err = NULL;
@@ -2330,9 +2329,6 @@ void hmp_qemu_io(Monitor *mon, const QDict *qdict)
             goto fail;
         }
     }
-
-    aio_context = blk_get_aio_context(blk);
-    aio_context_acquire(aio_context);
 
     /*
      * Notably absent: Proper permission management. This is sad, but it seems
@@ -2360,8 +2356,6 @@ void hmp_qemu_io(Monitor *mon, const QDict *qdict)
      * permissions. Ugly, but it appears to be the lesser evil.
      */
     qemuio_command(blk, command);
-
-    aio_context_release(aio_context);
 
 fail:
     blk_unref(local_blk);

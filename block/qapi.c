@@ -250,13 +250,11 @@ void bdrv_query_image_info(BlockDriverState *bs,
     Error *err = NULL;
     ImageInfo *info;
 
-    aio_context_acquire(bdrv_get_aio_context(bs));
-
     size = bdrv_getlength(bs);
     if (size < 0) {
         error_setg_errno(errp, -size, "Can't get image size '%s'",
                          bs->exact_filename);
-        goto out;
+        return;
     }
 
     info = g_new0(ImageInfo, 1);
@@ -324,13 +322,10 @@ void bdrv_query_image_info(BlockDriverState *bs,
     default:
         error_propagate(errp, err);
         qapi_free_ImageInfo(info);
-        goto out;
+        return;
     }
 
     *p_info = info;
-
-out:
-    aio_context_release(bdrv_get_aio_context(bs));
 }
 
 /* @p_info will be set only on success. */
@@ -537,11 +532,8 @@ BlockStatsList *qmp_query_blockstats(bool has_query_nodes,
     if (has_query_nodes && query_nodes) {
         for (bs = bdrv_next_node(NULL); bs; bs = bdrv_next_node(bs)) {
             BlockStatsList *info = g_malloc0(sizeof(*info));
-            AioContext *ctx = bdrv_get_aio_context(bs);
 
-            aio_context_acquire(ctx);
             info->value = bdrv_query_bds_stats(bs, false);
-            aio_context_release(ctx);
 
             *p_next = info;
             p_next = &info->next;
@@ -549,15 +541,12 @@ BlockStatsList *qmp_query_blockstats(bool has_query_nodes,
     } else {
         for (blk = blk_next(NULL); blk; blk = blk_next(blk)) {
             BlockStatsList *info = g_malloc0(sizeof(*info));
-            AioContext *ctx = blk_get_aio_context(blk);
             BlockStats *s;
 
-            aio_context_acquire(ctx);
             s = bdrv_query_bds_stats(blk_bs(blk), true);
             s->has_device = true;
             s->device = g_strdup(blk_name(blk));
             bdrv_query_blk_stats(s->stats, blk);
-            aio_context_release(ctx);
 
             info->value = s;
             *p_next = info;

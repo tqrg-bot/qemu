@@ -344,13 +344,14 @@ void bdrv_drain_all_begin(void)
 
     block_job_pause_all();
 
+    /* Block devices cannot move to a new AioContext, because
+     * bdrv_drain_all_begin is called only from the main thread.
+     */
     for (bs = bdrv_first(&it); bs; bs = bdrv_next(&it)) {
         AioContext *aio_context = bdrv_get_aio_context(bs);
 
-        aio_context_acquire(aio_context);
         bdrv_parent_drained_begin(bs);
         aio_disable_external(aio_context);
-        aio_context_release(aio_context);
 
         if (!g_slist_find(aio_ctxs, aio_context)) {
             aio_ctxs = g_slist_prepend(aio_ctxs, aio_context);
@@ -369,13 +370,11 @@ void bdrv_drain_all_begin(void)
         for (ctx = aio_ctxs; ctx != NULL; ctx = ctx->next) {
             AioContext *aio_context = ctx->data;
 
-            aio_context_acquire(aio_context);
             for (bs = bdrv_first(&it); bs; bs = bdrv_next(&it)) {
                 if (aio_context == bdrv_get_aio_context(bs)) {
                     waited |= bdrv_drain_recurse(bs, true);
                 }
             }
-            aio_context_release(aio_context);
         }
     }
 
@@ -390,11 +389,9 @@ void bdrv_drain_all_end(void)
     for (bs = bdrv_first(&it); bs; bs = bdrv_next(&it)) {
         AioContext *aio_context = bdrv_get_aio_context(bs);
 
-        aio_context_acquire(aio_context);
         aio_enable_external(aio_context);
         bdrv_parent_drained_end(bs);
         bdrv_drain_recurse(bs, false);
-        aio_context_release(aio_context);
     }
 
     block_job_resume_all();
@@ -1770,15 +1767,12 @@ int bdrv_flush_all(void)
     int result = 0;
 
     for (bs = bdrv_first(&it); bs; bs = bdrv_next(&it)) {
-        AioContext *aio_context = bdrv_get_aio_context(bs);
         int ret;
 
-        aio_context_acquire(aio_context);
         ret = bdrv_flush(bs);
         if (ret < 0 && !result) {
             result = ret;
         }
-        aio_context_release(aio_context);
     }
 
     return result;

@@ -137,7 +137,6 @@ static void mirror_write_complete(void *opaque, int ret)
     MirrorOp *op = opaque;
     MirrorBlockJob *s = op->s;
 
-    aio_context_acquire(blk_get_aio_context(s->common.blk));
     if (ret < 0) {
         BlockErrorAction action;
 
@@ -148,7 +147,6 @@ static void mirror_write_complete(void *opaque, int ret)
         }
     }
     mirror_iteration_done(op, ret);
-    aio_context_release(blk_get_aio_context(s->common.blk));
 }
 
 static void mirror_read_complete(void *opaque, int ret)
@@ -156,7 +154,6 @@ static void mirror_read_complete(void *opaque, int ret)
     MirrorOp *op = opaque;
     MirrorBlockJob *s = op->s;
 
-    aio_context_acquire(blk_get_aio_context(s->common.blk));
     if (ret < 0) {
         BlockErrorAction action;
 
@@ -171,7 +168,6 @@ static void mirror_read_complete(void *opaque, int ret)
         blk_aio_pwritev(s->target, op->offset, &op->qiov,
                         0, mirror_write_complete, op);
     }
-    aio_context_release(blk_get_aio_context(s->common.blk));
 }
 
 /* Clip bytes relative to offset to not exceed end-of-file */
@@ -934,16 +930,11 @@ static void mirror_complete(BlockJob *job, Error **errp)
 
     /* block all operations on to_replace bs */
     if (s->replaces) {
-        AioContext *replace_aio_context;
-
         s->to_replace = bdrv_find_node(s->replaces);
         if (!s->to_replace) {
             error_setg(errp, "Node name '%s' not found", s->replaces);
             return;
         }
-
-        replace_aio_context = bdrv_get_aio_context(s->to_replace);
-        aio_context_acquire(replace_aio_context);
 
         /* TODO Translate this into permission system. Current definition of
          * GRAPH_MOD would require to request it for the parents; they might
@@ -953,8 +944,6 @@ static void mirror_complete(BlockJob *job, Error **errp)
                    "block device is in use by block-job-complete");
         bdrv_op_block_all(s->to_replace, s->replace_blocker);
         bdrv_ref(s->to_replace);
-
-        aio_context_release(replace_aio_context);
     }
 
     s->should_complete = true;

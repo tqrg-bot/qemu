@@ -1066,9 +1066,7 @@ NBDExport *nbd_export_new(BlockDriverState *bs, off_t dev_offset, off_t size,
      * access since the export could be available before migration handover.
      */
     ctx = bdrv_get_aio_context(bs);
-    aio_context_acquire(ctx);
     bdrv_invalidate_cache(bs, NULL);
-    aio_context_release(ctx);
 
     /* Don't allow resize while the NBD server is running, otherwise we don't
      * care what happens with the node. */

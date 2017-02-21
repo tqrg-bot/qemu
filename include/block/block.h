@@ -404,10 +404,11 @@ void bdrv_drain_all(void);
         while (busy_) {                                    \
             if ((cond)) {                                  \
                 waited_ = busy_ = true;                    \
-                aio_context_release(ctx_);                 \
                 aio_poll(qemu_get_aio_context(), true);    \
-                aio_context_acquire(ctx_);                 \
             } else {                                       \
+                /* TODO: is this still necessary?          \
+                 * Separate patch anyway.                  \
+                 */                                        \
                 busy_ = aio_poll(ctx_, false);             \
                 waited_ |= busy_;                          \
             }                                              \

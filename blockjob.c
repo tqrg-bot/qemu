@@ -453,11 +453,8 @@ static int block_job_finish_sync(BlockJob *job,
      * induce progress until the job completes or moves to the main thread.
     */
     while (!job->deferred_to_main_loop && !job->completed) {
-        AioContext *ctx = block_job_get_aio_context(job);
         block_job_unlock();
-        aio_context_acquire(ctx);
         block_job_drain(job);
-        aio_context_release(ctx);
         block_job_lock();
     }
     while (!job->completed) {

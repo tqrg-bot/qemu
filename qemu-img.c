@@ -865,9 +865,7 @@ static void run_block_job(BlockJob *job, Error **errp)
 
     do {
         block_job_unlock();
-        aio_context_acquire(aio_context);
         aio_poll(aio_context, true);
-        aio_context_release(aio_context);
         block_job_lock();
         qemu_progress_print(job->len ?
                             ((float)job->offset / job->len * 100.f) : 0.0f, 0);

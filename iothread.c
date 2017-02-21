@@ -333,9 +333,7 @@ void iothread_stop_all(void)
         if (ctx == qemu_get_aio_context()) {
             continue;
         }
-        aio_context_acquire(ctx);
         bdrv_set_aio_context(bs, qemu_get_aio_context());
-        aio_context_release(ctx);
     }
 
     object_child_foreach(container, iothread_stop_iter, NULL);

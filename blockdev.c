@@ -649,11 +649,7 @@ void blockdev_close_all_bdrv_states(void)
     BlockDriverState *bs, *next_bs;
 
     QTAILQ_FOREACH_SAFE(bs, &monitor_bdrv_states, monitor_list, next_bs) {
-        AioContext *ctx = bdrv_get_aio_context(bs);
-
-        aio_context_acquire(ctx);
         bdrv_unref(bs);
-        aio_context_release(ctx);
     }
 }
 
@@ -2002,7 +1998,6 @@ static void block_dirty_bitmap_clear_prepare(BlkActionState *common,
     }
 
     bdrv_clear_dirty_bitmap(state->bitmap, &state->backup);
-    /* AioContext is released in .clean() */
 }
 
 static void block_dirty_bitmap_clear_abort(BlkActionState *common)
@@ -2021,16 +2016,6 @@ static void block_dirty_bitmap_clear_commit(BlkActionState *common)
                                              common, common);
 
     hbitmap_free(state->backup);
-}
-
-static void block_dirty_bitmap_clear_clean(BlkActionState *common)
-{
-    BlockDirtyBitmapState *state = DO_UPCAST(BlockDirtyBitmapState,
-                                             common, common);
-
-    if (state->aio_context) {
-        aio_context_release(state->aio_context);
-    }
 }
 
 static void abort_prepare(BlkActionState *common, Error **errp)
@@ -2093,7 +2078,6 @@ static const BlkActionOps actions[] = {
         .prepare = block_dirty_bitmap_clear_prepare,
         .commit = block_dirty_bitmap_clear_commit,
         .abort = block_dirty_bitmap_clear_abort,
-        .clean = block_dirty_bitmap_clear_clean,
     }
 };
 
@@ -2349,7 +2333,6 @@ void qmp_x_blockdev_remove_medium(bool has_device, const char *device,
 {
     BlockBackend *blk;
     BlockDriverState *bs;
-    AioContext *aio_context;
     bool has_attached_device;
 
     device = has_device ? device : NULL;
@@ -2380,11 +2363,8 @@ void qmp_x_blockdev_remove_medium(bool has_device, const char *device,
         return;
     }
 
-    aio_context = bdrv_get_aio_context(bs);
-    aio_context_acquire(aio_context);
-
     if (bdrv_op_is_blocked(bs, BLOCK_OP_TYPE_EJECT, errp)) {
-        goto out;
+        return;
     }
 
     blk_remove_bs(blk);
@@ -2396,9 +2376,6 @@ void qmp_x_blockdev_remove_medium(bool has_device, const char *device,
          * value passed here (i.e. false). */
         blk_dev_change_media_cb(blk, false, &error_abort);
     }
-
-out:
-    aio_context_release(aio_context);
 }
 
 static void qmp_blockdev_insert_anon_medium(BlockBackend *blk,
@@ -2575,7 +2552,6 @@ void qmp_block_set_io_throttle(BlockIOThrottle *arg, Error **errp)
     ThrottleConfig cfg;
     BlockDriverState *bs;
     BlockBackend *blk;
-    AioContext *aio_context;
 
     blk = qmp_get_blk(arg->has_device ? arg->device : NULL,
                       arg->has_id ? arg->id : NULL,
@@ -2584,13 +2560,10 @@ void qmp_block_set_io_throttle(BlockIOThrottle *arg, Error **errp)
         return;
     }
 
-    aio_context = blk_get_aio_context(blk);
-    aio_context_acquire(aio_context);
-
     bs = blk_bs(blk);
     if (!bs) {
         error_setg(errp, "Device has no medium");
-        goto out;
+        return;
     }
 
     throttle_config_init(&cfg);
@@ -2645,7 +2618,7 @@ void qmp_block_set_io_throttle(BlockIOThrottle *arg, Error **errp)
     }
 
     if (!throttle_is_valid(&cfg, errp)) {
-        goto out;
+        return;
     }
 
     if (throttle_enabled(&cfg)) {
@@ -2665,9 +2638,6 @@ void qmp_block_set_io_throttle(BlockIOThrottle *arg, Error **errp)
         /* If all throttling settings are set to 0, disable I/O limits */
         blk_io_limits_disable(blk);
     }
-
-out:
-    aio_context_release(aio_context);
 }
 
 void qmp_block_dirty_bitmap_add(const char *node, const char *name,
@@ -2822,7 +2792,6 @@ void hmp_drive_del(Monitor *mon, const QDict *qdict)
     const char *id = qdict_get_str(qdict, "id");
     BlockBackend *blk;
     BlockDriverState *bs;
-    AioContext *aio_context;
     Error *local_err = NULL;
 
     bs = bdrv_find_node(id);
@@ -2846,14 +2815,10 @@ void hmp_drive_del(Monitor *mon, const QDict *qdict)
         return;
     }
 
-    aio_context = blk_get_aio_context(blk);
-    aio_context_acquire(aio_context);
-
     bs = blk_bs(blk);
     if (bs) {
         if (bdrv_op_is_blocked(bs, BLOCK_OP_TYPE_DRIVE_DEL, &local_err)) {
             error_report_err(local_err);
-            aio_context_release(aio_context);
             return;
         }
 
@@ -2873,8 +2838,6 @@ void hmp_drive_del(Monitor *mon, const QDict *qdict)
     } else {
         blk_unref(blk);
     }
-
-    aio_context_release(aio_context);
 }
 
 void qmp_block_resize(bool has_device, const char *device,
@@ -2884,7 +2847,6 @@ void qmp_block_resize(bool has_device, const char *device,
     Error *local_err = NULL;
     BlockBackend *blk = NULL;
     BlockDriverState *bs;
-    AioContext *aio_context;
     int ret;
 
     bs = bdrv_lookup_bs(has_device ? device : NULL,
@@ -2895,22 +2857,19 @@ void qmp_block_resize(bool has_device, const char *device,
         return;
     }
 
-    aio_context = bdrv_get_aio_context(bs);
-    aio_context_acquire(aio_context);
-
     if (!bdrv_is_first_non_filter(bs)) {
         error_setg(errp, QERR_FEATURE_DISABLED, "resize");
-        goto out;
+        return;
     }
 
     if (size < 0) {
         error_setg(errp, QERR_INVALID_PARAMETER_VALUE, "size", "a >0 size");
-        goto out;
+        return;
     }
 
     if (bdrv_op_is_blocked(bs, BLOCK_OP_TYPE_RESIZE, NULL)) {
         error_setg(errp, QERR_DEVICE_IN_USE, device);
-        goto out;
+        return;
     }
 
     blk = blk_new(BLK_PERM_RESIZE, BLK_PERM_ALL);
@@ -2925,7 +2884,6 @@ void qmp_block_resize(bool has_device, const char *device,
 
 out:
     blk_unref(blk);
-    aio_context_release(aio_context);
 }
 
 void qmp_block_stream(bool has_job_id, const char *job_id, const char *device,
@@ -3422,7 +3380,6 @@ void qmp_drive_mirror(DriveMirror *arg, Error **errp)
 
     if (arg->has_replaces) {
         BlockDriverState *to_replace_bs;
-        AioContext *replace_aio_context;
         int64_t replace_size;
 
         if (!arg->has_node_name) {
@@ -3438,10 +3395,7 @@ void qmp_drive_mirror(DriveMirror *arg, Error **errp)
             return;
         }
 
-        replace_aio_context = bdrv_get_aio_context(to_replace_bs);
-        aio_context_acquire(replace_aio_context);
         replace_size = bdrv_getlength(to_replace_bs);
-        aio_context_release(replace_aio_context);
 
         if (size != replace_size) {
             error_setg(errp, "cannot replace image with a mirror image of "
@@ -3813,7 +3767,6 @@ fail:
 
 void qmp_blockdev_del(const char *node_name, Error **errp)
 {
-    AioContext *aio_context;
     BlockDriverState *bs;
 
     bs = bdrv_find_node(node_name);
@@ -3825,30 +3778,25 @@ void qmp_blockdev_del(const char *node_name, Error **errp)
         error_setg(errp, "Node %s is in use", node_name);
         return;
     }
-    aio_context = bdrv_get_aio_context(bs);
-    aio_context_acquire(aio_context);
 
     if (bdrv_op_is_blocked(bs, BLOCK_OP_TYPE_DRIVE_DEL, errp)) {
-        goto out;
+        return;
     }
 
     if (!bs->monitor_list.tqe_prev) {
         error_setg(errp, "Node %s is not owned by the monitor",
                    bs->node_name);
-        goto out;
+        return;
     }
 
     if (bs->refcnt > 1) {
         error_setg(errp, "Block device %s is in use",
                    bdrv_get_device_or_node_name(bs));
-        goto out;
+        return;
     }
 
     QTAILQ_REMOVE(&monitor_bdrv_states, bs, monitor_list);
     bdrv_unref(bs);
-
-out:
-    aio_context_release(aio_context);
 }
 
 static BdrvChild *bdrv_find_child(BlockDriverState *parent_bs,
