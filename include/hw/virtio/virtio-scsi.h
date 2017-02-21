@@ -81,6 +81,7 @@ typedef struct VirtIOSCSI {
 
     /* Fields for dataplane below */
     AioContext *ctx; /* one iothread per virtio-scsi-pci for now */
+    QemuMutex events_lock;
 
     bool dataplane_started;
     bool dataplane_starting;
@@ -124,20 +125,6 @@ typedef struct VirtIOSCSIReq {
         VirtIOSCSICtrlANReq   an;
     } req;
 } VirtIOSCSIReq;
-
-static inline void virtio_scsi_acquire(VirtIOSCSI *s)
-{
-    if (s->ctx) {
-        aio_context_acquire(s->ctx);
-    }
-}
-
-static inline void virtio_scsi_release(VirtIOSCSI *s)
-{
-    if (s->ctx) {
-        aio_context_release(s->ctx);
-    }
-}
 
 void virtio_scsi_common_realize(DeviceState *dev,
                                 VirtIOHandleOutput ctrl,

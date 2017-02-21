@@ -695,11 +695,14 @@ static void virtio_scsi_reset(VirtIODevice *vdev)
 
     vs->sense_size = VIRTIO_SCSI_SENSE_DEFAULT_SIZE;
     vs->cdb_size = VIRTIO_SCSI_CDB_DEFAULT_SIZE;
+
+    qemu_mutex_lock(&s->events_lock);
     s->events_dropped = false;
+    qemu_mutex_unlock(&s->events_lock);
 }
 
-void virtio_scsi_push_event(VirtIOSCSI *s, SCSIDevice *dev,
-                            uint32_t event, uint32_t reason)
+static void virtio_scsi_push_event_locked(VirtIOSCSI *s, SCSIDevice *dev,
+                                   uint32_t event, uint32_t reason)
 {
     VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(s);
     VirtIOSCSIReq *req;
@@ -745,12 +748,23 @@ void virtio_scsi_push_event(VirtIOSCSI *s, SCSIDevice *dev,
     virtio_scsi_complete_req(req);
 }
 
+void virtio_scsi_push_event(VirtIOSCSI *s, SCSIDevice *dev,
+                            uint32_t event, uint32_t reason)
+{
+    qemu_mutex_lock(&s->events_lock);
+    virtio_scsi_push_event_locked(s, dev, event, reason);
+    qemu_mutex_unlock(&s->events_lock);
+}
+
 bool virtio_scsi_handle_event_vq(VirtIOSCSI *s, VirtQueue *vq)
 {
+    qemu_mutex_lock(&s->events_lock);
     if (s->events_dropped) {
-        virtio_scsi_push_event(s, NULL, VIRTIO_SCSI_T_NO_EVENT, 0);
+        virtio_scsi_push_event_locked(s, NULL, VIRTIO_SCSI_T_NO_EVENT, 0);
+        qemu_mutex_unlock(&s->events_lock);
         return true;
     }
+    qemu_mutex_unlock(&s->events_lock);
     return false;
 }
 
@@ -764,9 +778,7 @@ static void virtio_scsi_handle_event(VirtIODevice *vdev, VirtQueue *vq)
             return;
         }
     }
-    virtio_scsi_acquire(s);
     virtio_scsi_handle_event_vq(s, vq);
-    virtio_scsi_release(s);
 }
 
 static void virtio_scsi_change(SCSIBus *bus, SCSIDevice *dev, SCSISense sense)
@@ -776,10 +788,8 @@ static void virtio_scsi_change(SCSIBus *bus, SCSIDevice *dev, SCSISense sense)
 
     if (virtio_vdev_has_feature(vdev, VIRTIO_SCSI_F_CHANGE) &&
         dev->type != TYPE_ROM) {
-        virtio_scsi_acquire(s);
         virtio_scsi_push_event(s, dev, VIRTIO_SCSI_T_PARAM_CHANGE,
                                sense.asc | (sense.ascq << 8));
-        virtio_scsi_release(s);
     }
 }
 
@@ -794,18 +804,13 @@ static void virtio_scsi_hotplug(HotplugHandler *hotplug_dev, DeviceState *dev,
         if (blk_op_is_blocked(sd->conf.blk, BLOCK_OP_TYPE_DATAPLANE, errp)) {
             return;
         }
-        virtio_scsi_acquire(s);
         blk_set_aio_context(sd->conf.blk, s->ctx);
-        virtio_scsi_release(s);
-
     }
 
     if (virtio_vdev_has_feature(vdev, VIRTIO_SCSI_F_HOTPLUG)) {
-        virtio_scsi_acquire(s);
         virtio_scsi_push_event(s, sd,
                                VIRTIO_SCSI_T_TRANSPORT_RESET,
                                VIRTIO_SCSI_EVT_RESET_RESCAN);
-        virtio_scsi_release(s);
     }
 }
 
@@ -817,11 +822,9 @@ static void virtio_scsi_hotunplug(HotplugHandler *hotplug_dev, DeviceState *dev,
     SCSIDevice *sd = SCSI_DEVICE(dev);
 
     if (virtio_vdev_has_feature(vdev, VIRTIO_SCSI_F_HOTPLUG)) {
-        virtio_scsi_acquire(s);
         virtio_scsi_push_event(s, sd,
                                VIRTIO_SCSI_T_TRANSPORT_RESET,
                                VIRTIO_SCSI_EVT_RESET_REMOVED);
-        virtio_scsi_release(s);
     }
 
     qdev_simple_device_unplug_cb(hotplug_dev, dev, errp);
@@ -880,6 +883,7 @@ static void virtio_scsi_device_realize(DeviceState *dev, Error **errp)
     VirtIOSCSI *s = VIRTIO_SCSI(dev);
     Error *err = NULL;
 
+    qemu_mutex_init(&s->events_lock);
     virtio_scsi_common_realize(dev,
                                virtio_scsi_handle_ctrl,
                                virtio_scsi_handle_event,
