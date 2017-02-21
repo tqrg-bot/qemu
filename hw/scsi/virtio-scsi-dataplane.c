@@ -134,7 +134,6 @@ int virtio_scsi_dataplane_start(VirtIODevice *vdev)
         goto fail_guest_notifiers;
     }
 
-    aio_context_acquire(s->ctx);
     rc = virtio_scsi_vring_init(s, vs->ctrl_vq, 0,
                                 virtio_scsi_data_plane_handle_ctrl);
     if (rc) {
@@ -155,12 +154,10 @@ int virtio_scsi_dataplane_start(VirtIODevice *vdev)
 
     s->dataplane_starting = false;
     s->dataplane_started = true;
-    aio_context_release(s->ctx);
     return 0;
 
 fail_vrings:
     virtio_scsi_clear_aio(s);
-    aio_context_release(s->ctx);
     for (i = 0; i < vs->conf.num_queues + 2; i++) {
         virtio_bus_set_host_notifier(VIRTIO_BUS(qbus), i, false);
     }
@@ -193,9 +190,7 @@ void virtio_scsi_dataplane_stop(VirtIODevice *vdev)
     }
     s->dataplane_stopping = true;
 
-    aio_context_acquire(s->ctx);
     virtio_scsi_clear_aio(s);
-    aio_context_release(s->ctx);
 
     blk_drain_all(); /* ensure there are no in-flight requests */
 

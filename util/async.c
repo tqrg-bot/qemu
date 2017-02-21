@@ -295,7 +295,6 @@ aio_ctx_finalize(GSource     *source)
 
     aio_set_event_notifier(ctx, &ctx->notifier, false, NULL, NULL);
     event_notifier_cleanup(&ctx->notifier);
-    qemu_rec_mutex_destroy(&ctx->lock);
     qemu_lockcnt_destroy(&ctx->list_lock);
     timerlistgroup_deinit(&ctx->tlg);
 }
@@ -387,12 +386,10 @@ static void co_schedule_bh_cb(void *opaque)
         Coroutine *co = QSLIST_FIRST(&straight);
         QSLIST_REMOVE_HEAD(&straight, co_scheduled_next);
         trace_aio_co_schedule_bh_cb(ctx, co);
-        aio_context_acquire(ctx);
 
         /* Protected by write barrier in qemu_aio_coroutine_enter */
         atomic_set(&co->scheduled, NULL);
         qemu_coroutine_enter(co);
-        aio_context_release(ctx);
     }
 }
 
@@ -424,7 +421,6 @@ AioContext *aio_context_new(Error **errp)
     ctx->linux_aio = NULL;
 #endif
     ctx->thread_pool = NULL;
-    qemu_rec_mutex_init(&ctx->lock);
     timerlistgroup_init(&ctx->tlg, aio_timerlist_notify, ctx);
 
     ctx->poll_ns = 0;
@@ -481,9 +477,7 @@ void aio_co_enter(AioContext *ctx, struct Coroutine *co)
         assert(self != co);
         QSIMPLEQ_INSERT_TAIL(&self->co_queue_wakeup, co, co_queue_next);
     } else {
-        aio_context_acquire(ctx);
         qemu_aio_coroutine_enter(ctx, co);
-        aio_context_release(ctx);
     }
 }
 
@@ -495,14 +489,4 @@ void aio_context_ref(AioContext *ctx)
 void aio_context_unref(AioContext *ctx)
 {
     g_source_unref(&ctx->source);
-}
-
-void aio_context_acquire(AioContext *ctx)
-{
-    qemu_rec_mutex_lock(&ctx->lock);
-}
-
-void aio_context_release(AioContext *ctx)
-{
-    qemu_rec_mutex_unlock(&ctx->lock);
 }

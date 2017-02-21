@@ -667,9 +667,7 @@ guint qio_channel_add_watch(QIOChannel *ioc,
  * to ensure that the coroutine is not entered concurrently.  Then,
  * while the coroutine has yielded, call qio_channel_attach_aio_context(),
  * and then aio_co_schedule() to place the coroutine on the new
- * #AioContext.  The calls to qio_channel_detach_aio_context()
- * and qio_channel_attach_aio_context() should be protected with
- * aio_context_acquire() and aio_context_release().
+ * #AioContext.
  */
 void qio_channel_attach_aio_context(QIOChannel *ioc,
                                     AioContext *ctx);

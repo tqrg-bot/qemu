@@ -54,9 +54,6 @@ struct LinuxAioState;
 struct AioContext {
     GSource source;
 
-    /* Used by AioContext users to protect from multi-threaded access.  */
-    QemuRecMutex lock;
-
     /* The list of registered AIO handlers.  Protected by ctx->list_lock. */
     QLIST_HEAD(, AioHandler) aio_handlers;
 
@@ -170,23 +167,6 @@ void aio_context_ref(AioContext *ctx);
  * Drop a reference to an AioContext.
  */
 void aio_context_unref(AioContext *ctx);
-
-/* Take ownership of the AioContext.  If the AioContext will be shared between
- * threads, and a thread does not want to be interrupted, it will have to
- * take ownership around calls to aio_poll().  Otherwise, aio_poll()
- * automatically takes care of calling aio_context_acquire and
- * aio_context_release.
- *
- * Note that this is separate from bdrv_drained_begin/bdrv_drained_end.  A
- * thread still has to call those to avoid being interrupted by the guest.
- *
- * Bottom halves, timers and callbacks can be created or removed without
- * acquiring the AioContext.
- */
-void aio_context_acquire(AioContext *ctx);
-
-/* Relinquish ownership of the AioContext. */
-void aio_context_release(AioContext *ctx);
 
 /**
  * aio_bh_schedule_oneshot: Allocate a new bottom half structure that will run
