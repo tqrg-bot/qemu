@@ -295,6 +295,11 @@ static bool block_job_started(BlockJob *job)
     return job->co;
 }
 
+static AioContext *block_job_get_aio_context(BlockJob *job)
+{
+    return blk_get_aio_context(job->blk);
+}
+
 /**
  * All jobs must allow a pause point before entering their job proper. This
  * ensures that jobs can be paused prior to being started, then resumed later.
@@ -317,6 +322,8 @@ static void block_job_sleep_timer_cb(void *opaque)
 
 void block_job_start(BlockJob *job)
 {
+    AioContext *ctx = block_job_get_aio_context(job);
+
     assert(job && !block_job_started(job) && job->paused &&
            job->driver && job->driver->start);
     aio_timer_init(qemu_get_aio_context(), &job->sleep_timer,
@@ -326,7 +333,7 @@ void block_job_start(BlockJob *job)
     job->pause_count--;
     job->busy = true;
     job->paused = false;
-    bdrv_coroutine_enter(blk_bs(job->blk), job->co);
+    aio_co_schedule(ctx, job->co);
 }
 
 static void block_job_completed_single(BlockJob *job)
@@ -772,6 +779,7 @@ void block_job_do_yield(BlockJob *job, uint64_t ns)
 
     /* Set by block_job_enter before re-entering the coroutine.  */
     assert(job->busy);
+    bdrv_dec_in_flight(blk_bs(job->blk));
 }
 
 void coroutine_fn block_job_pause_point(BlockJob *job)
@@ -814,6 +822,8 @@ void block_job_resume_all(void)
 
 void block_job_enter(BlockJob *job)
 {
+    AioContext *ctx = block_job_get_aio_context(job);
+
     if (!block_job_started(job)) {
         return;
     }
@@ -831,7 +841,8 @@ void block_job_enter(BlockJob *job)
     timer_del(&job->sleep_timer);
     job->busy = true;
     block_job_unlock();
-    aio_co_wake(job->co);
+    bdrv_inc_in_flight(blk_bs(job->blk));
+    aio_co_schedule(ctx, job->co);
 }
 
 bool block_job_is_cancelled(BlockJob *job)

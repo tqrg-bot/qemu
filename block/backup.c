@@ -447,9 +447,6 @@ static void coroutine_fn backup_run(void *opaque)
     QLIST_INIT(&job->inflight_reqs);
     qemu_co_rwlock_init(&job->flush_rwlock);
 
-    job->done_bitmap = bitmap_new(DIV_ROUND_UP(job->common.len,
-                                               job->cluster_size));
-
     job->before_write.notify = backup_before_write_notify;
     bdrv_add_before_write_notifier(bs, &job->before_write);
 
@@ -683,6 +680,9 @@ BlockJob *backup_job_create(const char *job_id, BlockDriverState *bs,
                        &error_abort);
     job->common.len = len;
     block_job_txn_add_job(txn, &job->common);
+
+    job->done_bitmap = bitmap_new(DIV_ROUND_UP(job->common.len,
+                                               job->cluster_size));
 
     return &job->common;
 
