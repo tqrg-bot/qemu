@@ -242,11 +242,8 @@ typedef void BlockJobDeferToMainLoopFn(BlockJob *job, void *opaque);
  * @opaque: The opaque value that is passed to @fn
  *
  * This function must be called by the main job coroutine just before it
- * returns.  @fn is executed in the main loop with the BlockDriverState
- * AioContext acquired.  Block jobs must call bdrv_unref(), bdrv_close(), and
+ * returns.  Block jobs must call bdrv_unref(), bdrv_close(), and
  * anything that uses bdrv_drain_all() in the main loop.
- *
- * The @job AioContext is held while @fn executes.
  */
 void block_job_defer_to_main_loop(BlockJob *job,
                                   BlockJobDeferToMainLoopFn *fn,

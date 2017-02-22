@@ -156,6 +156,8 @@ typedef enum BlockJobCreateFlags {
  * first one if @job is %NULL.
  *
  * Returns the requested job, or %NULL if there are no more jobs left.
+ *
+ * Called between block_job_lock and block_job_unlock.
  */
 BlockJob *block_job_next(BlockJob *job);
 
@@ -166,6 +168,8 @@ BlockJob *block_job_next(BlockJob *job);
  * Get the block job identified by @id (which must not be %NULL).
  *
  * Returns the requested job, or %NULL if it doesn't exist.
+ *
+ * Called between block_job_lock and block_job_unlock.
  */
 BlockJob *block_job_get(const char *id);
 
@@ -200,6 +204,8 @@ void block_job_remove_all_bdrv(BlockJob *job);
  *
  * Set a rate-limiting parameter for the job; the actual meaning may
  * vary depending on the job type.
+ *
+ * Called between block_job_lock and block_job_unlock.
  */
 void block_job_set_speed(BlockJob *job, int64_t speed, Error **errp);
 
@@ -213,10 +219,30 @@ void block_job_set_speed(BlockJob *job, int64_t speed, Error **errp);
 void block_job_start(BlockJob *job);
 
 /**
+ * block_job_lock:
+ *
+ * Take the mutex protecting the list of block jobs and their status.
+ * Most functions called by the monitor need to call block_job_lock
+ * and block_job_unlock manually.  On the other hand, function called
+ * by the block jobs themselves and by the block layer will take the
+ * lock for you.
+ */
+void block_job_lock(void);
+
+/**
+ * block_job_unlock:
+ *
+ * Release the mutex protecting the list of block jobs and their status.
+ */
+void block_job_unlock(void);
+
+/**
  * block_job_cancel:
  * @job: The job to be canceled.
  *
  * Asynchronously cancel the specified job.
+ *
+ * Called between block_job_lock and block_job_unlock.
  */
 void block_job_cancel(BlockJob *job);
 
@@ -226,6 +252,9 @@ void block_job_cancel(BlockJob *job);
  * @errp: Error object.
  *
  * Asynchronously complete the specified job.
+ *
+ * Called between block_job_lock and block_job_unlock, but it releases
+ * the lock temporarily; job might not be valid anymore when it returns.
  */
 void block_job_complete(BlockJob *job, Error **errp);
 
@@ -234,6 +263,7 @@ void block_job_complete(BlockJob *job, Error **errp);
  * @job: The job to get information about.
  *
  * Return information about a job.
+ * Called between block_job_lock and block_job_unlock.
  */
 BlockJobInfo *block_job_query(BlockJob *job, Error **errp);
 
@@ -243,6 +273,7 @@ BlockJobInfo *block_job_query(BlockJob *job, Error **errp);
  *
  * Asynchronously pause the specified job.
  * Do not allow a resume until a matching call to block_job_user_resume.
+ * Called between block_job_lock and block_job_unlock.
  */
 void block_job_user_pause(BlockJob *job);
 
@@ -251,6 +282,7 @@ void block_job_user_pause(BlockJob *job);
  * @job: The job to query.
  *
  * Returns true if the job is user-paused.
+ * Called between block_job_lock and block_job_unlock.
  */
 bool block_job_user_paused(BlockJob *job);
 
@@ -260,6 +292,7 @@ bool block_job_user_paused(BlockJob *job);
  *
  * Resume the specified job.
  * Must be paired with a preceding block_job_user_pause.
+ * Called between block_job_lock and block_job_unlock.
  */
 void block_job_user_resume(BlockJob *job);
 
@@ -274,6 +307,10 @@ void block_job_user_resume(BlockJob *job);
  *
  * Returns the return value from the job if the job actually completed
  * during the call, or -ECANCELED if it was canceled.
+ *
+ * *Not* called between block_dev_lock and block_dev_unlock---unlike most
+ * other APIs consumed by the monitor, but like block_job_cancel_sync_all
+ * or block_job_complete_sync.
  */
 int block_job_cancel_sync(BlockJob *job);
 

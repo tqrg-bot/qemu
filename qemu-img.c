@@ -860,10 +860,15 @@ static void run_block_job(BlockJob *job, Error **errp)
     AioContext *aio_context = blk_get_aio_context(job->blk);
     int ret = 0;
 
-    aio_context_acquire(aio_context);
+    block_job_lock();
     block_job_ref(job);
+
     do {
+        block_job_unlock();
+        aio_context_acquire(aio_context);
         aio_poll(aio_context, true);
+        aio_context_release(aio_context);
+        block_job_lock();
         qemu_progress_print(job->len ?
                             ((float)job->offset / job->len * 100.f) : 0.0f, 0);
     } while (!job->ready && !job->completed);
@@ -874,7 +879,7 @@ static void run_block_job(BlockJob *job, Error **errp)
         ret = job->ret;
     }
     block_job_unref(job);
-    aio_context_release(aio_context);
+    block_job_unlock();
 
     /* publish completion progress only when success */
     if (!ret) {
@@ -894,7 +899,6 @@ static int img_commit(int argc, char **argv)
     Error *local_err = NULL;
     CommonBlockJobCBInfo cbi;
     bool image_opts = false;
-    AioContext *aio_context;
 
     fmt = NULL;
     cache = BDRV_DEFAULT_CACHE;
@@ -1012,12 +1016,9 @@ static int img_commit(int argc, char **argv)
         .bs   = bs,
     };
 
-    aio_context = bdrv_get_aio_context(bs);
-    aio_context_acquire(aio_context);
     commit_active_start("commit", bs, base_bs, BLOCK_JOB_DEFAULT, 0,
                         BLOCKDEV_ON_ERROR_REPORT, NULL, common_block_job_cb,
                         &cbi, false, &local_err);
-    aio_context_release(aio_context);
     if (local_err) {
         goto done;
     }

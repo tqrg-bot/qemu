@@ -37,9 +37,6 @@
 #include "qemu/timer.h"
 #include "qapi-event.h"
 
-/* Right now, this mutex is only needed to synchronize accesses to job->busy,
- * especially concurrent calls to block_job_enter.
- */
 static QemuMutex block_job_mutex;
 
 static void block_job_lock(void)
@@ -73,6 +70,7 @@ struct BlockJobTxn {
     int refcnt;
 };
 
+/* Protected by block_job_mutex.  */
 static QLIST_HEAD(, BlockJob) block_jobs = QLIST_HEAD_INITIALIZER(block_jobs);
 
 /*
@@ -81,13 +79,13 @@ static QLIST_HEAD(, BlockJob) block_jobs = QLIST_HEAD_INITIALIZER(block_jobs);
  * The first includes functions used by the monitor.  The monitor is
  * peculiar in that it accesses the block job list with block_job_get, and
  * therefore needs consistency across block_job_get and the actual operation
- * (e.g. block_job_set_speed).  The consistency is achieved with
- * aio_context_acquire/release.  These functions are declared in blockjob.h.
+ * (e.g. block_job_set_speed).  To achieve this consistency, the caller
+ * calls block_job_lock/block_job_unlock itself around the whole operation.
+ * These functions are declared in blockjob.h.
  *
  * The second includes functions used by the block job drivers and sometimes
- * by the core block layer.  These do not care about locking, because the
- * whole coroutine runs under the AioContext lock, and are declared in
- * blockjob_int.h.
+ * by the core block layer.  These delegate the locking to the callee instead,
+ * and are declared in blockjob_int.h.
  */
 
 BlockJob *block_job_next(BlockJob *job)
@@ -98,6 +96,7 @@ BlockJob *block_job_next(BlockJob *job)
     return QLIST_NEXT(job, job_list);
 }
 
+/* Called with block_job_mutex held.  */
 BlockJob *block_job_get(const char *id)
 {
     BlockJob *job;
@@ -144,11 +143,13 @@ void block_job_txn_add_job(BlockJobTxn *txn, BlockJob *job)
     block_job_txn_ref(txn);
 }
 
+/* Called with block_job_mutex held.  */
 static void block_job_pause(BlockJob *job)
 {
     job->pause_count++;
 }
 
+/* Called with block_job_mutex held.  */
 static void block_job_resume(BlockJob *job)
 {
     assert(job->pause_count > 0);
@@ -159,6 +160,7 @@ static void block_job_resume(BlockJob *job)
     block_job_enter(job);
 }
 
+/* Called with block_job_mutex held.  */
 void block_job_ref(BlockJob *job)
 {
     ++job->refcnt;
@@ -168,6 +170,7 @@ static void block_job_attached_aio_context(AioContext *new_context,
                                            void *opaque);
 static void block_job_detach_aio_context(void *opaque);
 
+/* Called with block_job_mutex held.  */
 void block_job_unref(BlockJob *job)
 {
     if (--job->refcnt == 0) {
@@ -195,13 +198,21 @@ static void block_job_attached_aio_context(AioContext *new_context,
         job->driver->attached_aio_context(job, new_context);
     }
 
+    block_job_lock();
     block_job_resume(job);
+    block_job_unlock();
 }
 
+/* Called with block_job_mutex *not* held.  The caller should take a
+ * reference with block_job_ref across the call to block_job_drain,
+ * or the job may be completed and disappear during the call.
+ */
 static void block_job_drain(BlockJob *job)
 {
     /* If job is !job->busy this kicks it into the next pause point. */
+    block_job_lock();
     block_job_enter(job);
+    block_job_unlock();
 
     blk_drain(job->blk);
     if (job->driver->drain) {
@@ -214,15 +225,19 @@ static void block_job_detach_aio_context(void *opaque)
     BlockJob *job = opaque;
 
     /* In case the job terminates during aio_poll()... */
+    block_job_lock();
     block_job_ref(job);
 
     block_job_pause(job);
 
     while (!job->paused && !job->completed) {
+        block_job_unlock();
         block_job_drain(job);
+        block_job_lock();
     }
 
     block_job_unref(job);
+    block_job_unlock();
 }
 
 static char *child_job_get_parent_desc(BdrvChild *c)
@@ -255,6 +270,7 @@ static const BlockDevOps block_job_dev_ops = {
     .drained_end = block_job_drained_end,
 };
 
+/* Called with BQL held.  */
 void block_job_remove_all_bdrv(BlockJob *job)
 {
     GSList *l;
@@ -267,6 +283,7 @@ void block_job_remove_all_bdrv(BlockJob *job)
     job->nodes = NULL;
 }
 
+/* Called with BQL held.  */
 int block_job_add_bdrv(BlockJob *job, const char *name, BlockDriverState *bs,
                        uint64_t perm, uint64_t shared_perm, Error **errp)
 {
@@ -297,6 +314,9 @@ static bool block_job_started(BlockJob *job)
 
 static AioContext *block_job_get_aio_context(BlockJob *job)
 {
+    /* This is just a default choice.  Jobs are thread-safe
+     * and could really run on any AioContext.
+     */
     return blk_get_aio_context(job->blk);
 }
 
@@ -317,13 +337,16 @@ static void block_job_sleep_timer_cb(void *opaque)
 {
     BlockJob *job = opaque;
 
+    block_job_lock();
     block_job_enter(job);
+    block_job_unlock();
 }
 
 void block_job_start(BlockJob *job)
 {
     AioContext *ctx = block_job_get_aio_context(job);
 
+    block_job_lock();
     assert(job && !block_job_started(job) && job->paused &&
            job->driver && job->driver->start);
     aio_timer_init(qemu_get_aio_context(), &job->sleep_timer,
@@ -333,13 +356,17 @@ void block_job_start(BlockJob *job)
     job->pause_count--;
     job->busy = true;
     job->paused = false;
+    block_job_unlock();
     aio_co_schedule(ctx, job->co);
 }
 
+/* Called with block_job lock held (but it releases it temporarily).  */
 static void block_job_completed_single(BlockJob *job)
 {
     assert(job->completed);
 
+    /* Unlock while invoking callbacks.  */
+    block_job_unlock();
     if (!job->ret) {
         if (job->driver->commit) {
             job->driver->commit(job);
@@ -356,6 +383,7 @@ static void block_job_completed_single(BlockJob *job)
     if (job->cb) {
         job->cb(job->opaque, job->ret);
     }
+    block_job_lock();
 
     /* Emit events only if we actually started */
     if (block_job_started(job)) {
@@ -377,6 +405,7 @@ static void block_job_completed_single(BlockJob *job)
     block_job_unref(job);
 }
 
+/* Called with block_job_mutex held.  */
 static void block_job_iostatus_reset_locked(BlockJob *job)
 {
     if (job->iostatus == BLOCK_DEVICE_IO_STATUS_OK) {
@@ -386,6 +415,7 @@ static void block_job_iostatus_reset_locked(BlockJob *job)
     job->iostatus = BLOCK_DEVICE_IO_STATUS_OK;
 }
 
+/* Called with block_job_mutex held.  */
 static void block_job_cancel_async(BlockJob *job)
 {
     if (job->iostatus != BLOCK_DEVICE_IO_STATUS_OK) {
@@ -396,9 +426,10 @@ static void block_job_cancel_async(BlockJob *job)
         job->user_paused = false;
         job->pause_count--;
     }
-    job->cancelled = true;
+    atomic_set(&job->cancelled, true);
 }
 
+/* Called with block_job_mutex held (but it releases it temporarily).  */
 static int block_job_finish_sync(BlockJob *job,
                                  void (*finish)(BlockJob *, Error **errp),
                                  Error **errp)
@@ -422,19 +453,26 @@ static int block_job_finish_sync(BlockJob *job,
      * induce progress until the job completes or moves to the main thread.
     */
     while (!job->deferred_to_main_loop && !job->completed) {
+        AioContext *ctx = block_job_get_aio_context(job);
+        block_job_unlock();
+        aio_context_acquire(ctx);
         block_job_drain(job);
+        aio_context_release(ctx);
+        block_job_lock();
     }
     while (!job->completed) {
+        block_job_unlock();
         aio_poll(qemu_get_aio_context(), true);
+        block_job_lock();
     }
     ret = (job->cancelled && job->ret == 0) ? -ECANCELED : job->ret;
     block_job_unref(job);
     return ret;
 }
 
+/* Called with block_job_mutex held (but it releases it temporarily).  */
 static void block_job_completed_txn_abort(BlockJob *job)
 {
-    AioContext *ctx;
     BlockJobTxn *txn = job->txn;
     BlockJob *other_job;
 
@@ -444,18 +482,13 @@ static void block_job_completed_txn_abort(BlockJob *job)
          */
         return;
     }
+
     txn->aborting = true;
     block_job_txn_ref(txn);
 
-    /* We are the first failed job. Cancel other jobs. */
-    QLIST_FOREACH(other_job, &txn->jobs, txn_list) {
-        ctx = blk_get_aio_context(other_job->blk);
-        aio_context_acquire(ctx);
-    }
-
-    /* Other jobs are effectively cancelled by us, set the status for
-     * them; this job, however, may or may not be cancelled, depending
-     * on the caller, so leave it. */
+    /* We are the first failed job, cancel other jobs. Note that this job,
+     * however, may or may not be cancelled, depending on the caller,
+     * so leave it. */
     QLIST_FOREACH(other_job, &txn->jobs, txn_list) {
         if (other_job != job) {
             block_job_cancel_async(other_job);
@@ -463,21 +496,19 @@ static void block_job_completed_txn_abort(BlockJob *job)
     }
     while (!QLIST_EMPTY(&txn->jobs)) {
         other_job = QLIST_FIRST(&txn->jobs);
-        ctx = blk_get_aio_context(other_job->blk);
         if (!other_job->completed) {
             assert(other_job->cancelled);
             block_job_finish_sync(other_job, NULL, NULL);
         }
         block_job_completed_single(other_job);
-        aio_context_release(ctx);
     }
 
     block_job_txn_unref(txn);
 }
 
+/* Called with block_job_mutex held.  */
 static void block_job_completed_txn_success(BlockJob *job)
 {
-    AioContext *ctx;
     BlockJobTxn *txn = job->txn;
     BlockJob *other_job, *next;
     /*
@@ -490,15 +521,15 @@ static void block_job_completed_txn_success(BlockJob *job)
         }
     }
     /* We are the last completed job, commit the transaction. */
+    block_job_lock();
     QLIST_FOREACH_SAFE(other_job, &txn->jobs, txn_list, next) {
-        ctx = blk_get_aio_context(other_job->blk);
-        aio_context_acquire(ctx);
         assert(other_job->ret == 0);
         block_job_completed_single(other_job);
-        aio_context_release(ctx);
     }
+    block_job_unlock();
 }
 
+/* Called with block_job_mutex held.  */
 static void block_job_completed_locked(BlockJob *job, int ret)
 {
     assert(blk_bs(job->blk)->job == job);
@@ -514,6 +545,7 @@ static void block_job_completed_locked(BlockJob *job, int ret)
     }
 }
 
+/* Called with block_job_mutex held.  */
 void block_job_set_speed(BlockJob *job, int64_t speed, Error **errp)
 {
     Error *local_err = NULL;
@@ -531,6 +563,7 @@ void block_job_set_speed(BlockJob *job, int64_t speed, Error **errp)
     job->speed = speed;
 }
 
+/* Called with block_job lock held (but it releases it temporarily).  */
 void block_job_complete(BlockJob *job, Error **errp)
 {
     /* Should not be reachable via external interface for internal jobs */
@@ -542,7 +575,12 @@ void block_job_complete(BlockJob *job, Error **errp)
         return;
     }
 
+    /* Unlock while invoking callbacks.  */
+    block_job_ref(job);
+    block_job_unlock();
     job->driver->complete(job, errp);
+    block_job_lock();
+    block_job_unref(job);
 }
 
 void block_job_user_pause(BlockJob *job)
@@ -551,11 +589,13 @@ void block_job_user_pause(BlockJob *job)
     block_job_pause(job);
 }
 
+/* Called with block_job_mutex held.  */
 bool block_job_user_paused(BlockJob *job)
 {
     return job->user_paused;
 }
 
+/* Called with block_job_mutex held.  */
 void block_job_user_resume(BlockJob *job)
 {
     if (job && job->user_paused && job->pause_count > 0) {
@@ -565,6 +605,7 @@ void block_job_user_resume(BlockJob *job)
     }
 }
 
+/* Called with block_job_mutex held.  */
 void block_job_cancel(BlockJob *job)
 {
     if (block_job_started(job)) {
@@ -588,32 +629,45 @@ static int block_job_cancel_sync_locked(BlockJob *job)
     return block_job_finish_sync(job, &block_job_cancel_err, NULL);
 }
 
+/* Called with block_job_mutex *not* held, unlike most other APIs consumed
+ * by the monitor!
+ */
 int block_job_cancel_sync(BlockJob *job)
 {
     int r;
 
+    block_job_lock();
     r = block_job_cancel_sync_locked(job);
+    block_job_unlock();
+
     return r;
 }
 
+/* Called with block_job_mutex *not* held, unlike most other APIs consumed
+ * by the monitor!
+ */
 void block_job_cancel_sync_all(void)
 {
     BlockJob *job;
-    AioContext *aio_context;
 
+    block_job_lock();
     while ((job = QLIST_FIRST(&block_jobs))) {
-        aio_context = blk_get_aio_context(job->blk);
-        aio_context_acquire(aio_context);
         block_job_cancel_sync_locked(job);
-        aio_context_release(aio_context);
     }
+    block_job_unlock();
 }
 
+/* Called with block_job_mutex held.  */
 int block_job_complete_sync(BlockJob *job, Error **errp)
 {
-    return block_job_finish_sync(job, &block_job_complete, errp);
+    int r;
+
+    r = block_job_finish_sync(job, &block_job_complete, errp);
+
+    return r;
 }
 
+/* Called with block_job_mutex held.  */
 BlockJobInfo *block_job_query(BlockJob *job, Error **errp)
 {
     BlockJobInfo *info;
@@ -674,10 +728,11 @@ static void block_job_event_completed(BlockJob *job, const char *msg)
 }
 
 /*
- * API for block job drivers and the block layer.  These functions are
- * declared in blockjob_int.h.
+ * API for block job drivers and the block layer, who do not know about
+ * block_job_mutex.  These functions are declared in blockjob_int.h.
  */
 
+/* Called with block_job_mutex *not* held.  */
 void *block_job_create(const char *job_id, const BlockJobDriver *driver,
                        BlockDriverState *bs, uint64_t perm,
                        uint64_t shared_perm, int64_t speed, int flags,
@@ -711,8 +766,10 @@ void *block_job_create(const char *job_id, const BlockJobDriver *driver,
             return NULL;
         }
 
+        block_job_lock();
         if (block_job_get(job_id)) {
             error_setg(errp, "Job ID '%s' already in use", job_id);
+            block_job_unlock();
             return NULL;
         }
     }
@@ -744,6 +801,7 @@ void *block_job_create(const char *job_id, const BlockJobDriver *driver,
     bdrv_op_unblock(bs, BLOCK_OP_TYPE_DATAPLANE, job->blocker);
 
     QLIST_INSERT_HEAD(&block_jobs, job, job_list);
+    block_job_unlock();
 
     blk_add_aio_context_notifier(blk, block_job_attached_aio_context,
                                  block_job_detach_aio_context, job);
@@ -762,33 +820,41 @@ void *block_job_create(const char *job_id, const BlockJobDriver *driver,
     return job;
 }
 
+/* Called with block_job_mutex *not* held.  */
 void block_job_pause_all(void)
 {
     BlockJob *job = NULL;
-    while ((job = block_job_next(job))) {
-        AioContext *aio_context = blk_get_aio_context(job->blk);
 
-        aio_context_acquire(aio_context);
+    block_job_lock();
+    while ((job = block_job_next(job))) {
         block_job_pause(job);
-        aio_context_release(aio_context);
     }
+    block_job_unlock();
 }
 
+/* Called with block_job lock *not* held.  */
 void block_job_early_fail(BlockJob *job)
 {
+    block_job_lock();
     block_job_unref(job);
+    block_job_unlock();
 }
 
+/* Called with block_job_mutex *not* held.  */
 void block_job_completed(BlockJob *job, int ret)
 {
+    block_job_lock();
     block_job_completed_locked(job, ret);
+    block_job_unlock();
 }
 
 static bool block_job_should_pause(BlockJob *job)
 {
-    return job->pause_count > 0;
+    return atomic_read(&job->pause_count) > 0;
 }
 
+/* Called with block_job_mutex *not* held (we don't want the coroutine
+ * to yield with the lock held!).  */
 void block_job_do_yield(BlockJob *job, uint64_t ns)
 {
     block_job_lock();
@@ -804,6 +870,8 @@ void block_job_do_yield(BlockJob *job, uint64_t ns)
     bdrv_dec_in_flight(blk_bs(job->blk));
 }
 
+/* Called with block_job_mutex *not* held (we don't want the coroutine
+ * to yield with the lock held!).  */
 void coroutine_fn block_job_pause_point(BlockJob *job)
 {
     assert(job && block_job_started(job));
@@ -830,18 +898,19 @@ void coroutine_fn block_job_pause_point(BlockJob *job)
     }
 }
 
+/* Called with block_job_mutex *not* held.  */
 void block_job_resume_all(void)
 {
     BlockJob *job = NULL;
-    while ((job = block_job_next(job))) {
-        AioContext *aio_context = blk_get_aio_context(job->blk);
 
-        aio_context_acquire(aio_context);
+    block_job_lock();
+    while ((job = block_job_next(job))) {
         block_job_resume(job);
-        aio_context_release(aio_context);
     }
+    block_job_unlock();
 }
 
+/* Called with block_job_mutex held.  */
 void block_job_enter(BlockJob *job)
 {
     AioContext *ctx = block_job_get_aio_context(job);
@@ -853,25 +922,24 @@ void block_job_enter(BlockJob *job)
         return;
     }
 
-    block_job_lock();
     if (job->busy) {
-        block_job_unlock();
         return;
     }
 
     assert(!job->deferred_to_main_loop);
     timer_del(&job->sleep_timer);
     job->busy = true;
-    block_job_unlock();
     bdrv_inc_in_flight(blk_bs(job->blk));
     aio_co_schedule(ctx, job->co);
 }
 
 bool block_job_is_cancelled(BlockJob *job)
 {
-    return job->cancelled;
+    return atomic_read(&job->cancelled);
 }
 
+/* Called with block_job_mutex *not* held (we don't want the coroutine
+ * to yield with the lock held!).  */
 void block_job_sleep_ns(BlockJob *job, int64_t ns)
 {
     assert(job->busy);
@@ -888,6 +956,8 @@ void block_job_sleep_ns(BlockJob *job, int64_t ns)
     block_job_pause_point(job);
 }
 
+/* Called with block_job_mutex *not* held (we don't want the coroutine
+ * to yield with the lock held!).  */
 void block_job_yield(BlockJob *job)
 {
     assert(job->busy);
@@ -904,9 +974,12 @@ void block_job_yield(BlockJob *job)
     block_job_pause_point(job);
 }
 
+/* Called with block_job_mutex *not* held.  */
 void block_job_iostatus_reset(BlockJob *job)
 {
+    block_job_lock();
     block_job_iostatus_reset_locked(job);
+    block_job_unlock();
 }
 
 void block_job_event_ready(BlockJob *job)
@@ -924,6 +997,7 @@ void block_job_event_ready(BlockJob *job)
                                     job->speed, &error_abort);
 }
 
+/* Called with block_job_mutex *not* held.  */
 BlockErrorAction block_job_error_action(BlockJob *job, BlockdevOnError on_err,
                                         int is_read, int error)
 {
@@ -955,15 +1029,16 @@ BlockErrorAction block_job_error_action(BlockJob *job, BlockdevOnError on_err,
     }
     if (action == BLOCK_ERROR_ACTION_STOP) {
         /* make the pause user visible, which will be resumed from QMP. */
+        block_job_lock();
         block_job_user_pause(job);
         block_job_iostatus_set_err(job, error);
+        block_job_unlock();
     }
     return action;
 }
 
 typedef struct {
     BlockJob *job;
-    AioContext *aio_context;
     BlockJobDeferToMainLoopFn *fn;
     void *opaque;
 } BlockJobDeferToMainLoopData;
@@ -971,24 +1046,8 @@ typedef struct {
 static void block_job_defer_to_main_loop_bh(void *opaque)
 {
     BlockJobDeferToMainLoopData *data = opaque;
-    AioContext *aio_context;
-
-    /* Prevent race with block_job_defer_to_main_loop() */
-    aio_context_acquire(data->aio_context);
-
-    /* Fetch BDS AioContext again, in case it has changed */
-    aio_context = blk_get_aio_context(data->job->blk);
-    if (aio_context != data->aio_context) {
-        aio_context_acquire(aio_context);
-    }
 
     data->fn(data->job, data->opaque);
-
-    if (aio_context != data->aio_context) {
-        aio_context_release(aio_context);
-    }
-
-    aio_context_release(data->aio_context);
 
     g_free(data);
 }
@@ -999,7 +1058,6 @@ void block_job_defer_to_main_loop(BlockJob *job,
 {
     BlockJobDeferToMainLoopData *data = g_malloc(sizeof(*data));
     data->job = job;
-    data->aio_context = blk_get_aio_context(job->blk);
     data->fn = fn;
     data->opaque = opaque;
     job->deferred_to_main_loop = true;
