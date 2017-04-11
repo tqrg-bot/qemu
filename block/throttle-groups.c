@@ -416,7 +416,7 @@ static void throttle_group_restart_queue(ThrottleGroupMember *tgm, bool is_write
     rd->is_write = is_write;
 
     co = qemu_coroutine_create(throttle_group_restart_queue_entry, rd);
-    aio_co_enter(tgm->aio_context, co);
+    qemu_coroutine_enter(co);
 }
 
 void throttle_group_restart_tgm(ThrottleGroupMember *tgm)

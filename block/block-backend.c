@@ -1184,7 +1184,7 @@ static int blk_prw(BlockBackend *blk, int64_t offset, uint8_t *buf,
         co_entry(&rwco);
     } else {
         Coroutine *co = qemu_coroutine_create(co_entry, &rwco);
-        bdrv_coroutine_enter(blk_bs(blk), co);
+        qemu_coroutine_enter(co);
         BDRV_POLL_WHILE(blk_bs(blk), rwco.ret == NOT_DONE);
     }
 
@@ -1291,7 +1291,7 @@ static BlockAIOCB *blk_aio_prwv(BlockBackend *blk, int64_t offset, int bytes,
     acb->has_returned = false;
 
     co = qemu_coroutine_create(co_entry, acb);
-    bdrv_coroutine_enter(blk_bs(blk), co);
+    qemu_coroutine_enter(co);
 
     acb->has_returned = true;
     if (acb->rwco.ret != NOT_DONE) {

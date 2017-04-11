@@ -642,7 +642,7 @@ static int bdrv_prwv_co(BdrvChild *child, int64_t offset,
         bdrv_rw_co_entry(&rwco);
     } else {
         co = qemu_coroutine_create(bdrv_rw_co_entry, &rwco);
-        bdrv_coroutine_enter(child->bs, co);
+        qemu_coroutine_enter(co);
         BDRV_POLL_WHILE(child->bs, rwco.ret == NOT_DONE);
     }
     return rwco.ret;
@@ -2093,7 +2093,7 @@ static int bdrv_common_block_status_above(BlockDriverState *bs,
         bdrv_block_status_above_co_entry(&data);
     } else {
         co = qemu_coroutine_create(bdrv_block_status_above_co_entry, &data);
-        bdrv_coroutine_enter(bs, co);
+        qemu_coroutine_enter(co);
         BDRV_POLL_WHILE(bs, !data.done);
     }
     return data.ret;
@@ -2238,7 +2238,7 @@ bdrv_rw_vmstate(BlockDriverState *bs, QEMUIOVector *qiov, int64_t pos,
         };
         Coroutine *co = qemu_coroutine_create(bdrv_co_rw_vmstate_entry, &data);
 
-        bdrv_coroutine_enter(bs, co);
+        qemu_coroutine_enter(co);
         BDRV_POLL_WHILE(bs, data.ret == -EINPROGRESS);
         return data.ret;
     }
@@ -2468,7 +2468,7 @@ int bdrv_flush(BlockDriverState *bs)
         bdrv_flush_co_entry(&flush_co);
     } else {
         co = qemu_coroutine_create(bdrv_flush_co_entry, &flush_co);
-        bdrv_coroutine_enter(bs, co);
+        qemu_coroutine_enter(co);
         BDRV_POLL_WHILE(bs, flush_co.ret == NOT_DONE);
     }
 
@@ -2621,7 +2621,7 @@ int bdrv_pdiscard(BlockDriverState *bs, int64_t offset, int bytes)
         bdrv_pdiscard_co_entry(&rwco);
     } else {
         co = qemu_coroutine_create(bdrv_pdiscard_co_entry, &rwco);
-        bdrv_coroutine_enter(bs, co);
+        qemu_coroutine_enter(co);
         BDRV_POLL_WHILE(bs, rwco.ret == NOT_DONE);
     }
 
