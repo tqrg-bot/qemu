@@ -733,7 +733,7 @@ static int do_req(int sockfd, BlockDriverState *bs, SheepdogReq *hdr,
     } else {
         co = qemu_coroutine_create(do_co_req, &srco);
         if (bs) {
-            bdrv_coroutine_enter(bs, co);
+            qemu_coroutine_enter(co);
             BDRV_POLL_WHILE(bs, !srco.finished);
         } else {
             qemu_coroutine_enter(co);
