@@ -1,6 +1,6 @@
 #!/bin/sh
 
-FORMAT_LIST="raw qcow2 qed vmdk vpc"
+FORMAT_LIST="raw qcow2 qed vmdk vpc nbd"
 if [ "$#" -ne 0 ]; then
     FORMAT_LIST="$@"
 fi
