@@ -30,12 +30,6 @@
 
 #define COROUTINE_STACK_SIZE (1 << 20)
 
-typedef enum {
-    COROUTINE_YIELD = 1,
-    COROUTINE_TERMINATE = 2,
-    COROUTINE_ENTER = 3,
-} CoroutineAction;
-
 struct Coroutine {
     CoroutineEntry *entry;
     void *entry_arg;

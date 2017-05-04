@@ -102,7 +102,7 @@ static void coroutine_delete(Coroutine *co)
     qemu_coroutine_delete(co);
 }
 
-void qemu_aio_coroutine_enter(AioContext *ctx, Coroutine *co)
+CoroutineAction qemu_aio_coroutine_enter(AioContext *ctx, Coroutine *co)
 {
     Coroutine *self = qemu_coroutine_self();
     CoroutineAction ret;
@@ -147,20 +147,22 @@ void qemu_aio_coroutine_enter(AioContext *ctx, Coroutine *co)
 
     switch (ret) {
     case COROUTINE_YIELD:
-        return;
+        break;
     case COROUTINE_TERMINATE:
         assert(!co->locks_held);
         trace_qemu_coroutine_terminate(co);
         coroutine_delete(co);
-        return;
+        break;
     default:
         abort();
     }
+
+    return ret;
 }
 
-void qemu_coroutine_enter(Coroutine *co)
+CoroutineAction qemu_coroutine_enter(Coroutine *co)
 {
-    qemu_aio_coroutine_enter(qemu_get_current_aio_context(), co);
+    return qemu_aio_coroutine_enter(qemu_get_current_aio_context(), co);
 }
 
 void qemu_coroutine_enter_if_inactive(Coroutine *co)

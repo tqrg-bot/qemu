@@ -58,6 +58,23 @@ typedef struct Coroutine Coroutine;
 typedef void coroutine_fn CoroutineEntry(void *opaque);
 
 /**
+ * CoroutineAction - the possible causes for (re)entering a coroutine.
+ *
+ * Of these three values, @COROUTINE_YIELD and @COROUTINE_TERMINATE can
+ * be returned by qemu_coroutine_enter() and qemu_aio_coroutine_enter().
+ * @COROUTINE_ENTER is only used internally.
+ *
+ * @COROUTINE_YIELD: entering from a child coroutine has yielded
+ * @COROUTINE_TERMINATE: entering from a child coroutine has terminated
+ * @COROUTINE_ENTER: entering from a parent coroutine
+ */
+typedef enum {
+    COROUTINE_YIELD = 1,
+    COROUTINE_TERMINATE = 2,
+    COROUTINE_ENTER = 3,
+} CoroutineAction;
+
+/**
  * Create a new coroutine
  *
  * Use qemu_coroutine_enter() to actually transfer control to the coroutine.
@@ -66,9 +83,11 @@ typedef void coroutine_fn CoroutineEntry(void *opaque);
 Coroutine *qemu_coroutine_create(CoroutineEntry *entry, void *opaque);
 
 /**
- * Transfer control to a coroutine
+ * Transfer control to a coroutine.  Return %COROUTINE_YIELD if
+ * @coroutine should be entered again (not necessarily by @coroutine),
+ * %COROUTINE_TERMINATE if not.
  */
-void qemu_coroutine_enter(Coroutine *coroutine);
+CoroutineAction qemu_coroutine_enter(Coroutine *coroutine);
 
 /**
  * Transfer control to a coroutine if it's not active (i.e. part of the call
@@ -77,9 +96,11 @@ void qemu_coroutine_enter(Coroutine *coroutine);
 void qemu_coroutine_enter_if_inactive(Coroutine *co);
 
 /**
- * Transfer control to a coroutine and associate it with ctx
+ * Transfer control to a coroutine and associate it with ctx.  Return
+ * %COROUTINE_YIELD if @coroutine should be entered again (not necessarily
+ * by @coroutine), %COROUTINE_TERMINATE if not.
  */
-void qemu_aio_coroutine_enter(AioContext *ctx, Coroutine *co);
+CoroutineAction qemu_aio_coroutine_enter(AioContext *ctx, Coroutine *co);
 
 /**
  * Transfer control back to a coroutine's caller
