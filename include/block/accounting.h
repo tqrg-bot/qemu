@@ -46,7 +46,7 @@ struct BlockAcctTimedStats {
 };
 
 struct BlockAcctStats {
-    QemuMutex lock;
+    QemuSpin spin;
     uint64_t nr_bytes[BLOCK_MAX_IOTYPE];
     uint64_t nr_ops[BLOCK_MAX_IOTYPE];
     uint64_t invalid_ops[BLOCK_MAX_IOTYPE];
