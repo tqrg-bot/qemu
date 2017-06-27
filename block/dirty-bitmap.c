@@ -155,19 +155,19 @@ void bdrv_create_meta_dirty_bitmap(BdrvDirtyBitmap *bitmap,
                                    int chunk_size)
 {
     assert(!bitmap->meta);
-    qemu_mutex_lock(bitmap->mutex);
+    bdrv_dirty_bitmap_lock(bitmap);
     bitmap->meta = hbitmap_create_meta(bitmap->bitmap,
                                        chunk_size * BITS_PER_BYTE);
-    qemu_mutex_unlock(bitmap->mutex);
+    bdrv_dirty_bitmap_unlock(bitmap);
 }
 
 void bdrv_release_meta_dirty_bitmap(BdrvDirtyBitmap *bitmap)
 {
     assert(bitmap->meta);
-    qemu_mutex_lock(bitmap->mutex);
+    bdrv_dirty_bitmap_lock(bitmap);
     hbitmap_free_meta(bitmap->bitmap);
     bitmap->meta = NULL;
-    qemu_mutex_unlock(bitmap->mutex);
+    bdrv_dirty_bitmap_unlock(bitmap);
 }
 
 int64_t bdrv_dirty_bitmap_size(const BdrvDirtyBitmap *bitmap)
