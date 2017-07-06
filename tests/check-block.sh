@@ -18,7 +18,7 @@ cd tests/qemu-iotests
 
 ret=0
 for FMT in $FORMAT_LIST ; do
-    ./check -T -nocache -$FMT || ret=1
+    ./check -T -nocache -$FMT 097 124 141 144 176 || ret=1
 done
 
 exit $ret
