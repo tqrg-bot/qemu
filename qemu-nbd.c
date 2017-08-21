@@ -575,10 +575,12 @@ int main(int argc, char **argv)
     /* The client thread uses SIGTERM to interrupt the server.  A signal
      * handler ensures that "qemu-nbd -v -c" exits with a nice status code.
      */
-    struct sigaction sa_sigterm;
-    memset(&sa_sigterm, 0, sizeof(sa_sigterm));
-    sa_sigterm.sa_handler = termsig_handler;
-    sigaction(SIGTERM, &sa_sigterm, NULL);
+    struct sigaction sigact;
+    memset(&sigact, 0, sizeof(sigact));
+    sigact.sa_handler = termsig_handler;
+    sigaction(SIGTERM, &sigact, NULL);
+    sigaction(SIGINT, &sigact, NULL);
+    sigaction(SIGHUP, &sigact, NULL);
 
 #ifdef CONFIG_POSIX
     signal(SIGPIPE, SIG_IGN);
