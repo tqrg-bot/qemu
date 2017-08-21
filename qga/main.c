@@ -182,6 +182,10 @@ static gboolean register_signal_handlers(void)
     if (ret == -1) {
         g_error("error configuring signal handler: %s", strerror(errno));
     }
+    ret = sigaction(SIGHUP, &sigact, NULL);
+    if (ret == -1) {
+        g_error("error configuring signal handler: %s", strerror(errno));
+    }
 
     sigact.sa_handler = SIG_IGN;
     if (sigaction(SIGPIPE, &sigact, NULL) != 0) {
