@@ -203,21 +203,22 @@ static void block_job_attached_aio_context(AioContext *new_context,
     block_job_unlock();
 }
 
-/* Called with block_job_mutex *not* held.  The caller should take a
- * reference with block_job_ref across the call to block_job_drain,
- * or the job may be completed and disappear during the call.
+/* Called with block_job lock held (but it releases it temporarily).  The
+ * caller should take a reference with block_job_ref across the call to
+ * block_job_drain, or the job may be completed and disappear during the call.
  */
 static void block_job_drain(BlockJob *job)
 {
     /* If job is !job->busy this kicks it into the next pause point. */
-    block_job_lock();
     block_job_enter(job);
-    block_job_unlock();
 
+    /* Unlock while invoking callbacks.  */
+    block_job_unlock();
     blk_drain(job->blk);
     if (job->driver->drain) {
         job->driver->drain(job);
     }
+    block_job_lock();
 }
 
 static void block_job_detach_aio_context(void *opaque)
@@ -231,9 +232,7 @@ static void block_job_detach_aio_context(void *opaque)
     block_job_pause(job);
 
     while (!job->paused && !job->completed) {
-        block_job_unlock();
         block_job_drain(job);
-        block_job_lock();
     }
 
     block_job_unref(job);
@@ -453,9 +452,7 @@ static int block_job_finish_sync(BlockJob *job,
      * induce progress until the job completes or moves to the main thread.
     */
     while (!job->deferred_to_main_loop && !job->completed) {
-        block_job_unlock();
         block_job_drain(job);
-        block_job_lock();
     }
     while (!job->completed) {
         block_job_unlock();
