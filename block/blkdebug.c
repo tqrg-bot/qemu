@@ -674,7 +674,6 @@ static void suspend_request(BlockDriverState *bs, BlkdebugRule *rule)
         printf("blkdebug: Resuming request '%s'\n", r.tag);
     }
 
-    QLIST_REMOVE(&r, next);
     g_free(r.tag);
 }
 
@@ -750,18 +749,31 @@ static int blkdebug_debug_breakpoint(BlockDriverState *bs, const char *event,
     return 0;
 }
 
+/* Called with lock held.  */
+static int resume_req_by_tag(BDRVBlkdebugState *s, const char *tag, bool all)
+{
+    BlkdebugSuspendedReq *r, *next;
+    int rc = -ENOENT;
+
+retry:
+    QLIST_FOREACH(r, &s->suspended_reqs, next, next) {
+        if (!strcmp(r->tag, tag)) {
+            QLIST_REMOVE(&r, next);
+            rc = 0;
+            qemu_coroutine_enter(r->co);
+            if (all) {
+                goto retry;
+            }
+        }
+    }
+    return rc;
+}
+
 static int blkdebug_debug_resume(BlockDriverState *bs, const char *tag)
 {
     BDRVBlkdebugState *s = bs->opaque;
-    BlkdebugSuspendedReq *r, *next;
 
-    QLIST_FOREACH_SAFE(r, &s->suspended_reqs, next, next) {
-        if (!strcmp(r->tag, tag)) {
-            qemu_coroutine_enter(r->co);
-            return 0;
-        }
-    }
-    return -ENOENT;
+    return resume_req_by_tag(s, tag, false);
 }
 
 static int blkdebug_debug_remove_breakpoint(BlockDriverState *bs,
@@ -781,11 +793,8 @@ static int blkdebug_debug_remove_breakpoint(BlockDriverState *bs,
             }
         }
     }
-    QLIST_FOREACH_SAFE(r, &s->suspended_reqs, next, r_next) {
-        if (!strcmp(r->tag, tag)) {
-            qemu_coroutine_enter(r->co);
-            ret = 0;
-        }
+    if (resume_req_by_tag(s, tag, true) == 0) {
+        ret = 0;
     }
     return ret;
 }
