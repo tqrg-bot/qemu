@@ -377,10 +377,19 @@ static void block_job_completed_single(BlockJob *job)
     block_job_unref(job);
 }
 
+static void block_job_iostatus_reset_locked(BlockJob *job)
+{
+    if (job->iostatus == BLOCK_DEVICE_IO_STATUS_OK) {
+        return;
+    }
+    assert(job->user_paused && job->pause_count > 0);
+    job->iostatus = BLOCK_DEVICE_IO_STATUS_OK;
+}
+
 static void block_job_cancel_async(BlockJob *job)
 {
     if (job->iostatus != BLOCK_DEVICE_IO_STATUS_OK) {
-        block_job_iostatus_reset(job);
+        block_job_iostatus_reset_locked(job);
     }
     if (job->user_paused) {
         /* Do not call block_job_enter here, the caller will handle it.  */
@@ -490,6 +499,21 @@ static void block_job_completed_txn_success(BlockJob *job)
     }
 }
 
+static void block_job_completed_locked(BlockJob *job, int ret)
+{
+    assert(blk_bs(job->blk)->job == job);
+    assert(!job->completed);
+    job->completed = true;
+    job->ret = ret;
+    if (!job->txn) {
+        block_job_completed_single(job);
+    } else if (ret < 0 || block_job_is_cancelled(job)) {
+        block_job_completed_txn_abort(job);
+    } else {
+        block_job_completed_txn_success(job);
+    }
+}
+
 void block_job_set_speed(BlockJob *job, int64_t speed, Error **errp)
 {
     Error *local_err = NULL;
@@ -535,7 +559,7 @@ bool block_job_user_paused(BlockJob *job)
 void block_job_user_resume(BlockJob *job)
 {
     if (job && job->user_paused && job->pause_count > 0) {
-        block_job_iostatus_reset(job);
+        block_job_iostatus_reset_locked(job);
         job->user_paused = false;
         block_job_resume(job);
     }
@@ -547,7 +571,7 @@ void block_job_cancel(BlockJob *job)
         block_job_cancel_async(job);
         block_job_enter(job);
     } else {
-        block_job_completed(job, -ECANCELED);
+        block_job_completed_locked(job, -ECANCELED);
     }
 }
 
@@ -559,9 +583,17 @@ static void block_job_cancel_err(BlockJob *job, Error **errp)
     block_job_cancel(job);
 }
 
-int block_job_cancel_sync(BlockJob *job)
+static int block_job_cancel_sync_locked(BlockJob *job)
 {
     return block_job_finish_sync(job, &block_job_cancel_err, NULL);
+}
+
+int block_job_cancel_sync(BlockJob *job)
+{
+    int r;
+
+    r = block_job_cancel_sync_locked(job);
+    return r;
 }
 
 void block_job_cancel_sync_all(void)
@@ -572,7 +604,7 @@ void block_job_cancel_sync_all(void)
     while ((job = QLIST_FIRST(&block_jobs))) {
         aio_context = blk_get_aio_context(job->blk);
         aio_context_acquire(aio_context);
-        block_job_cancel_sync(job);
+        block_job_cancel_sync_locked(job);
         aio_context_release(aio_context);
     }
 }
@@ -749,17 +781,7 @@ void block_job_early_fail(BlockJob *job)
 
 void block_job_completed(BlockJob *job, int ret)
 {
-    assert(blk_bs(job->blk)->job == job);
-    assert(!job->completed);
-    job->completed = true;
-    job->ret = ret;
-    if (!job->txn) {
-        block_job_completed_single(job);
-    } else if (ret < 0 || block_job_is_cancelled(job)) {
-        block_job_completed_txn_abort(job);
-    } else {
-        block_job_completed_txn_success(job);
-    }
+    block_job_completed_locked(job, ret);
 }
 
 static bool block_job_should_pause(BlockJob *job)
@@ -884,11 +906,7 @@ void block_job_yield(BlockJob *job)
 
 void block_job_iostatus_reset(BlockJob *job)
 {
-    if (job->iostatus == BLOCK_DEVICE_IO_STATUS_OK) {
-        return;
-    }
-    assert(job->user_paused && job->pause_count > 0);
-    job->iostatus = BLOCK_DEVICE_IO_STATUS_OK;
+    block_job_iostatus_reset_locked(job);
 }
 
 void block_job_event_ready(BlockJob *job)
