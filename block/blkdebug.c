@@ -47,6 +47,7 @@ typedef struct BDRVBlkdebugState {
     /* For blkdebug_refresh_filename() */
     char *config_file;
 
+    QemuMutex lock;
     QLIST_HEAD(, BlkdebugRule) rules[BLKDBG__MAX];
     QSIMPLEQ_HEAD(, BlkdebugRule) active_rules;
     QLIST_HEAD(, BlkdebugSuspendedReq) suspended_reqs;
@@ -206,7 +207,9 @@ static int add_rule(void *opaque, QemuOpts *opts, Error **errp)
     };
 
     /* Add the rule */
+    qemu_mutex_lock(&s->lock);
     QLIST_INSERT_HEAD(&s->rules[event], rule, next);
+    qemu_mutex_unlock(&s->lock);
 
     return 0;
 }
@@ -371,6 +374,7 @@ static int blkdebug_open(BlockDriverState *bs, QDict *options, int flags,
     int ret;
     uint64_t align;
 
+    qemu_mutex_init(&s->lock);
     opts = qemu_opts_create(&runtime_opts, NULL, 0, &error_abort);
     qemu_opts_absorb_qdict(opts, options, &local_err);
     if (local_err) {
@@ -463,6 +467,7 @@ static int blkdebug_open(BlockDriverState *bs, QDict *options, int flags,
     ret = 0;
 out:
     if (ret < 0) {
+        qemu_mutex_destroy(&s->lock);
         g_free(s->config_file);
     }
     qemu_opts_del(opts);
@@ -476,6 +481,7 @@ static int rule_check(BlockDriverState *bs, uint64_t offset, uint64_t bytes)
     int error;
     bool immediately;
 
+    qemu_mutex_lock(&s->lock);
     QSIMPLEQ_FOREACH(rule, &s->active_rules, active_next) {
         uint64_t inject_offset = rule->options.inject.offset;
 
@@ -488,6 +494,7 @@ static int rule_check(BlockDriverState *bs, uint64_t offset, uint64_t bytes)
     }
 
     if (!rule || !rule->options.inject.error) {
+        qemu_mutex_unlock(&s->lock);
         return 0;
     }
 
@@ -499,6 +506,7 @@ static int rule_check(BlockDriverState *bs, uint64_t offset, uint64_t bytes)
         remove_rule(rule);
     }
 
+    qemu_mutex_unlock(&s->lock);
     if (!immediately) {
         aio_co_schedule(qemu_get_current_aio_context(), qemu_coroutine_self());
         qemu_coroutine_yield();
@@ -651,8 +659,10 @@ static void blkdebug_close(BlockDriverState *bs)
     }
 
     g_free(s->config_file);
+    qemu_mutex_destroy(&s->lock);
 }
 
+/* Called with lock held.  */
 static void suspend_request(BlockDriverState *bs, BlkdebugRule *rule)
 {
     BDRVBlkdebugState *s = bs->opaque;
@@ -677,6 +687,7 @@ static void suspend_request(BlockDriverState *bs, BlkdebugRule *rule)
     g_free(r.tag);
 }
 
+/* Called with lock held.  */
 static bool process_rule(BlockDriverState *bs, struct BlkdebugRule *rule,
     bool injected)
 {
@@ -716,12 +727,14 @@ static void blkdebug_debug_event(BlockDriverState *bs, BlkdebugEvent event)
 
     assert((int)event >= 0 && event < BLKDBG__MAX);
 
+    qemu_mutex_lock(&s->lock);
     injected = false;
     s->new_state = s->state;
     QLIST_FOREACH_SAFE(rule, &s->rules[event], next, next) {
         injected = process_rule(bs, rule, injected);
     }
     s->state = s->new_state;
+    qemu_mutex_unlock(&s->lock);
 }
 
 static int blkdebug_debug_breakpoint(BlockDriverState *bs, const char *event,
@@ -744,7 +757,9 @@ static int blkdebug_debug_breakpoint(BlockDriverState *bs, const char *event,
         .options.suspend.tag = g_strdup(tag),
     };
 
+    qemu_mutex_lock(&s->lock);
     QLIST_INSERT_HEAD(&s->rules[blkdebug_event], rule, next);
+    qemu_mutex_unlock(&s->lock);
 
     return 0;
 }
@@ -760,7 +775,9 @@ retry:
         if (!strcmp(r->tag, tag)) {
             QLIST_REMOVE(&r, next);
             rc = 0;
+            qemu_mutex_unlock(&s->lock);
             qemu_coroutine_enter(r->co);
+            qemu_mutex_lock(&s->lock);
             if (all) {
                 goto retry;
             }
@@ -772,8 +789,12 @@ retry:
 static int blkdebug_debug_resume(BlockDriverState *bs, const char *tag)
 {
     BDRVBlkdebugState *s = bs->opaque;
+    int rc;
 
-    return resume_req_by_tag(s, tag, false);
+    qemu_mutex_lock(&s->lock);
+    rc = resume_req_by_tag(s, tag, false);
+    qemu_mutex_unlock(&s->lock);
+    return rc;
 }
 
 static int blkdebug_debug_remove_breakpoint(BlockDriverState *bs,
@@ -782,8 +803,9 @@ static int blkdebug_debug_remove_breakpoint(BlockDriverState *bs,
     BDRVBlkdebugState *s = bs->opaque;
     BlkdebugSuspendedReq *r, *r_next;
     BlkdebugRule *rule, *next;
-    int i, ret = -ENOENT;
+    int i, ret;
 
+    qemu_mutex_lock(&s->lock);
     for (i = 0; i < BLKDBG__MAX; i++) {
         QLIST_FOREACH_SAFE(rule, &s->rules[i], next, next) {
             if (rule->action == ACTION_SUSPEND &&
@@ -796,6 +818,7 @@ static int blkdebug_debug_remove_breakpoint(BlockDriverState *bs,
     if (resume_req_by_tag(s, tag, true) == 0) {
         ret = 0;
     }
+    qemu_mutex_unlock(&s->lock);
     return ret;
 }
 
@@ -804,11 +827,14 @@ static bool blkdebug_debug_is_suspended(BlockDriverState *bs, const char *tag)
     BDRVBlkdebugState *s = bs->opaque;
     BlkdebugSuspendedReq *r;
 
+    qemu_mutex_lock(&s->lock);
     QLIST_FOREACH(r, &s->suspended_reqs, next) {
         if (!strcmp(r->tag, tag)) {
+            qemu_mutex_unlock(&s->lock);
             return true;
         }
     }
+    qemu_mutex_unlock(&s->lock);
     return false;
 }
 
