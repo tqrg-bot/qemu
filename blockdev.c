@@ -3133,7 +3133,7 @@ void qmp_block_commit(bool has_job_id, const char *job_id, const char *device,
         }
         commit_active_start(has_job_id ? job_id : NULL, bs, base_bs,
                             BLOCK_JOB_DEFAULT, speed, on_error,
-                            filter_node_name, NULL, NULL, false, &local_err);
+                            filter_node_name, NULL, NULL, false, errp);
     } else {
         BlockDriverState *overlay_bs = bdrv_find_overlay(bs, top_bs);
         if (bdrv_op_is_blocked(overlay_bs, BLOCK_OP_TYPE_COMMIT_TARGET, errp)) {
@@ -3141,11 +3141,7 @@ void qmp_block_commit(bool has_job_id, const char *job_id, const char *device,
         }
         commit_start(has_job_id ? job_id : NULL, bs, base_bs, top_bs, speed,
                      on_error, has_backing_file ? backing_file : NULL,
-                     filter_node_name, &local_err);
-    }
-    if (local_err != NULL) {
-        error_propagate(errp, local_err);
-        goto out;
+                     filter_node_name, errp);
     }
 
 out:
@@ -3277,12 +3273,8 @@ static BlockJob *do_drive_backup(DriveBackup *backup, BlockJobTxn *txn,
     job = backup_job_create(backup->job_id, bs, target_bs, backup->speed,
                             backup->sync, bmap, backup->compress,
                             backup->on_source_error, backup->on_target_error,
-                            BLOCK_JOB_DEFAULT, NULL, NULL, txn, &local_err);
+                            BLOCK_JOB_DEFAULT, NULL, NULL, txn, errp);
     bdrv_unref(target_bs);
-    if (local_err != NULL) {
-        error_propagate(errp, local_err);
-        goto out;
-    }
 
 out:
     aio_context_release(aio_context);
@@ -3309,7 +3301,6 @@ BlockJob *do_blockdev_backup(BlockdevBackup *backup, BlockJobTxn *txn,
 {
     BlockDriverState *bs;
     BlockDriverState *target_bs;
-    Error *local_err = NULL;
     AioContext *aio_context;
     BlockJob *job = NULL;
 
@@ -3356,10 +3347,7 @@ BlockJob *do_blockdev_backup(BlockdevBackup *backup, BlockJobTxn *txn,
     job = backup_job_create(backup->job_id, bs, target_bs, backup->speed,
                             backup->sync, NULL, backup->compress,
                             backup->on_source_error, backup->on_target_error,
-                            BLOCK_JOB_DEFAULT, NULL, NULL, txn, &local_err);
-    if (local_err != NULL) {
-        error_propagate(errp, local_err);
-    }
+                            BLOCK_JOB_DEFAULT, NULL, NULL, txn, errp);
 out:
     aio_context_release(aio_context);
     return job;
@@ -3586,10 +3574,8 @@ void qmp_drive_mirror(DriveMirror *arg, Error **errp)
                            arg->has_on_source_error, arg->on_source_error,
                            arg->has_on_target_error, arg->on_target_error,
                            arg->has_unmap, arg->unmap,
-                           false, NULL,
-                           &local_err);
+                           false, NULL, errp);
     bdrv_unref(target_bs);
-    error_propagate(errp, local_err);
 out:
     aio_context_release(aio_context);
 }
@@ -3613,7 +3599,6 @@ void qmp_blockdev_mirror(bool has_job_id, const char *job_id,
     BlockDriverState *target_bs;
     AioContext *aio_context;
     BlockMirrorBackingMode backing_mode = MIRROR_LEAVE_BACKING_CHAIN;
-    Error *local_err = NULL;
 
     bs = qmp_get_root_bs(device, errp);
     if (!bs) {
@@ -3638,9 +3623,7 @@ void qmp_blockdev_mirror(bool has_job_id, const char *job_id,
                            has_on_source_error, on_source_error,
                            has_on_target_error, on_target_error,
                            true, true,
-                           has_filter_node_name, filter_node_name,
-                           &local_err);
-    error_propagate(errp, local_err);
+                           has_filter_node_name, filter_node_name, errp);
 
     aio_context_release(aio_context);
 }
