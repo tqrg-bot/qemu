@@ -2178,7 +2178,7 @@ void qmp_transaction(TransactionActionList *dev_list,
     }
 
     /* drain all i/o before any operations */
-    bdrv_drain_all();
+    bdrv_drain_all_begin();
 
     /* We don't do anything in this loop that commits us to the operations */
     while (NULL != dev_entry) {
@@ -2234,6 +2234,7 @@ exit:
         qapi_free_TransactionProperties(props);
     }
     block_job_txn_unref(block_job_txn);
+    bdrv_drain_all_end();
 }
 
 void qmp_eject(bool has_device, const char *device,
