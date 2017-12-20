@@ -812,11 +812,11 @@ int hvf_vcpu_exec(CPUState *cpu)
         }
         case EXIT_REASON_INTR_WINDOW:
             vmx_clear_int_window_exiting(cpu);
-            ret = EXCP_INTERRUPT;
+            ret = 0;
             break;
         case EXIT_REASON_NMI_WINDOW:
             vmx_clear_nmi_window_exiting(cpu);
-            ret = EXCP_INTERRUPT;
+            ret = 0;
             break;
         case EXIT_REASON_VMX_PREEMPT:
         case EXIT_REASON_EXT_INTR:
