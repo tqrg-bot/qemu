@@ -490,6 +490,10 @@ void hvf_vcpu_destroy(CPUState *cpu)
 
 static void dummy_signal(int sig)
 {
+    /* Prevent vmentry.  */
+    if (current_cpu) {
+        vmx_enable_preemption_timer(cpu);
+    }
 }
 
 int hvf_init_vcpu(CPUState *cpu)
@@ -559,6 +563,7 @@ int hvf_init_vcpu(CPUState *cpu)
     wvmcs(cpu->hvf_fd, VMCS_EXCEPTION_BITMAP, 0); /* Double fault */
 
     wvmcs(cpu->hvf_fd, VMCS_TPR_THRESHOLD, 0);
+    wvmcs(cpu->hvf_fd, VMCS_PREEMPTION_TIMER_VALUE, 0);
 
     hvf_reset_vcpu(cpu);
 
@@ -642,6 +647,7 @@ int hvf_vcpu_exec(CPUState *cpu)
     int ret = 0;
     uint64_t rip = 0;
 
+    vmx_disable_preemption_timer(cpu);
     cpu->halted = 0;
 
     if (hvf_process_events(cpu)) {
@@ -812,6 +818,7 @@ int hvf_vcpu_exec(CPUState *cpu)
             vmx_clear_nmi_window_exiting(cpu);
             ret = EXCP_INTERRUPT;
             break;
+        case EXIT_REASON_VMX_PREEMPT:
         case EXIT_REASON_EXT_INTR:
             /* force exit and allow io handling */
             ret = EXCP_INTERRUPT;

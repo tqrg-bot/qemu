@@ -219,4 +219,22 @@ static inline void vmx_clear_nmi_window_exiting(CPUState *cpu)
           ~VMCS_PRI_PROC_BASED_CTLS_NMI_WINDOW_EXITING);
 }
 
+static inline void vmx_enable_preemption_timer(CPUState *cpu)
+{
+    uint64_t val;
+    val = rvmcs(cpu->hvf_fd, VMCS_PIN_BASED_CTLS);
+    wvmcs(cpu->hvf_fd, VMCS_PIN_BASED_CTLS, val |
+          VMCS_PIN_BASED_CTLS_PREEMPTION_TIMER);
+
+}
+
+static inline void vmx_disable_preemption_timer(CPUState *cpu)
+{
+
+    uint64_t val;
+    val = rvmcs(cpu->hvf_fd, VMCS_PIN_BASED_CTLS);
+    wvmcs(cpu->hvf_fd, VMCS_PIN_BASED_CTLS, val &
+          ~VMCS_PIN_BASED_CTLS_PREEMPTION_TIMER);
+}
+
 #endif
