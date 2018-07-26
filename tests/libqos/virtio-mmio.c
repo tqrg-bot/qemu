@@ -208,16 +208,16 @@ void qvirtio_mmio_init_device(QVirtioMMIODevice *dev, QTestState *qts,
 			      uint64_t addr, uint32_t page_size)
 {
     uint32_t magic;
-    magic = qtest_readl(dev->qts, addr + QVIRTIO_MMIO_MAGIC_VALUE);
+    magic = qtest_readl(qts, addr + QVIRTIO_MMIO_MAGIC_VALUE);
     g_assert(magic == ('v' | 'i' << 8 | 'r' << 16 | 't' << 24));
 
     dev->qts = qts;
     dev->addr = addr;
     dev->page_size = page_size;
-    dev->vdev.device_type = qtest_readl(dev->qts, addr + QVIRTIO_MMIO_DEVICE_ID);
+    dev->vdev.device_type = qtest_readl(qts, addr + QVIRTIO_MMIO_DEVICE_ID);
     dev->vdev.bus = &qvirtio_mmio;
 
-    qtest_writel(dev->qts, addr + QVIRTIO_MMIO_GUEST_PAGE_SIZE, page_size);
+    qtest_writel(qts, addr + QVIRTIO_MMIO_GUEST_PAGE_SIZE, page_size);
 
     dev->obj.get_driver = qvirtio_mmio_get_driver;
     dev->obj.start_hw = qvirtio_mmio_start_hw;
