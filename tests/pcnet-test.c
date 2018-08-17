@@ -9,23 +9,56 @@
 
 #include "qemu/osdep.h"
 #include "libqtest.h"
+#include "libqos/qgraph.h"
+#include "libqos/pci.h"
 
-/* Tests only initialization so far. TODO: Replace with functional tests */
-static void pci_nop(void)
+typedef struct QPCNet QPCNet;
+
+struct QPCNet {
+    QOSGraphObject obj;
+    QPCIDevice dev;
+};
+
+static void pcnet_destructor(QOSGraphObject *obj)
 {
+    QPCNet *pcnet = (QPCNet *)obj;
+    g_free(pcnet);
 }
 
-int main(int argc, char **argv)
+static void *pcnet_get_driver(void *obj, const char *interface)
 {
-    int ret;
+    QPCNet *pcnet = obj;
 
-    g_test_init(&argc, &argv, NULL);
-    qtest_add_func("/pcnet/pci/nop", pci_nop);
+    if (!g_strcmp0(interface, "pci-device")) {
+        return &pcnet->dev;
+    }
 
-    qtest_start("-device pcnet");
-    ret = g_test_run();
-
-    qtest_end();
-
-    return ret;
+    fprintf(stderr, "%s not present in pcnet\n", interface);
+    g_assert_not_reached();
 }
+
+static void *pcnet_create(void *pci_bus, QGuestAllocator *alloc, void *addr)
+{
+    QPCNet *pcnet = g_new0(QPCNet, 1);
+    QPCIBus *bus = pci_bus;
+
+    qpci_device_init(&pcnet->dev, bus, addr);
+    pcnet->obj.get_driver = pcnet_get_driver;
+    pcnet->obj.destructor = pcnet_destructor;
+
+    return &pcnet->obj;
+}
+
+static void pcnet_register_nodes(void)
+{
+    QOSGraphEdgeOptions opts = {
+        .extra_device_opts = "addr=04.0",
+    };
+    add_qpci_address(&opts, &(QPCIAddress) { .devfn = QPCI_DEVFN(4, 0) });
+
+    qos_node_create_driver("pcnet", pcnet_create);
+    qos_node_consumes("pcnet", "pci-bus", &opts);
+    qos_node_produces("pcnet", "pci-device");
+}
+
+libqos_init(pcnet_register_nodes);
