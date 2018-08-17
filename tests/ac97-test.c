@@ -9,23 +9,55 @@
 
 #include "qemu/osdep.h"
 #include "libqtest.h"
+#include "libqos/qgraph.h"
+#include "libqos/pci.h"
 
-/* Tests only initialization so far. TODO: Replace with functional tests */
-static void nop(void)
+typedef struct QAC97 QAC97;
+
+struct QAC97 {
+    QOSGraphObject obj;
+    QPCIDevice dev;
+};
+
+static void ac97_destructor(QOSGraphObject *obj)
 {
+    QAC97 *ac97 = (QAC97 *)obj;
+    g_free(ac97);
 }
 
-int main(int argc, char **argv)
+static void *ac97_get_driver(void *obj, const char *interface)
 {
-    int ret;
+    QAC97 *ac97 = obj;
 
-    g_test_init(&argc, &argv, NULL);
-    qtest_add_func("/ac97/nop", nop);
+    if (!g_strcmp0(interface, "pci-device")) {
+        return &ac97->dev;
+    }
 
-    qtest_start("-device AC97");
-    ret = g_test_run();
-
-    qtest_end();
-
-    return ret;
+    fprintf(stderr, "%s not present in e1000e\n", interface);
+    g_assert_not_reached();
 }
+
+static void *ac97_create(void *pci_bus, QGuestAllocator *alloc, void *addr)
+{
+    QAC97 *ac97 = g_new0(QAC97, 1);
+    QPCIBus *bus = pci_bus;
+
+    qpci_device_init(&ac97->dev, bus, addr);
+    ac97->obj.get_driver = ac97_get_driver;
+    ac97->obj.destructor = ac97_destructor;
+    return &ac97->obj;
+}
+
+static void ac97_register_nodes(void)
+{
+    QOSGraphEdgeOptions opts = {
+        .extra_device_opts = "addr=04.0",
+    };
+    add_qpci_address(&opts, &(QPCIAddress) { .devfn = QPCI_DEVFN(4, 0) });
+
+    qos_node_create_driver("AC97", ac97_create);
+    qos_node_produces("AC97", "pci-device");
+    qos_node_consumes("AC97", "pci-bus", &opts);
+}
+
+libqos_init(ac97_register_nodes);
