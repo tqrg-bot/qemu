@@ -12,7 +12,9 @@
 #include "libqtest.h"
 #include "libqos/qgraph.h"
 
-/* Tests only initialization so far. TODO: Replace with functional tests */
+/* Tests only initialization so far. TODO: Replace with functional tests,
+ * for example by producing pci-bus.
+ */
 static void test_phb_device(void *obj, void *data, QGuestAllocator *alloc)
 {
 }
