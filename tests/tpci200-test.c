@@ -9,23 +9,64 @@
 
 #include "qemu/osdep.h"
 #include "libqtest.h"
+#include "libqos/qgraph.h"
+#include "libqos/pci.h"
 
-/* Tests only initialization so far. TODO: Replace with functional tests */
-static void nop(void)
+typedef struct QTpci200 QTpci200;
+typedef struct QIpack QIpack;
+
+struct QIpack {
+
+};
+struct QTpci200 {
+    QOSGraphObject obj;
+    QPCIDevice dev;
+    QIpack ipack;
+};
+
+/* tpci200 */
+static void *tpci200_get_driver(void *obj, const char *interface)
 {
+    QTpci200 *tpci200 = obj;
+    if (!g_strcmp0(interface, "ipack")) {
+        return &tpci200->ipack;
+    }
+    if (!g_strcmp0(interface, "pci-device")) {
+        return &tpci200->dev;
+    }
+
+    fprintf(stderr, "%s not present in tpci200\n", interface);
+    g_assert_not_reached();
 }
 
-int main(int argc, char **argv)
+static void tpci200_destructor(QOSGraphObject *obj)
 {
-    int ret;
-
-    g_test_init(&argc, &argv, NULL);
-    qtest_add_func("/tpci200/nop", nop);
-
-    qtest_start("-device tpci200");
-    ret = g_test_run();
-
-    qtest_end();
-
-    return ret;
+    QTpci200 *tpci200 = (QTpci200 *) obj;
+    g_free(tpci200);
 }
+
+static void *tpci200_create(void *pci_bus, QGuestAllocator *alloc, void *addr)
+{
+    QTpci200 *tpci200 = g_new0(QTpci200, 1);
+    QPCIBus *bus = pci_bus;
+
+    qpci_device_init(&tpci200->dev, bus, addr);
+    tpci200->obj.get_driver = tpci200_get_driver;
+    tpci200->obj.destructor = tpci200_destructor;
+    return &tpci200->obj;
+}
+
+static void tpci200_register_nodes(void)
+{
+    QOSGraphEdgeOptions opts = {
+        .extra_device_opts = "addr=04.0,id=ipack0",
+    };
+    add_qpci_address(&opts, &(QPCIAddress) { .devfn = QPCI_DEVFN(4, 0) });
+
+    qos_node_create_driver("tpci200", tpci200_create);
+    qos_node_consumes("tpci200", "pci-bus", &opts);
+    qos_node_produces("tpci200", "ipack");
+    qos_node_produces("tpci200", "pci-device");
+}
+
+libqos_init(tpci200_register_nodes);
