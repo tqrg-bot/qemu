@@ -19,7 +19,7 @@
 #include "qemu/osdep.h"
 #include "libqtest.h"
 #include "libqos/qgraph.h"
-#include "libqos/qgraph_extra.h"
+#include "libqos/qgraph_internal.h"
 
 #define MACHINE_PC "x86_64/pc"
 #define MACHINE_RASPI2 "arm/raspi2"
@@ -73,31 +73,37 @@ static void check_machine(const char *machine)
 
 static void check_contains(const char *machine, const char *driver)
 {
+    QOSGraphEdge *edge;
     qos_node_contains(machine, driver, NULL);
-    g_assert_nonnull(qos_graph_get_edge(machine, driver));
-    g_assert_cmpint(qos_graph_get_edge_type(machine, driver), ==,
-                    QEDGE_CONTAINS);
+
+    edge = qos_graph_get_edge(machine, driver);
+    g_assert_nonnull(edge);
+    g_assert_cmpint(qos_graph_edge_get_type(edge), ==, QEDGE_CONTAINS);
     g_assert_cmpint(qos_graph_has_edge(machine, driver), ==, TRUE);
 }
 
 static void check_produces(const char *machine, const char *interface)
 {
+    QOSGraphEdge *edge;
+
     qos_node_produces(machine, interface);
     check_interface(interface);
-    g_assert_nonnull(qos_graph_get_edge(machine, interface));
-    g_assert_cmpint(qos_graph_get_edge_type(machine, interface), ==,
+    edge = qos_graph_get_edge(machine, interface);
+    g_assert_nonnull(edge);
+    g_assert_cmpint(qos_graph_edge_get_type(edge), ==,
                     QEDGE_PRODUCES);
     g_assert_cmpint(qos_graph_has_edge(machine, interface), ==, TRUE);
 }
 
 static void check_consumes(const char *driver, const char *interface)
 {
+    QOSGraphEdge *edge;
+
     qos_node_consumes(driver, interface, NULL);
     check_interface(interface);
-    g_assert_nonnull(qos_graph_get_edge(interface, driver));
-    g_assert_cmpint(
-                    qos_graph_get_edge_type(interface, driver), ==,
-                    QEDGE_CONSUMED_BY);
+    edge = qos_graph_get_edge(interface, driver);
+    g_assert_nonnull(edge);
+    g_assert_cmpint(qos_graph_edge_get_type(edge), ==, QEDGE_CONSUMED_BY);
     g_assert_cmpint(qos_graph_has_edge(interface, driver), ==, TRUE);
 }
 
@@ -115,13 +121,16 @@ static void check_driver(const char *driver)
 
 static void check_test(const char *test, const char *interface)
 {
+    QOSGraphEdge *edge;
+
     qos_add_test(test, interface, testfunct, NULL);
     g_assert_cmpint(qos_graph_has_machine(test), ==, FALSE);
     g_assert_nonnull(qos_graph_get_node(test));
     g_assert_cmpint(qos_graph_has_node(test), ==, TRUE);
     g_assert_cmpint(qos_graph_get_node_type(test), ==, QNODE_TEST);
-    g_assert_nonnull(qos_graph_get_edge(interface, test));
-    g_assert_cmpint(qos_graph_get_edge_type(interface, test), ==,
+    edge = qos_graph_get_edge(interface, test);
+    g_assert_nonnull(edge);
+    g_assert_cmpint(qos_graph_edge_get_type(edge), ==,
                     QEDGE_CONSUMED_BY);
     g_assert_cmpint(qos_graph_has_edge(interface, test), ==, TRUE);
     g_assert_cmpint(qos_graph_get_node_availability(test), ==, TRUE);

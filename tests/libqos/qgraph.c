@@ -19,7 +19,7 @@
 #include "qemu/osdep.h"
 #include "libqtest.h"
 #include "qemu/queue.h"
-#include "libqos/qgraph_extra.h"
+#include "libqos/qgraph_internal.h"
 #include "libqos/qgraph.h"
 
 #define QGRAPH_PRINT_DEBUG 0
@@ -476,17 +476,15 @@ QOSGraphEdge *qos_graph_get_edge(const char *node, const char *dest)
     return search_list_edges(list, dest);
 }
 
-QOSEdgeType qos_graph_get_edge_type(const char *node1, const char *node2)
+QOSEdgeType qos_graph_edge_get_type(QOSGraphEdge *edge)
 {
-    QOSGraphEdgeList *list = get_edgelist(node1);
-    QOSGraphEdge *e = search_list_edges(list, node2);
-    if (e) {
-        return e->type;
+    if (!edge) {
+        return -1;
     }
-    return -1;
+    return edge->type;;
 }
 
-char *qos_graph_get_edge_dest(QOSGraphEdge *edge)
+char *qos_graph_edge_get_dest(QOSGraphEdge *edge)
 {
     if (!edge) {
         return NULL;
@@ -494,7 +492,7 @@ char *qos_graph_get_edge_dest(QOSGraphEdge *edge)
     return edge->dest;
 }
 
-void *qos_graph_get_edge_arg(QOSGraphEdge *edge)
+void *qos_graph_edge_get_arg(QOSGraphEdge *edge)
 {
     if (!edge) {
         return NULL;
@@ -502,7 +500,7 @@ void *qos_graph_get_edge_arg(QOSGraphEdge *edge)
     return edge->arg;
 }
 
-char *qos_graph_get_edge_after_cmd_line(QOSGraphEdge *edge)
+char *qos_graph_edge_get_after_cmd_line(QOSGraphEdge *edge)
 {
     if (!edge) {
         return NULL;
@@ -510,7 +508,7 @@ char *qos_graph_get_edge_after_cmd_line(QOSGraphEdge *edge)
     return edge->after_command_line;
 }
 
-char *qos_graph_get_edge_before_cmd_line(QOSGraphEdge *edge)
+char *qos_graph_edge_get_before_cmd_line(QOSGraphEdge *edge)
 {
     if (!edge) {
         return NULL;
@@ -518,7 +516,7 @@ char *qos_graph_get_edge_before_cmd_line(QOSGraphEdge *edge)
     return edge->before_command_line;
 }
 
-char *qos_graph_get_edge_name(QOSGraphEdge *edge)
+char *qos_graph_edge_get_name(QOSGraphEdge *edge)
 {
     if (!edge) {
         return NULL;
@@ -594,11 +592,12 @@ void qos_add_test(const char *name, const char *interface,
                   QOSTestFunc test_func, QOSGraphTestOptions *opts)
 {
     QOSGraphNode *node;
+    char *test_name = g_strdup_printf("%s/%s", interface, name);;
 
     if (!opts) {
         opts = &(QOSGraphTestOptions) { };
     }
-    node = create_node(name, QNODE_TEST);
+    node = create_node(test_name, QNODE_TEST);
     node->u.test.function = test_func;
     node->u.test.arg = g_memdup(opts->edge.arg, opts->edge.size_arg);
 
@@ -607,9 +606,9 @@ void qos_add_test(const char *name, const char *interface,
     opts->edge.size_arg = 0;
 
     node->u.test.before = opts->before;
-    node->u.test.after = opts->after;
     node->available = TRUE;
-    add_edge(interface, name, QEDGE_CONSUMED_BY, &opts->edge);
+    add_edge(interface, test_name, QEDGE_CONSUMED_BY, &opts->edge);
+    g_free(test_name);
 }
 
 void qos_node_create_machine(const char *name, QOSCreateMachineFunc function)

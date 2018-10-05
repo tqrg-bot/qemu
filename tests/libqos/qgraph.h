@@ -40,7 +40,7 @@ typedef struct QOSGraphTestOptions QOSGraphTestOptions;
 /* Constructor for drivers, machines and test */
 typedef void *(*QOSCreateDriverFunc) (void *parent, QGuestAllocator *alloc,
                                       void *addr);
-typedef void *(*QOSCreateMachineFunc) (void);
+typedef void *(*QOSCreateMachineFunc) (QTestState *qts);
 typedef void (*QOSTestFunc) (void *parent, void *arg, QGuestAllocator *alloc);
 
 /* QOSGraphObject functions */
@@ -50,11 +50,7 @@ typedef void (*QOSDestructorFunc) (QOSGraphObject *object);
 typedef void (*QOSStartFunct) (QOSGraphObject *object);
 
 /* Test options functions */
-typedef void (*QOSBeforeTest) (char **cmd_line);
-typedef void (*QOSAfterTest) (void);
-
-/* Driver options functions */
-typedef void *(*QOSBeforeDriver) (char **cmd_line);
+typedef void *(*QOSBeforeTest) (GString *cmd_line, void *arg);
 
 /**
  * SECTION: qgraph.h
@@ -341,11 +337,9 @@ struct QOSGraphTestOptions {
                                  * and uses instead arg and size_arg as
                                  * data arg for its test function.
                                  */
-    QOSBeforeTest before;       /* executed before the test. Can also add
+    QOSBeforeTest before;       /* executed before the test. Can add
                                  * additional parameters to the command line
-                                 */
-    QOSAfterTest after;         /* executed after the test, used to free
-                                 * things allocated by @before
+				 * and modify the argument to the test function.
                                  */
 };
 

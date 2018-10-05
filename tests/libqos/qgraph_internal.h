@@ -60,10 +60,6 @@ struct QOSGraphNode {
     char *command_line; /* used to start QEMU at test execution */
     union {
         struct {
-            QOSBeforeDriver before; /* used when the driver needs additional
-                                     * command line mixed with file descriptors
-                                     * or reference made by invoking functions
-                                     */
             QOSCreateDriverFunc constructor;
         } driver;
         struct {
@@ -73,7 +69,6 @@ struct QOSGraphNode {
             QOSTestFunc function;
             void *arg;
             QOSBeforeTest before;
-            QOSAfterTest after;
         } test;
     } u;
 
@@ -124,22 +119,22 @@ bool qos_graph_get_node_availability(const char *node);
 QOSGraphEdge *qos_graph_get_edge(const char *node, const char *dest);
 
 /**
- * qos_graph_get_edge_type(): returns the edge type
- * of the edge linking of the node @start with @dest.
+ * qos_graph_edge_get_type(): returns the edge type
+ * of the edge @edge.
  *
  * Returns: on success: the %QOSEdgeType
  *          otherwise: #-1
  */
-QOSEdgeType qos_graph_get_edge_type(const char *start, const char *dest);
+QOSEdgeType qos_graph_edge_get_type(QOSGraphEdge *edge);
 
 /**
- * qos_graph_get_edge_dest(): returns the name of the node
+ * qos_graph_edge_get_dest(): returns the name of the node
  * pointed as destination of edge @edge.
  *
  * Returns: on success: the destination
  *          otherwise: #NULL
  */
-char *qos_graph_get_edge_dest(QOSGraphEdge *edge);
+char *qos_graph_edge_get_dest(QOSGraphEdge *edge);
 
 /**
  * qos_graph_has_edge(): returns #TRUE if there
@@ -148,36 +143,36 @@ char *qos_graph_get_edge_dest(QOSGraphEdge *edge);
 bool qos_graph_has_edge(const char *start, const char *dest);
 
 /**
- * qos_graph_get_edge_arg(): returns the args assigned
+ * qos_graph_edge_get_arg(): returns the args assigned
  * to that @edge.
  *
  * Returns: on success: the arg
  *          otherwise: #NULL
  */
-void *qos_graph_get_edge_arg(QOSGraphEdge *edge);
+void *qos_graph_edge_get_arg(QOSGraphEdge *edge);
 
 /**
- * qos_graph_get_edge_after_cmd_line(): returns the arg
+ * qos_graph_edge_get_after_cmd_line(): returns the arg
  * command line that will be added after the node cmd
  * line.
  *
  * Returns: on success: the char* arg
  *          otherwise: #NULL
  */
-char *qos_graph_get_edge_after_cmd_line(QOSGraphEdge *edge);
+char *qos_graph_edge_get_after_cmd_line(QOSGraphEdge *edge);
 
 /**
- * qos_graph_get_edge_before_cmd_line(): returns the arg
+ * qos_graph_edge_get_before_cmd_line(): returns the arg
  * command line that will be added before the node cmd
  * line.
  *
  * Returns: on success: the char* arg
  *          otherwise: #NULL
  */
-char *qos_graph_get_edge_before_cmd_line(QOSGraphEdge *edge);
+char *qos_graph_edge_get_before_cmd_line(QOSGraphEdge *edge);
 
 /**
- * qos_graph_get_edge_name(): returns the name
+ * qos_graph_edge_get_name(): returns the name
  * assigned to the destination node (different only)
  * if there are multiple devices with the same node name
  * e.g. a node has two "generic-sdhci", "emmc" and "sdcard"
@@ -185,7 +180,7 @@ char *qos_graph_get_edge_before_cmd_line(QOSGraphEdge *edge);
  *
  * Returns always the char* edge_name
  */
-char *qos_graph_get_edge_name(QOSGraphEdge *edge);
+char *qos_graph_edge_get_name(QOSGraphEdge *edge);
 
 /**
  * qos_graph_get_machine(): returns the machine assigned
