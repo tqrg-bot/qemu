@@ -43,6 +43,15 @@ typedef struct QVirtioPCIForeachData {
     void *user_data;
 } QVirtioPCIForeachData;
 
+static inline bool qvirtio_pci_is_big_endian(QVirtioDevice *d)
+{
+    QVirtioPCIDevice *dev = container_of(d, QVirtioPCIDevice, vdev);
+    QPCIBus *bus = dev->pdev->bus;
+
+    /* FIXME: virtio 1.0 is always little-endian */
+    return qtest_big_endian(bus->qts);
+}
+
 void qvirtio_pci_device_free(QVirtioPCIDevice *dev)
 {
     g_free(dev->pdev);
@@ -98,7 +107,7 @@ static uint8_t qvirtio_pci_config_readb(QVirtioDevice *d, uint64_t off)
  * so with a big-endian guest the order has been reversed,
  * reverse it again
  * virtio-1.0 is always little-endian, like PCI, but this
- * case will be managed inside qvirtio_is_big_endian()
+ * case will be managed inside qvirtio_pci_is_big_endian()
  */
 
 static uint16_t qvirtio_pci_config_readw(QVirtioDevice *d, uint64_t off)
@@ -107,7 +116,7 @@ static uint16_t qvirtio_pci_config_readw(QVirtioDevice *d, uint64_t off)
     uint16_t value;
 
     value = qpci_io_readw(dev->pdev, dev->bar, CONFIG_BASE(dev) + off);
-    if (qvirtio_is_big_endian(d)) {
+    if (qvirtio_pci_is_big_endian(d)) {
         value = bswap16(value);
     }
     return value;
@@ -119,7 +128,7 @@ static uint32_t qvirtio_pci_config_readl(QVirtioDevice *d, uint64_t off)
     uint32_t value;
 
     value = qpci_io_readl(dev->pdev, dev->bar, CONFIG_BASE(dev) + off);
-    if (qvirtio_is_big_endian(d)) {
+    if (qvirtio_pci_is_big_endian(d)) {
         value = bswap32(value);
     }
     return value;
@@ -131,7 +140,7 @@ static uint64_t qvirtio_pci_config_readq(QVirtioDevice *d, uint64_t off)
     uint64_t val;
 
     val = qpci_io_readq(dev->pdev, dev->bar, CONFIG_BASE(dev) + off);
-    if (qvirtio_is_big_endian(d)) {
+    if (qvirtio_pci_is_big_endian(d)) {
         val = bswap64(val);
     }
 
