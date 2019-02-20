@@ -557,8 +557,6 @@ static void test_server_free(TestServer *server)
     while (g_main_context_pending(NULL)) {
         g_main_context_iteration(NULL, TRUE);
     }
-    g_main_loop_unref(server->loop);
-    g_main_context_unref(server->context);
 
     qemu_chr_fe_deinit(&server->chr, true);
 
@@ -580,6 +578,8 @@ static void test_server_free(TestServer *server)
     g_assert(server->bus);
     qpci_free_pc(server->bus);
 
+    g_main_loop_unref(server->loop);
+    g_main_context_unref(server->context);
     g_free(server);
 }
 
