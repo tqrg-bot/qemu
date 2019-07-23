@@ -4,6 +4,7 @@ cc = meson.get_compiler('c')
 kconfig = import('unstable-kconfig')
 ss = import('sourceset')
 config_host = kconfig.load(meson.current_build_dir() / 'config-host.mak')
+config_all_disas = kconfig.load(meson.current_build_dir() / 'config-all-disas.mak')
 
 add_project_arguments(config_host['CFLAGS'].split(),
                       language: ['c', 'objc'])
@@ -105,15 +106,95 @@ if 'CONFIG_LIBUDEV' in config_host
   libudev = declare_dependency(link_args: config_host['LIBUDEV_LIBS'].split())
 endif
 
+create_config = find_program('scripts/create_config')
+minikconf = find_program('scripts/minikconf.py')
 target_dirs = config_host['TARGET_DIRS'].split()
 have_user = false
 have_system = false
+target_devices_kconfs = []
+target_devices_h = {}
+target_config = {}
+kconfig_external_symbols = [
+  'CONFIG_KVM',
+  'CONFIG_XEN',
+  'CONFIG_TPM',
+  'CONFIG_SPICE',
+  'CONFIG_IVSHMEM',
+  'CONFIG_OPENGL',
+  'CONFIG_X11',
+  'CONFIG_VHOST_USER',
+  'CONFIG_VHOST_KERNEL',
+  'CONFIG_VIRTFS',
+  'CONFIG_LINUX',
+  'CONFIG_PVRDMA',
+]
 foreach target : target_dirs
   have_user = have_user or target.endswith('-user')
-  have_system = have_system or target.endswith('-softmmu')
+  config_target = kconfig.load(meson.current_build_dir() / target / 'config-target.mak') + config_host
+
+  if target.endswith('-softmmu')
+    have_system = true
+
+    base_kconfig = []
+    foreach sym : kconfig_external_symbols
+      if sym in config_target
+        base_kconfig += '@0@=y'.format(sym)
+      endif
+    endforeach
+
+    config_devices_mak = target + '-config-devices.mak'
+    config_devices_mak = configure_file(
+      input: ['default-configs' / target + '.mak', 'Kconfig.host', 'hw/Kconfig'],
+      output: config_devices_mak,
+      depfile: config_devices_mak + '.d',
+      capture: true,
+      command: [minikconf, config_host['CONFIG_MINIKCONF_MODE'],
+                config_devices_mak, '@DEPFILE@', '@INPUT@',
+                base_kconfig])
+    config_devices_h = custom_target(
+      target + '-config-devices.h',
+      input: config_devices_mak,
+      output: target + '-config-devices.h',
+      capture: true,
+      command: [create_config, '@INPUT@'])
+    target_devices_kconfs += config_devices_mak
+    target_devices_h += {target: config_devices_h}
+    config_target += kconfig.load(config_devices_mak)
+  endif
+  target_config += {target: config_target}
 endforeach
 have_tools = 'CONFIG_TOOLS' in config_host
 have_block = have_system or have_tools
+
+grepy = find_program('scripts/grepy.sh')
+# This configuration is used to build files that are shared by
+# multiple binaries, and then extracted out of the "common"
+# static_library target.
+#
+# We do not use all_sources()/all_dependencies(), because it would
+# build literally all source files, including devices only used by
+# targets that are not built for this compilation.  The CONFIG_ALL
+# pseudo symbol replaces it.
+
+config_all = {}
+if have_system
+  config_all_devices_inputs = []
+  config_all_devices = configure_file(
+    output: 'config-all-devices.mak',
+    input: target_devices_kconfs,
+    capture: true,
+    command: [grepy, '@INPUT@'],
+  )
+  config_all += kconfig.load(config_all_devices)
+endif
+config_all += config_host
+config_all += config_all_disas
+config_all += {
+  'CONFIG_XEN': config_host.has_key('CONFIG_XEN_BACKEND'),
+  'CONFIG_SOFTMMU': have_system,
+  'CONFIG_USER_ONLY': have_user,
+  'CONFIG_ALL': true,
+}
 
 # Generators
 
@@ -127,6 +208,12 @@ qapi_gen_depends = [ meson.source_root() / 'scripts/qapi/events.py',
                      meson.source_root() / 'scripts/qapi/common.py',
                      meson.source_root() / 'scripts/qapi/doc.py',
                      meson.source_root() / 'scripts/qapi-gen.py' ]
+
+config_host_h = custom_target('config-host.h',
+                              input: meson.current_build_dir() / 'config-host.mak',
+                              output: 'config-host.h',
+                              capture: true,
+                              command: [create_config, '@INPUT@'])
 
 hxdep = []
 hx_headers = [
@@ -167,6 +254,16 @@ endforeach
 util_ss = ss.source_set()
 stub_ss = ss.source_set()
 trace_ss = ss.source_set()
+common_ss = ss.source_set()
+softmmu_ss = ss.source_set()
+user_ss = ss.source_set()
+bsd_user_ss = ss.source_set()
+linux_user_ss = ss.source_set()
+specific_ss = ss.source_set()
+
+hw_arch = {}
+target_arch = {}
+target_softmmu_arch = {}
 
 # TODO: add each directory to the subdirs from its own meson.build, once
 # we have those
@@ -254,7 +351,7 @@ trace_events_subdirs += [
   'util',
 ]
 
-genh = []
+genh = [config_host_h]
 subdir('qapi')
 subdir('qobject')
 subdir('stubs')
@@ -279,6 +376,87 @@ qemuutil = declare_dependency(link_with: libqemuutil,
 
 subdir('io')
 subdir('fsdev')
+
+common_ss.add_all(when: 'CONFIG_SOFTMMU', if_true: softmmu_ss)
+common_ss.add_all(when: 'CONFIG_USER_ONLY', if_true: user_ss)
+
+common_all = common_ss.apply(config_all, strict: false)
+common_all = static_library('common',
+                            sources: common_all.sources(),
+                            dependencies: common_all.dependencies(),
+                            name_suffix: 'fa')
+
+foreach target : target_dirs
+  config_target = target_config[target]
+  target_name = config_target['TARGET_NAME']
+  arch = config_target['TARGET_BASE_ARCH']
+  arch_srcs = []
+  arch_deps = []
+
+  target_inc = [include_directories('target' / config_target['TARGET_BASE_ARCH'])]
+  if host_machine.system() == 'linux'
+    target_inc += include_directories('linux-headers')
+  endif
+  if target.endswith('-softmmu')
+    qemu_target_name = 'qemu-system-' + target_name
+    target_type='system'
+    t = target_softmmu_arch[arch].apply(config_target, strict: false)
+    arch_srcs += t.sources()
+    arch_deps += t.dependencies()
+
+    if target_name == 'sparc64'
+      hw = hw_arch['sparc64'].apply(config_target, strict: false)
+    else
+      hw = hw_arch[arch].apply(config_target, strict: false)
+    endif
+    arch_srcs += hw.sources()
+    arch_srcs += target_devices_h[target]
+    arch_deps += hw.dependencies()
+  else
+    target_type='user'
+    qemu_target_name = 'qemu-' + target_name
+    if 'CONFIG_LINUX_USER' in config_target
+      base_dir = 'linux-user'
+    else
+      base_dir = 'bsd-user'
+    endif
+    target_inc += include_directories(
+      base_dir,
+      base_dir / config_target['TARGET_ABI_DIR'],
+    )
+    if 'CONFIG_LINUX_USER' in config_target
+      dir = base_dir / config_target['TARGET_ABI_DIR']
+      target_inc += include_directories(base_dir / 'host' / config_target['ARCH'])
+      arch_srcs += files(dir / 'signal.c', dir / 'cpu_loop.c')
+    endif
+  endif
+
+  t = target_arch[arch].apply(config_target, strict: false)
+  arch_srcs += t.sources()
+  arch_deps += t.dependencies()
+
+  target_common = common_ss.apply(config_target, strict: false)
+  objects = common_all.extract_objects(target_common.sources())
+  deps = target_common.dependencies()
+
+  # TODO: Change to generator once obj-y goes away
+  config_target_h = custom_target(target + '-config-target.h',
+                              input: meson.current_build_dir() / target / 'config-target.mak',
+                              output: target + '-config-target.h',
+                              capture: true,
+                              command: [create_config, '@INPUT@'])
+
+  target_specific = specific_ss.apply(config_target, strict: false)
+  static_library('qemu-' + target,
+                 sources: target_specific.sources() + arch_srcs + [config_target_h],
+                 dependencies: target_specific.dependencies() + arch_deps + deps,
+                 objects: objects,
+                 include_directories: target_inc,
+                 c_args: ['-DNEED_CPU_H',
+                          '-DCONFIG_TARGET="@0@-config-target.h"'.format(target),
+                          '-DCONFIG_DEVICES="@0@-config-devices.h"'.format(target)],
+                 name_suffix: 'fa')
+endforeach
 
 # Other build targets
 if 'CONFIG_GUEST_AGENT' in config_host
