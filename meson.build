@@ -35,6 +35,10 @@ configure_file(input: files('scripts/ninjatool.py'),
                output: 'ninjatool',
                configuration: config_host)
 
+decodetree = generator(find_program('scripts/decodetree.py'),
+                       output: 'decode-@BASENAME@.inc',
+                       arguments: ['@INPUT@', '@EXTRA_ARGS@', '-o', '@OUTPUT@'])
+
 m = cc.find_library('m', required: false)
 util = cc.find_library('util', required: false)
 winmm = []
@@ -639,6 +643,7 @@ subdir('monitor')
 subdir('net')
 subdir('replay')
 subdir('hw')
+subdir('libdecnumber')
 subdir('target')
 
 mods = []
