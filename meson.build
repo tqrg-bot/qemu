@@ -170,10 +170,12 @@ brlapi = declare_dependency()
 if 'CONFIG_BRLAPI' in config_host
   brlapi = declare_dependency(link_args: config_host['BRLAPI_LIBS'].split())
 endif
+sdlwindows = false
 sdl = declare_dependency()
 if 'CONFIG_SDL' in config_host
   sdl = declare_dependency(compile_args: config_host['SDL_CFLAGS'].split(),
                            link_args: config_host['SDL_LIBS'].split())
+  sdlwindows = config_host['SDL_LIBS'].contains('-mwindows')
 endif
 rbd = declare_dependency()
 if 'CONFIG_RBD' in config_host
@@ -754,6 +756,7 @@ foreach target : target_dirs
   arch = config_target['TARGET_BASE_ARCH']
   arch_srcs = []
   arch_deps = []
+  link_args = []
 
   target_inc = [include_directories('target' / config_target['TARGET_BASE_ARCH'])]
   if host_machine.system() == 'linux'
@@ -774,6 +777,7 @@ foreach target : target_dirs
     arch_srcs += hw.sources()
     arch_srcs += target_devices_h[target]
     arch_deps += hw.dependencies()
+    link_args = ['@block.syms', '@qemu.syms']
   else
     target_type='user'
     qemu_target_name = 'qemu-' + target_name
@@ -827,6 +831,26 @@ foreach target : target_dirs
                           '-DCONFIG_TARGET="@0@-config-target.h"'.format(target),
                           '-DCONFIG_DEVICES="@0@-config-devices.h"'.format(target)],
                  name_suffix: 'fa')
+
+  execs = [{'postfix': '', 'gui': false}]
+  if sdlwindows
+    execs += [{'postfix': 'w', 'gui': true}]
+  endif
+  foreach exe: execs
+    exe_name = qemu_target_name + exe['postfix']
+    executable(exe_name,
+               install: true,
+               sources: target_specific.sources() + arch_srcs + [config_target_h],
+               dependencies: [qom, qemuutil] + target_specific.dependencies() + arch_deps + deps,
+               link_depends: [block_syms, qemu_syms],
+               link_args: link_args,
+               objects: objects,
+               gui_app: exe['gui'],
+               include_directories: target_inc,
+               c_args: ['-DNEED_CPU_H',
+                        '-DCONFIG_TARGET="@0@-config-target.h"'.format(target),
+                        '-DCONFIG_DEVICES="@0@-config-devices.h"'.format(target)])
+  endforeach
 endforeach
 
 # Other build targets
