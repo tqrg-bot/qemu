@@ -646,7 +646,11 @@ subdir('hw')
 subdir('libdecnumber')
 subdir('target')
 subdir('accel')
+subdir('bsd-user')
 subdir('linux-user')
+
+bsd_user_ss.add(files('gdbstub.c'))
+specific_ss.add_all(when: 'CONFIG_BSD_USER', if_true: bsd_user_ss)
 
 linux_user_ss.add(files('gdbstub.c', 'thunk.c'))
 specific_ss.add_all(when: 'CONFIG_LINUX_USER', if_true: linux_user_ss)
