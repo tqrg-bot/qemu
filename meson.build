@@ -7,6 +7,7 @@ config_host = kconfig.load(meson.current_build_dir() / 'config-host.mak')
 config_all_disas = kconfig.load(meson.current_build_dir() / 'config-all-disas.mak')
 
 enable_modules = 'CONFIG_MODULES' in config_host
+build_docs = 'BUILD_DOCS' in config_host
 
 add_project_arguments(config_host['CFLAGS'].split(),
                       language: ['c', 'objc'])
@@ -923,3 +924,4 @@ if have_tools
 endif
 
 subdir('pc-bios')
+subdir('docs')
