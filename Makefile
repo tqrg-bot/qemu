@@ -235,9 +235,6 @@ ifneq ($(vhost-user-json-y),)
 		$(INSTALL_DATA) $$x "$(DESTDIR)$(qemu_datadir)/vhost-user/"; \
 	done
 endif
-ifdef CONFIG_GTK
-	$(MAKE) -C po $@
-endif
 
 .PHONY: ctags
 ctags:
