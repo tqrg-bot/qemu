@@ -232,8 +232,6 @@ ifeq ($(CONFIG_GUEST_AGENT),y)
 endif
 endif
 
-ICON_SIZES=16x16 24x24 32x32 48x48 64x64 128x128 256x256 512x512
-
 install: all install-datadir install-localstatedir \
 	recurse-install
 ifneq ($(vhost-user-json-y),)
@@ -242,18 +240,6 @@ ifneq ($(vhost-user-json-y),)
 		$(INSTALL_DATA) $$x "$(DESTDIR)$(qemu_datadir)/vhost-user/"; \
 	done
 endif
-	for s in $(ICON_SIZES); do \
-		mkdir -p "$(DESTDIR)$(qemu_icondir)/hicolor/$${s}/apps"; \
-		$(INSTALL_DATA) $(SRC_PATH)/ui/icons/qemu_$${s}.png \
-			"$(DESTDIR)$(qemu_icondir)/hicolor/$${s}/apps/qemu.png"; \
-	done; \
-	mkdir -p "$(DESTDIR)$(qemu_icondir)/hicolor/32x32/apps"; \
-	$(INSTALL_DATA) $(SRC_PATH)/ui/icons/qemu_32x32.bmp \
-		"$(DESTDIR)$(qemu_icondir)/hicolor/32x32/apps/qemu.bmp"; \
-	mkdir -p "$(DESTDIR)$(qemu_icondir)/hicolor/scalable/apps"; \
-	$(INSTALL_DATA) $(SRC_PATH)/ui/icons/qemu.svg \
-		"$(DESTDIR)$(qemu_icondir)/hicolor/scalable/apps/qemu.svg"
-	mkdir -p "$(DESTDIR)$(qemu_desktopdir)"
 	$(INSTALL_DATA) $(SRC_PATH)/ui/qemu.desktop \
 		"$(DESTDIR)$(qemu_desktopdir)/qemu.desktop"
 ifdef CONFIG_GTK
