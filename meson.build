@@ -943,6 +943,7 @@ if have_tools
   endif
 endif
 
+subdir('scripts')
 subdir('pc-bios')
 subdir('docs')
 
