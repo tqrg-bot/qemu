@@ -1076,3 +1076,5 @@ endif
 if 'CONFIG_GTK' in config_host
   subdir('po')
 endif
+
+subdir('tests')
