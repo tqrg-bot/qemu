@@ -228,3 +228,5 @@ foreach test_name, extra_args: tests
          protocol: 'tap')
   endif
 endforeach
+
+subdir('qapi-schema')
