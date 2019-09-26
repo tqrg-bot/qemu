@@ -431,3 +431,4 @@ if have_system and have_tools and 'CONFIG_POSIX' in config_host
 endif
 
 subdir('qapi-schema')
+subdir('decode')
