@@ -8,15 +8,26 @@ check-help:
 	@echo
 	@echo " $(MAKE) check-tcg            Run TCG tests"
 	@echo
-	@echo " $(MAKE) check-report.html    Generates an HTML test report"
 	@echo " $(MAKE) check-clean          Clean the tests and related data"
 	@echo
-	@echo "Please note that HTML reports do not regenerate if the unit tests"
-	@echo "have not changed."
-	@echo
 	@echo "The variable SPEED can be set to control the gtester speed setting."
-	@echo "Default options are -k and (for $(MAKE) V=1) --verbose; they can be"
-	@echo "changed with variable GTESTER_OPTIONS."
+
+meson-test = $(call quiet-command,$(MESON) test --no-rebuild $2 \
+	       --suite $1, "TEST", "$1")
+
+check-unit:
+	$(call meson-test,"unit" --no-suite "slow",--test-args "-m $(SPEED)")
+
+check-qtest:
+	$(call meson-test,"qtest",--test-args "-m $(SPEED)")
+
+check-softfloat:
+	$(call meson-test,"fp")
+
+check: check-unit check-softfloat check-qtest
+
+check-acceptance:
+	$(call meson-test,"acceptance")
 
 ifneq ($(wildcard config-host.mak),)
 export SRC_PATH
