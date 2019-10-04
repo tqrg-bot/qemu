@@ -897,6 +897,14 @@ if 'CONFIG_GUEST_AGENT' in config_host
   subdir('qga')
 endif
 
+# used for the update-keymaps target
+if xkbcommon.found()
+  qemu_keymap = executable('qemu-keymap', files('qemu-keymap.c', 'ui/input-keymap.c'),
+                           dependencies: [qemuutil, xkbcommon], install: have_tools)
+else
+  qemu_keymap = disabler()
+endif
+
 if have_tools
   executable('qemu-img', [files('qemu-img.c'), hxdep], dependencies: [block, qemuutil], install: true)
   if host_machine.system() == 'linux' or host_machine.system() == 'sunos' or host_machine.system().endswith('bsd')
@@ -906,11 +914,6 @@ if have_tools
 
   subdir('contrib/rdmacm-mux')
   subdir('contrib/elf2dmp')
-
-  if xkbcommon.found()
-    executable('qemu-keymap', files('qemu-keymap.c', 'ui/input-keymap.c'),
-               dependencies: [qemuutil, xkbcommon], install: true)
-  endif
 
   executable('qemu-edid', files('qemu-edid.c', 'hw/display/edid-generate.c'),
              dependencies: qemuutil)
