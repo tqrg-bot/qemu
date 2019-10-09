@@ -99,3 +99,8 @@ if dtc.found()
   endforeach
   alias_target('update-dtb', t)
 endif
+
+cc = meson.get_compiler('c')
+if host_machine.cpu_family() == 's390x' and cc.has_argument('-march=z900')
+  subdir('s390-ccw')
+endif
