@@ -100,6 +100,10 @@ if dtc.found()
   alias_target('update-dtb', t)
 endif
 
+if host_machine.cpu_family() in ['x86', 'x86_64']
+  subdir('optionrom')
+endif
+
 cc = meson.get_compiler('c')
 if host_machine.cpu_family() == 's390x' and cc.has_argument('-march=z900')
   subdir('s390-ccw')
